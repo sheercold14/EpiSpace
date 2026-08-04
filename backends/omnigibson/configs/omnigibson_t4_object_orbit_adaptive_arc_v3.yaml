@@ -1,0 +1,46 @@
+schema_version: omnigibson_episode_recipe.v1
+recipe_id: omnigibson_t4_object_orbit_adaptive_arc_v3
+seed: 17
+source:
+  dataset_name: behavior-1k-assets
+  source_version: behavior-1k-v3.9.0
+  scene_model: Rs_int
+  scene_instance: null
+  load_mode: full
+  floor: 0
+trajectory:
+  trajectory_class: T4
+  sampling_strategy: object_orbit
+  outbound_view_count: 8
+  candidate_count: 64
+  minimum_distance_m: 0.7
+  fallback_minimum_distance_m: 0.7
+  maximum_distance_m: 12.0
+  camera_height_m: 1.5
+  yaw_step_deg: 60.0
+  minimum_wall_clearance_m: 0.5
+  orbit_minimum_radius_m: 0.7
+  orbit_maximum_radius_m: 3.0
+  orbit_minimum_arc_deg: 270.0
+  orbit_object_clearance_m: 0.35
+  orbit_adaptive_radius: true
+  focus_categories:
+    - armchair
+    - bench
+    - breakfast_table
+    - coffee_table
+    - desk
+    - eames_chair
+    - fridge
+    - sofa
+    - straight_chair
+    - swivel_chair
+sensor:
+  width_px: 1024
+  height_px: 1024
+  horizontal_fov_deg: 90.0
+  near_m: 0.05
+  far_m: 30.0
+  minimum_instance_pixels: 128
+  render_warmup_frames: 4
+  high_quality_rendering: true

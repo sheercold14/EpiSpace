@@ -1,0 +1,33 @@
+{
+  "eligibility_policy": {
+    "purpose": "candidate generation only; simulator placement must still pass physics and visibility gates",
+    "requires": [
+      "encrypted USD present",
+      "collision bounding-box metadata",
+      "all bbox dimensions in [0.01, 3.0] m",
+      "bbox volume <= 8 m^3",
+      "non-structural category"
+    ]
+  },
+  "inventory_id": "behavior-1k-v3.9.0-object-models-v1",
+  "schema_version": "omnigibson_object_inventory_summary.v1",
+  "source_asset_version": "3.9.0",
+  "summary": {
+    "category_count": 1829,
+    "collision_ready_model_count": 8635,
+    "exclusion_reason_counts": {
+      "scale outside conservative gate": 2186,
+      "structural category": 791
+    },
+    "minimal_pair_eligible_category_count": 1675,
+    "minimal_pair_eligible_model_count": 5658,
+    "model_count": 8635,
+    "placement_tier_counts": {
+      "exclude": 2977,
+      "floor": 1574,
+      "large_floor": 99,
+      "tabletop": 3985
+    },
+    "renderable_model_count": 8635
+  }
+}

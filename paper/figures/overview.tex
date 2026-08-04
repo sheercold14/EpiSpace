@@ -1,0 +1,47 @@
+\begin{figure}[t]
+  \centering
+  \setlength{\tabcolsep}{2.5pt}
+  \renewcommand{\arraystretch}{0.95}
+  \begin{tabular}{c@{\hspace{3pt}}c@{\hspace{3pt}}c@{\hspace{3pt}}c}
+    \includegraphics[width=.225\linewidth]{../data/epispace_rgb_v1/rgb-d7c95a79dcde63d7ee43/view-000.png} &
+    \includegraphics[width=.225\linewidth]{../data/epispace_rgb_v1/rgb-d7c95a79dcde63d7ee43/view-001.png} &
+    \includegraphics[width=.225\linewidth]{../data/epispace_rgb_v1/rgb-d7c95a79dcde63d7ee43/view-002.png} &
+    \includegraphics[width=.225\linewidth]{../data/epispace_rgb_v1/rgb-d7c95a79dcde63d7ee43/view-010.png} \\
+    \scriptsize shared observation &
+    \scriptsize prefix slot &
+    \scriptsize evidence reveal &
+    \scriptsize decisive deletion \\
+    & \scriptsize $\Rightarrow$ \textbf{unknown} &
+      \scriptsize $\Rightarrow$ \textbf{present} &
+      \scriptsize $\Rightarrow$ \textbf{unknown}
+  \end{tabular}
+
+  \vspace{4pt}
+  \begin{tikzpicture}[
+      font=\scriptsize,
+      box/.style={draw, rounded corners=2pt, align=center, minimum height=9mm,
+                  text width=.145\linewidth, inner sep=2.5pt},
+      visible/.style={box, fill=blue!7, draw=blue!55!black},
+      hidden/.style={box, fill=orange!9, draw=orange!65!black},
+      eval/.style={box, fill=green!8, draw=green!45!black},
+      flow/.style={-{Stealth[length=2mm]}, semithick, draw=black!60},
+      node distance=4.5mm]
+    \node[visible] (acq) {\textbf{observe-first RGB}\\ordered trajectory};
+    \node[hidden, right=of acq] (cert) {\textbf{hidden geometry}\\typed program + replay};
+    \node[hidden, right=of cert] (family) {\textbf{sibling compiler}\\evidence / frame / claim};
+    \node[visible, right=of family] (train) {\textbf{paired SFT}\\episode vs. isolated};
+    \node[eval, right=of train] (test) {\textbf{joint evaluation}\\family + unseen signature};
+    \draw[flow] (acq) -- (cert);
+    \draw[flow] (cert) -- (family);
+    \draw[flow] (family) -- (train);
+    \draw[flow] (train) -- (test);
+  \end{tikzpicture}
+  \caption{\textbf{EpiSpace in one example and one pipeline.}
+  The upper row shows a real evidence family: every input contains the same
+  first RGB and one matched replacement; the answer to ``is there a piano?''
+  must track the decisive view rather than the scene or language prior.
+  Orange objects below are construction-only: pose, depth, masks, programs,
+  and certificates never enter the student prompt.  Blue is the RGB--language
+  interface; green denotes joint rather than independent-answer evaluation.}
+  \label{fig:overview}
+\end{figure}

@@ -1,0 +1,1533 @@
+{
+  "inventory_id": "behavior-1k-v3.9.0-installed-scenes-v1",
+  "license_boundary": {
+    "contains_external_assets": false,
+    "redistribution": "aggregate_metadata_only",
+    "source_assets_required_to_reproduce": true
+  },
+  "scenes": [
+    {
+      "category_count": 49,
+      "classification": "multi_room_rich",
+      "domain": "garden",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": false
+      },
+      "floor_count": 1,
+      "object_count": 348,
+      "rearrangeable_object_count": 36,
+      "room_count": 12,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "garden",
+        "kitchen",
+        "living_room",
+        "private_office",
+        "storage_room",
+        "utility_room"
+      ],
+      "scene_kind": "garden",
+      "scene_model": "Beechwood_0_garden",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Beechwood_0_garden/json/Beechwood_0_garden_best.json",
+      "source_json_sha256": "f7b725836ce66b60325894edf0e8f6afe2b78376786fa4c4f24040bd5c355c4f",
+      "usable_category_count": 43,
+      "usable_object_count": 276
+    },
+    {
+      "category_count": 38,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 188,
+      "rearrangeable_object_count": 32,
+      "room_count": 11,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "kitchen",
+        "living_room",
+        "private_office",
+        "storage_room",
+        "utility_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Beechwood_0_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Beechwood_0_int/json/Beechwood_0_int_best.json",
+      "source_json_sha256": "ffc218a5df78b92c557a15e0aceaba3bbb2bd1bc51665a5ce131ba0e3e97dfc9",
+      "usable_category_count": 35,
+      "usable_object_count": 125
+    },
+    {
+      "category_count": 26,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 184,
+      "rearrangeable_object_count": 28,
+      "room_count": 14,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "childs_room",
+        "closet",
+        "corridor",
+        "playroom",
+        "storage_room",
+        "television_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Beechwood_1_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Beechwood_1_int/json/Beechwood_1_int_best.json",
+      "source_json_sha256": "91b983029c7c0afef07b63c4813e75073cba21a0a649acdeb4370079a7957ef8",
+      "usable_category_count": 23,
+      "usable_object_count": 111
+    },
+    {
+      "category_count": 12,
+      "classification": "sparse",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": false,
+        "rearrangement": false,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 33,
+      "rearrangeable_object_count": 1,
+      "room_count": 4,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "empty_room",
+        "entryway"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Benevolence_0_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Benevolence_0_int/json/Benevolence_0_int_best.json",
+      "source_json_sha256": "faecffbca516e5d3f36c0c786aab171a9f947e1c86adee0128be5a633d59ed13",
+      "usable_category_count": 9,
+      "usable_object_count": 16
+    },
+    {
+      "category_count": 25,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 87,
+      "rearrangeable_object_count": 16,
+      "room_count": 6,
+      "room_types": [
+        "corridor",
+        "dining_room",
+        "kitchen",
+        "living_room",
+        "pantry_room",
+        "storage_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Benevolence_1_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Benevolence_1_int/json/Benevolence_1_int_best.json",
+      "source_json_sha256": "dc3a29104c0f12223e52a8dddcca663cdcf6dc61f77f4f03c64d51bef0cfb19f",
+      "usable_category_count": 22,
+      "usable_object_count": 62
+    },
+    {
+      "category_count": 26,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 80,
+      "rearrangeable_object_count": 9,
+      "room_count": 7,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "closet",
+        "corridor"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Benevolence_2_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Benevolence_2_int/json/Benevolence_2_int_best.json",
+      "source_json_sha256": "3b0c89d26965caf49e00f4ad5108c4a960f2937080a0a3b5acfb0b7119af26f6",
+      "usable_category_count": 23,
+      "usable_object_count": 50
+    },
+    {
+      "category_count": 23,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 89,
+      "rearrangeable_object_count": 18,
+      "room_count": 7,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "garage",
+        "living_room",
+        "storage_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Ihlen_0_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Ihlen_0_int/json/Ihlen_0_int_best.json",
+      "source_json_sha256": "c23905a0cbbaf2108b36636537765f27bc351c7933a99d02c0994004dc1585c6",
+      "usable_category_count": 20,
+      "usable_object_count": 58
+    },
+    {
+      "category_count": 33,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 175,
+      "rearrangeable_object_count": 32,
+      "room_count": 13,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "corridor",
+        "dining_room",
+        "kitchen",
+        "living_room",
+        "staircase",
+        "storage_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Ihlen_1_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Ihlen_1_int/json/Ihlen_1_int_best.json",
+      "source_json_sha256": "60c13638f7eb46474d03222567a8924611fc2c3ad3fc24b42f658e9169c9f41b",
+      "usable_category_count": 30,
+      "usable_object_count": 128
+    },
+    {
+      "category_count": 53,
+      "classification": "multi_room_rich",
+      "domain": "garden",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": false
+      },
+      "floor_count": 1,
+      "object_count": 213,
+      "rearrangeable_object_count": 29,
+      "room_count": 9,
+      "room_types": [
+        "bathroom",
+        "childs_room",
+        "closet",
+        "garden",
+        "living_room",
+        "playroom",
+        "sauna",
+        "storage_room",
+        "utility_room"
+      ],
+      "scene_kind": "garden",
+      "scene_model": "Merom_0_garden",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Merom_0_garden/json/Merom_0_garden_best.json",
+      "source_json_sha256": "eeb10a90e0cc367992db861f462fa78de497b2edffb85a8c9e43aa2334a886bb",
+      "usable_category_count": 47,
+      "usable_object_count": 171
+    },
+    {
+      "category_count": 33,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 104,
+      "rearrangeable_object_count": 22,
+      "room_count": 7,
+      "room_types": [
+        "bathroom",
+        "childs_room",
+        "closet",
+        "living_room",
+        "playroom",
+        "storage_room",
+        "utility_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Merom_0_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Merom_0_int/json/Merom_0_int_best.json",
+      "source_json_sha256": "38e05b4f6a387af57b7f56c50597fc0eac0f091889b23ea6e7253be69bfd0b93",
+      "usable_category_count": 30,
+      "usable_object_count": 75
+    },
+    {
+      "category_count": 31,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 153,
+      "rearrangeable_object_count": 35,
+      "room_count": 12,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "childs_room",
+        "closet",
+        "corridor",
+        "dining_room",
+        "empty_room",
+        "kitchen",
+        "living_room",
+        "staircase"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Merom_1_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Merom_1_int/json/Merom_1_int_best.json",
+      "source_json_sha256": "288eb3e6ef3918ebbc37e3f69eabf51d2b4e85b0c13792d4e87883669746a585",
+      "usable_category_count": 28,
+      "usable_object_count": 110
+    },
+    {
+      "category_count": 47,
+      "classification": "multi_room_rich",
+      "domain": "garden",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": false
+      },
+      "floor_count": 1,
+      "object_count": 275,
+      "rearrangeable_object_count": 21,
+      "room_count": 10,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "closet",
+        "corridor",
+        "garden",
+        "living_room",
+        "private_office",
+        "storage_room"
+      ],
+      "scene_kind": "garden",
+      "scene_model": "Pomaria_0_garden",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Pomaria_0_garden/json/Pomaria_0_garden_best.json",
+      "source_json_sha256": "cb450b966b678edbbce9e60cc999a84efa9215864d8e38c0581607816399b349",
+      "usable_category_count": 40,
+      "usable_object_count": 218
+    },
+    {
+      "category_count": 25,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 105,
+      "rearrangeable_object_count": 10,
+      "room_count": 9,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "closet",
+        "corridor",
+        "living_room",
+        "private_office",
+        "storage_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Pomaria_0_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Pomaria_0_int/json/Pomaria_0_int_best.json",
+      "source_json_sha256": "3ff1baa8b2f982832987749f23fd3bf48363a7b4fa1e7529abbf96a234f4d7dc",
+      "usable_category_count": 22,
+      "usable_object_count": 65
+    },
+    {
+      "category_count": 29,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 120,
+      "rearrangeable_object_count": 13,
+      "room_count": 7,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "kitchen",
+        "living_room",
+        "pantry_room",
+        "storage_room",
+        "utility_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Pomaria_1_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Pomaria_1_int/json/Pomaria_1_int_best.json",
+      "source_json_sha256": "876c8b84ea23c8d07d3d1b2158286a7229f921904697b02b8e531598718be970",
+      "usable_category_count": 26,
+      "usable_object_count": 84
+    },
+    {
+      "category_count": 22,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 75,
+      "rearrangeable_object_count": 9,
+      "room_count": 7,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "closet",
+        "corridor",
+        "storage_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Pomaria_2_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Pomaria_2_int/json/Pomaria_2_int_best.json",
+      "source_json_sha256": "282705ccd4bea63c442f74b0282a9c922e5df45ed4895f4df395e716e4636914",
+      "usable_category_count": 19,
+      "usable_object_count": 40
+    },
+    {
+      "category_count": 51,
+      "classification": "multi_room_rich",
+      "domain": "garden",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": false
+      },
+      "floor_count": 1,
+      "object_count": 188,
+      "rearrangeable_object_count": 29,
+      "room_count": 6,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "entryway",
+        "garden",
+        "kitchen",
+        "living_room"
+      ],
+      "scene_kind": "garden",
+      "scene_model": "Rs_garden",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Rs_garden/json/Rs_garden_best.json",
+      "source_json_sha256": "b3bd8c1d666eaf2cb09d269a351293596edee4f7c559797d289f4f6ff59e05d7",
+      "usable_category_count": 44,
+      "usable_object_count": 163
+    },
+    {
+      "category_count": 35,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 80,
+      "rearrangeable_object_count": 22,
+      "room_count": 5,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "entryway",
+        "kitchen",
+        "living_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Rs_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Rs_int/json/Rs_int_best.json",
+      "source_json_sha256": "480c309f1e2aab0f9528e29e50421146f73b7837fc35b074a151749abd71fa21",
+      "usable_category_count": 32,
+      "usable_object_count": 63
+    },
+    {
+      "category_count": 60,
+      "classification": "multi_room_rich",
+      "domain": "garden",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": false
+      },
+      "floor_count": 1,
+      "object_count": 517,
+      "rearrangeable_object_count": 82,
+      "room_count": 13,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "corridor",
+        "dining_room",
+        "garden",
+        "kitchen",
+        "living_room",
+        "storage_room"
+      ],
+      "scene_kind": "garden",
+      "scene_model": "Wainscott_0_garden",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Wainscott_0_garden/json/Wainscott_0_garden_best.json",
+      "source_json_sha256": "64560ca4ecba2d91d0ec9a361a059aaf07b2cdb31d59fe238a75f0dc143bc483",
+      "usable_category_count": 54,
+      "usable_object_count": 442
+    },
+    {
+      "category_count": 40,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 205,
+      "rearrangeable_object_count": 49,
+      "room_count": 12,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "corridor",
+        "dining_room",
+        "kitchen",
+        "living_room",
+        "storage_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Wainscott_0_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Wainscott_0_int/json/Wainscott_0_int_best.json",
+      "source_json_sha256": "3eee21b0f5189c9aafba2f52c5bcf9e26ab5f65a07bc95accf6c0cd09e9fa476",
+      "usable_category_count": 37,
+      "usable_object_count": 152
+    },
+    {
+      "category_count": 31,
+      "classification": "multi_room_rich",
+      "domain": "residential_scan",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 183,
+      "rearrangeable_object_count": 28,
+      "room_count": 16,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "closet",
+        "corridor",
+        "exercise_room",
+        "playroom",
+        "private_office",
+        "storage_room",
+        "utility_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "Wainscott_1_int",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/Wainscott_1_int/json/Wainscott_1_int_best.json",
+      "source_json_sha256": "fcb8e3d90c120c8ce5ab22e878e76c875716996e911c42aad7f797a2b3e1d3bf",
+      "usable_category_count": 28,
+      "usable_object_count": 115
+    },
+    {
+      "category_count": 19,
+      "classification": "single_room_rich",
+      "domain": "residential_synthetic",
+      "eligibility": {
+        "episode_rich": false,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 28,
+      "rearrangeable_object_count": 11,
+      "room_count": 1,
+      "room_types": [
+        "bedroom"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "gates_bedroom",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/gates_bedroom/json/gates_bedroom_best.json",
+      "source_json_sha256": "af8dd9773db2031461efc17c297b39dc2721c697fe035b04e9e46dcddfecf47b",
+      "usable_category_count": 16,
+      "usable_object_count": 22
+    },
+    {
+      "category_count": 34,
+      "classification": "multi_room_rich",
+      "domain": "retail",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 232,
+      "rearrangeable_object_count": 0,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "grocery_store"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "grocery_store_asian",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/grocery_store_asian/json/grocery_store_asian_best.json",
+      "source_json_sha256": "d077704e67b59d2e35b5580fc0bf0a9880a52e7fedec52f215bb81f3029e8c43",
+      "usable_category_count": 31,
+      "usable_object_count": 204
+    },
+    {
+      "category_count": 37,
+      "classification": "multi_room_rich",
+      "domain": "retail",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 225,
+      "rearrangeable_object_count": 25,
+      "room_count": 5,
+      "room_types": [
+        "bar",
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "grocery_store"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "grocery_store_cafe",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/grocery_store_cafe/json/grocery_store_cafe_best.json",
+      "source_json_sha256": "9954791cb1da5a908d64eea127ba02c8899c6064a43d57d01f067460a2eff665",
+      "usable_category_count": 34,
+      "usable_object_count": 178
+    },
+    {
+      "category_count": 40,
+      "classification": "multi_room_rich",
+      "domain": "retail",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 187,
+      "rearrangeable_object_count": 29,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "grocery_store"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "grocery_store_convenience",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/grocery_store_convenience/json/grocery_store_convenience_best.json",
+      "source_json_sha256": "c79ccf937b7bfd740cd761ea555c88427425ef72a3cb4386ead76cdb62a4c9d4",
+      "usable_category_count": 37,
+      "usable_object_count": 167
+    },
+    {
+      "category_count": 18,
+      "classification": "multi_room_rich",
+      "domain": "retail",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 121,
+      "rearrangeable_object_count": 0,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "grocery_store"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "grocery_store_half_stocked",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/grocery_store_half_stocked/json/grocery_store_half_stocked_best.json",
+      "source_json_sha256": "283574ff6ba4d9325851c6815adeb2952cc092f993ff72e4995b729a48669188",
+      "usable_category_count": 15,
+      "usable_object_count": 100
+    },
+    {
+      "category_count": 13,
+      "classification": "multi_room_rich",
+      "domain": "public_hall",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 95,
+      "rearrangeable_object_count": 0,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "empty_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hall_arch_wood",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hall_arch_wood/json/hall_arch_wood_best.json",
+      "source_json_sha256": "aa8749e644fc328328eafc12ac323d0d61aca1e6ec65e76da7568c446843c15f",
+      "usable_category_count": 10,
+      "usable_object_count": 74
+    },
+    {
+      "category_count": 24,
+      "classification": "multi_room_rich",
+      "domain": "public_hall",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 1328,
+      "rearrangeable_object_count": 698,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "conference_hall",
+        "corridor"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hall_conference_large",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hall_conference_large/json/hall_conference_large_best.json",
+      "source_json_sha256": "af4d81da030cc9cd613708319a0483ebc8f64749791b47fa3d364872fec62873",
+      "usable_category_count": 21,
+      "usable_object_count": 1306
+    },
+    {
+      "category_count": 20,
+      "classification": "multi_room_rich",
+      "domain": "public_hall",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 123,
+      "rearrangeable_object_count": 0,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "empty_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hall_glass_ceiling",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hall_glass_ceiling/json/hall_glass_ceiling_best.json",
+      "source_json_sha256": "b446dcca7b6c27ed7728fb499c414185dae7fabc06e8c51a3771eddd3da95291",
+      "usable_category_count": 17,
+      "usable_object_count": 106
+    },
+    {
+      "category_count": 18,
+      "classification": "multi_room_rich",
+      "domain": "public_hall",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 170,
+      "rearrangeable_object_count": 11,
+      "room_count": 3,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "empty_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hall_train_station",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hall_train_station/json/hall_train_station_best.json",
+      "source_json_sha256": "47ffe9629c7081877f86baf3e7b928d0e531ecba23346ff558b674a9159c51f3",
+      "usable_category_count": 15,
+      "usable_object_count": 137
+    },
+    {
+      "category_count": 34,
+      "classification": "multi_room_rich",
+      "domain": "hospitality",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 298,
+      "rearrangeable_object_count": 17,
+      "room_count": 9,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "gym",
+        "hammam",
+        "locker_room",
+        "sauna",
+        "spa"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hotel_gym_spa",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hotel_gym_spa/json/hotel_gym_spa_best.json",
+      "source_json_sha256": "75adaa7ece811ebc12faec874c409100d3f29a69f9f55c97560a0d3c5a95efed",
+      "usable_category_count": 31,
+      "usable_object_count": 208
+    },
+    {
+      "category_count": 22,
+      "classification": "multi_room_rich",
+      "domain": "hospitality",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 63,
+      "rearrangeable_object_count": 7,
+      "room_count": 2,
+      "room_types": [
+        "bathroom",
+        "bedroom"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hotel_suite_large",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hotel_suite_large/json/hotel_suite_large_best.json",
+      "source_json_sha256": "6b2cbcfda768730195faf000c6469b25e1e8b6fe9c40d91852e6ea5fbab4bb65",
+      "usable_category_count": 19,
+      "usable_object_count": 46
+    },
+    {
+      "category_count": 23,
+      "classification": "multi_room_rich",
+      "domain": "hospitality",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": false,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 40,
+      "rearrangeable_object_count": 2,
+      "room_count": 2,
+      "room_types": [
+        "bathroom",
+        "bedroom"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "hotel_suite_small",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/hotel_suite_small/json/hotel_suite_small_best.json",
+      "source_json_sha256": "3087cb46ddeaef255ea37a6d1c7ca8c71bd0c5b4b6a69f8ce462a1298e0a6fb3",
+      "usable_category_count": 20,
+      "usable_object_count": 28
+    },
+    {
+      "category_count": 54,
+      "classification": "multi_room_rich",
+      "domain": "residential_synthetic",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 260,
+      "rearrangeable_object_count": 11,
+      "room_count": 6,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "garage",
+        "garden",
+        "kitchen",
+        "living_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "house_double_floor_lower",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/house_double_floor_lower/json/house_double_floor_lower_best.json",
+      "source_json_sha256": "230b87eff7ae1baad1213e1686abd4005e30a0c432e569232cc05d6d3f983e69",
+      "usable_category_count": 48,
+      "usable_object_count": 196
+    },
+    {
+      "category_count": 42,
+      "classification": "multi_room_rich",
+      "domain": "residential_synthetic",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 134,
+      "rearrangeable_object_count": 16,
+      "room_count": 6,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "living_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "house_double_floor_upper",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/house_double_floor_upper/json/house_double_floor_upper_best.json",
+      "source_json_sha256": "91345151365d0e1fe6a20332f35f4821a89754597782fa7c93df043c239156d0",
+      "usable_category_count": 38,
+      "usable_object_count": 110
+    },
+    {
+      "category_count": 78,
+      "classification": "multi_room_rich",
+      "domain": "residential_synthetic",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 595,
+      "rearrangeable_object_count": 58,
+      "room_count": 21,
+      "room_types": [
+        "bathroom",
+        "bedroom",
+        "childs_room",
+        "closet",
+        "corridor",
+        "dining_room",
+        "entryway",
+        "garage",
+        "garden",
+        "kitchen",
+        "living_room",
+        "sauna",
+        "utility_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "house_single_floor",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/house_single_floor/json/house_single_floor_best.json",
+      "source_json_sha256": "ff938edffc369719de1c3a9c7202588947a1ceb1c944f8e2ddcf0712a9efbba2",
+      "usable_category_count": 72,
+      "usable_object_count": 405
+    },
+    {
+      "category_count": 15,
+      "classification": "multi_room_rich",
+      "domain": "office",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 101,
+      "rearrangeable_object_count": 63,
+      "room_count": 2,
+      "room_types": [
+        "break_room",
+        "shared_office"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "office_bike",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/office_bike/json/office_bike_best.json",
+      "source_json_sha256": "2d88ba6c1f952253a914f8025ba98aacda42d64e2c0ebf5d672b07700ee1c3b9",
+      "usable_category_count": 12,
+      "usable_object_count": 91
+    },
+    {
+      "category_count": 34,
+      "classification": "multi_room_rich",
+      "domain": "office",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 470,
+      "rearrangeable_object_count": 110,
+      "room_count": 14,
+      "room_types": [
+        "bathroom",
+        "conference_hall",
+        "copy_room",
+        "corridor",
+        "lobby",
+        "meeting_room",
+        "private_office",
+        "shared_office"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "office_cubicles_left",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/office_cubicles_left/json/office_cubicles_left_best.json",
+      "source_json_sha256": "6c293d3119e33d961786b30c48d71845b0be96b12a8b452225397e9365a691bc",
+      "usable_category_count": 31,
+      "usable_object_count": 359
+    },
+    {
+      "category_count": 30,
+      "classification": "multi_room_rich",
+      "domain": "office",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 297,
+      "rearrangeable_object_count": 37,
+      "room_count": 12,
+      "room_types": [
+        "bathroom",
+        "conference_hall",
+        "copy_room",
+        "corridor",
+        "empty_room",
+        "lobby",
+        "meeting_room",
+        "private_office",
+        "shared_office"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "office_cubicles_right",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/office_cubicles_right/json/office_cubicles_right_best.json",
+      "source_json_sha256": "3a7050c37b32d2f5a3a835b6f112dd7f7a4a2cbc6182a03c50ffefb464aff9e0",
+      "usable_category_count": 27,
+      "usable_object_count": 201
+    },
+    {
+      "category_count": 34,
+      "classification": "multi_room_rich",
+      "domain": "office",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 847,
+      "rearrangeable_object_count": 264,
+      "room_count": 25,
+      "room_types": [
+        "bathroom",
+        "break_room",
+        "conference_hall",
+        "copy_room",
+        "corridor",
+        "lobby",
+        "meeting_room",
+        "phone_room",
+        "private_office",
+        "shared_office"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "office_large",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/office_large/json/office_large_best.json",
+      "source_json_sha256": "f72478dbe5707ebca5eb23ad8d41dc68ea45d7c68703558bd03ac56b9e91b65b",
+      "usable_category_count": 31,
+      "usable_object_count": 668
+    },
+    {
+      "category_count": 34,
+      "classification": "multi_room_rich",
+      "domain": "office",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 176,
+      "rearrangeable_object_count": 39,
+      "room_count": 5,
+      "room_types": [
+        "bathroom",
+        "break_room",
+        "corridor",
+        "meeting_room",
+        "shared_office"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "office_vendor_machine",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/office_vendor_machine/json/office_vendor_machine_best.json",
+      "source_json_sha256": "da81d1db73f8f934a6ff947c4584cb95be6dc684723a0b118d2cf176002aadc6",
+      "usable_category_count": 31,
+      "usable_object_count": 147
+    },
+    {
+      "category_count": 44,
+      "classification": "multi_room_rich",
+      "domain": "restaurant",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 249,
+      "rearrangeable_object_count": 47,
+      "room_count": 5,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "kitchen"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "restaurant_asian",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/restaurant_asian/json/restaurant_asian_best.json",
+      "source_json_sha256": "6bc415637dc93365df1b6242f2676a5120eb5be1e4715bf7c106ded828f5485c",
+      "usable_category_count": 41,
+      "usable_object_count": 200
+    },
+    {
+      "category_count": 54,
+      "classification": "multi_room_rich",
+      "domain": "restaurant",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 323,
+      "rearrangeable_object_count": 57,
+      "room_count": 4,
+      "room_types": [
+        "bar",
+        "bathroom",
+        "dining_room",
+        "kitchen"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "restaurant_brunch",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/restaurant_brunch/json/restaurant_brunch_best.json",
+      "source_json_sha256": "994a8ecbc08893e38735856949b23e51a07ae4f576ce620ed776d685b2921c92",
+      "usable_category_count": 51,
+      "usable_object_count": 265
+    },
+    {
+      "category_count": 34,
+      "classification": "multi_room_rich",
+      "domain": "restaurant",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 267,
+      "rearrangeable_object_count": 126,
+      "room_count": 4,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "kitchen"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "restaurant_cafeteria",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/restaurant_cafeteria/json/restaurant_cafeteria_best.json",
+      "source_json_sha256": "bfc564157841c190285c261fa67fcb50032cd1f7b01e508c102d908634b0b897",
+      "usable_category_count": 31,
+      "usable_object_count": 242
+    },
+    {
+      "category_count": 45,
+      "classification": "multi_room_rich",
+      "domain": "restaurant",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 184,
+      "rearrangeable_object_count": 21,
+      "room_count": 5,
+      "room_types": [
+        "bar",
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "kitchen"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "restaurant_diner",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/restaurant_diner/json/restaurant_diner_best.json",
+      "source_json_sha256": "f4364fcc5b84fb9c204d7b520e1148111975fbd22985a89da48dfb2860b149f6",
+      "usable_category_count": 42,
+      "usable_object_count": 147
+    },
+    {
+      "category_count": 52,
+      "classification": "multi_room_rich",
+      "domain": "restaurant",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 349,
+      "rearrangeable_object_count": 70,
+      "room_count": 6,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "kitchen",
+        "lobby"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "restaurant_hotel",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/restaurant_hotel/json/restaurant_hotel_best.json",
+      "source_json_sha256": "c4672840c61ce63b141bf938fa1b0fb5b7c92a307a5bedd8a7240e0c985baa8d",
+      "usable_category_count": 49,
+      "usable_object_count": 288
+    },
+    {
+      "category_count": 53,
+      "classification": "multi_room_rich",
+      "domain": "restaurant",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 339,
+      "rearrangeable_object_count": 118,
+      "room_count": 5,
+      "room_types": [
+        "bar",
+        "bathroom",
+        "corridor",
+        "dining_room",
+        "kitchen"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "restaurant_urban",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/restaurant_urban/json/restaurant_urban_best.json",
+      "source_json_sha256": "5d13ac2acf4137cb2de59c3840457d5721a13d2b851eea9048ea752db192eb6d",
+      "usable_category_count": 50,
+      "usable_object_count": 308
+    },
+    {
+      "category_count": 41,
+      "classification": "multi_room_rich",
+      "domain": "school",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 499,
+      "rearrangeable_object_count": 63,
+      "room_count": 4,
+      "room_types": [
+        "bathroom",
+        "biology_lab",
+        "corridor"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "school_biology",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/school_biology/json/school_biology_best.json",
+      "source_json_sha256": "b5c7fa72bfec8100a2199512917a7b251e114fd01f25e483483b285cf9d5c1e8",
+      "usable_category_count": 38,
+      "usable_object_count": 445
+    },
+    {
+      "category_count": 44,
+      "classification": "multi_room_rich",
+      "domain": "school",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 468,
+      "rearrangeable_object_count": 51,
+      "room_count": 4,
+      "room_types": [
+        "bathroom",
+        "chemistry_lab",
+        "corridor"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "school_chemistry",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/school_chemistry/json/school_chemistry_best.json",
+      "source_json_sha256": "4a07f75699b5b0c2fa720ce76888c53ba74c012922a0d0408ff5503526d68a62",
+      "usable_category_count": 41,
+      "usable_object_count": 414
+    },
+    {
+      "category_count": 48,
+      "classification": "multi_room_rich",
+      "domain": "school",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 638,
+      "rearrangeable_object_count": 73,
+      "room_count": 7,
+      "room_types": [
+        "bathroom",
+        "computer_lab",
+        "corridor",
+        "infirmary"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "school_computer_lab_and_infirmary",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/school_computer_lab_and_infirmary/json/school_computer_lab_and_infirmary_best.json",
+      "source_json_sha256": "8cc42a47b967c8ef133674118216217948335093f8a2cbe7f9b396232d4680e1",
+      "usable_category_count": 45,
+      "usable_object_count": 575
+    },
+    {
+      "category_count": 35,
+      "classification": "multi_room_rich",
+      "domain": "school",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 482,
+      "rearrangeable_object_count": 60,
+      "room_count": 6,
+      "room_types": [
+        "bathroom",
+        "classroom",
+        "corridor"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "school_geography",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/school_geography/json/school_geography_best.json",
+      "source_json_sha256": "28d8996f66325a1577f823afb7a2e4929ae5b4ca4e62a2ff3366d6723459f3b8",
+      "usable_category_count": 32,
+      "usable_object_count": 432
+    },
+    {
+      "category_count": 33,
+      "classification": "multi_room_rich",
+      "domain": "school",
+      "eligibility": {
+        "episode_rich": true,
+        "rearrangement": true,
+        "static_multiview": true
+      },
+      "floor_count": 1,
+      "object_count": 526,
+      "rearrangeable_object_count": 51,
+      "room_count": 6,
+      "room_types": [
+        "bathroom",
+        "corridor",
+        "gym",
+        "locker_room"
+      ],
+      "scene_kind": "indoor",
+      "scene_model": "school_gym",
+      "source_asset_version": "3.9.0rc9",
+      "source_instance": "best",
+      "source_json": "scenes/school_gym/json/school_gym_best.json",
+      "source_json_sha256": "cb2ca9a2aae675c4a0f811248b804f02da7a2fc2ee2cd5420c16cbf939cb618f",
+      "usable_category_count": 30,
+      "usable_object_count": 496
+    }
+  ],
+  "schema_version": "omnigibson_scene_inventory.v1",
+  "summary": {
+    "garden_scene_count": 5,
+    "indoor_aggregate": {
+      "mean_room_count": 7.043,
+      "mean_usable_category_count": 30.217,
+      "object_count": 11975,
+      "rearrangeable_object_count": 2459,
+      "usable_object_count": 9819
+    },
+    "indoor_classification_counts": {
+      "multi_room_rich": 44,
+      "single_room_rich": 1,
+      "sparse": 1
+    },
+    "indoor_scene_count": 46,
+    "rearrangement_eligible_count": 40,
+    "scene_count": 51,
+    "static_multiview_eligible_count": 46
+  }
+}

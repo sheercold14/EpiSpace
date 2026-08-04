@@ -1,0 +1,75 @@
+{
+  "schema_version": "epispace.transform_pilot_config.v1",
+  "dataset_id": "epispace-transform-pilot-v1-2026-07-22",
+  "parent_pipeline_config": "epispace_pilot_v1.json",
+  "parent_release_dir": "../data/epispace_pilot_v1",
+  "output_dir": "../data/transform_pilot_v1",
+  "accepted_plan_statuses": [
+    "passed"
+  ],
+  "direction_contract": {
+    "horizontal_answer_space": [
+      "front",
+      "right",
+      "back",
+      "left"
+    ],
+    "right_turn_positive": true,
+    "right_turn_camera_yaw_delta_sign": -1,
+    "sector_half_width_deg": 45.0,
+    "minimum_center_margin_deg": 15.0,
+    "minimum_obb_aware_margin_deg": 8.0
+  },
+  "self_rotation": {
+    "source_trajectory_class": "T3",
+    "ordered_turn_sequences_deg": [
+      [
+        60
+      ],
+      [
+        -60
+      ],
+      [
+        60,
+        60
+      ],
+      [
+        -60,
+        -60
+      ],
+      [
+        60,
+        60,
+        60
+      ]
+    ],
+    "source_modes": [
+      "view_local",
+      "episodic_memory"
+    ],
+    "minimum_horizontal_distance_m": 0.75,
+    "maximum_base_facts_per_bundle": 24,
+    "minimum_base_facts_per_scene": 4
+  },
+  "among5": {
+    "primary_source_trajectory_class": "T4",
+    "auxiliary_source_trajectory_class": "T1",
+    "object_count": 5,
+    "model_view_count": 4,
+    "minimum_anchor_witness_views": 4,
+    "minimum_satellite_distance_m": 0.75,
+    "maximum_satellite_distance_m": 8.0,
+    "minimum_pairwise_shared_recognizable_entities": 2,
+    "maximum_layouts_per_bundle": 1
+  },
+  "readiness": {
+    "minimum_self_rotation_scenes": 20,
+    "minimum_self_rotation_base_facts": 150,
+    "minimum_primary_among5_scenes": 15,
+    "minimum_primary_among5_base_layouts": 30,
+    "manual_benchmark_review_fraction": 1.0,
+    "manual_train_review_fraction": 0.1,
+    "maximum_major_or_unreviewable": 0,
+    "maximum_minor_fraction": 0.05
+  }
+}

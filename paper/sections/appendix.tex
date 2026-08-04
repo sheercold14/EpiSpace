@@ -1,0 +1,181 @@
+\section{Serialized Data Contracts}
+\label{app:schemas}
+
+All files are UTF-8 JSONL except manifests and reports, which are JSON.  Table
+\ref{tab:schemas} lists the minimum public contract; additional hidden fields
+retain provenance and permit audits.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Principal serialized artifacts.}
+\label{tab:schemas}
+\begin{tabular}{p{0.28\linewidth}p{0.64\linewidth}}
+\toprule
+Artifact & Required content \\
+\midrule
+\texttt{episodes.ir.jsonl} & episode/scene/trajectory IDs, split lock, ordered
+observations, observable belief, and question list \\
+\texttt{train.episode\_sft.jsonl} & messages, assistant-only loss policy, and
+comparison contract for an observe-first question batch \\
+\texttt{train.isolated\_sft.jsonl} & one paired fact per dialogue with the
+same evidence views and comparison ID \\
+\texttt{train.state\_aux\_sft.jsonl} & separately requested observable-state
+target; never inserted into primary QA \\
+\texttt{train.rlvr.jsonl} & prompt and hidden deterministic reward specification;
+no claim that policy training was run \\
+\texttt{benchmark*.jsonl} & record/family/scene IDs, split, model input,
+structured target, hidden program, certificate, and evidence provenance \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+An IR observation is
+\texttt{\{view\_id, step, role, rgb\}}.  A question stores
+\texttt{fact\_id}, task, Chinese surface question/answer, structured answer
+value/status, program, model/evidence view IDs, family variant, and certificate.
+The answer-free program contains a semantic signature, typed atoms and nodes,
+external inputs, and one answer node.  The certificate contains named checks,
+oracle-only replay inputs, terminal result, and verifier version.  Programs,
+certificates, entity IDs, pose, depth, and masks are excluded from ordinary
+model messages.
+
+Episode and isolated records share a \texttt{comparison\_id}; their comparison
+contracts declare fact IDs, unique-image count, question count, and arm.  The
+minimal prediction format is:
+\begin{verbatim}
+{"record_id":"benchmark-...","answer_value":<JSON value>}
+\end{verbatim}
+The evaluator requires exactly one prediction per benchmark record.  Strings,
+booleans, nulls, lists, and dictionaries are compared with exact types and
+keys; finite numeric fields use the tolerance stored in the certificate.
+
+\section{Fail-Closed Gates}
+\label{app:gates}
+
+The release manifest records eighteen Boolean gates.  A failed gate makes the
+build fail rather than merely attaching a warning:
+\begin{enumerate}
+  \item \texttt{typed\_programs\_valid},
+        \texttt{heldout\_program\_absent\_from\_train}, and
+        \texttt{heldout\_atoms\_seen\_in\_train};
+  \item \texttt{scene\_split\_lock}, \texttt{family\_split\_lock},
+        \texttt{family\_members\_complete}, and
+        \texttt{family\_intervention\_contract};
+  \item
+        \texttt{family\_id\_shared\_within\_consistency\_group};
+  \item \texttt{paired\_fact\_multiset\_equal},
+        \texttt{fact\_ids\_globally\_unique}, and
+        \texttt{record\_ids\_unique};
+  \item \texttt{heldout\_target\_rgb\_absent\_from\_sft\_input},
+        \texttt{heldout\_target\_rgb\_hash\_absent\_from\_sft\_input},
+        \texttt{rgb\_channel\_purity}, and
+        \texttt{normalized\_input\_functional\_dependency};
+  \item \texttt{all\_certificates\_terminal},
+        \texttt{all\_certificate\_checks\_pass}, and
+        \texttt{certificate\_full\_reexecution}.
+\end{enumerate}
+
+The independent corpus audit is intentionally separate.  It parses every
+serialized row, recomputes family shapes and cluster leakage, opens all image
+paths, scans model-visible text for raw ontology tokens, measures target
+priors, and compares episode/isolated facts and image exposure.  It never calls
+the builder, compiler, exporter, or geometry verifier.  Without a prediction
+file, model-dependent evidence sensitivity is reported as not evaluated.
+
+\section{Metrics}
+\label{app:metrics}
+
+Let $c_i$ be structured exact correctness for record $i$.
+\textbf{Atomic accuracy} is the mean of $c_i$, disaggregated by task, program,
+and split.  For one of the 42 complete sibling consistency groups $f$,
+\textbf{family exact match} is $\prod_{i\in f}c_i$.  Rows with no sibling
+consistency group, including canonical target-view composition rows, are never
+treated as singleton families.  Evidence-triple exact match and the conditioned score in
+Eq.~\ref{eq:evidence-sensitivity} are both required: reveal accuracy is the
+denominator, so an always-unknown model cannot receive evidence-sensitivity
+credit.  \textbf{Claim-pair exact match} requires both true and false siblings.
+\textbf{Frame equivariance} requires both same-RGB frame answers to match their
+respective targets; merely changing between two wrong labels earns no credit.
+\textbf{Composition accuracy} is atomic accuracy on the two held-out semantic
+signatures and is always reported separately from family metrics.
+
+Missing, duplicate, extra, malformed, or non-finite predictions are incorrect.
+When model results are eventually produced, uncertainty is computed by
+resampling the scene/family unit rather than treating sibling rows as
+independent.  The same-partition task-majority number is labeled an oracle
+diagnostic and is never presented as a trained no-image baseline.
+
+\section{Matching Regimes}
+\label{app:matching}
+
+The fact-matched schedules require equality of the raw and effective fact
+multisets.  They preserve the natural amortization difference: 340 episode
+draws/1,168 image occurrences versus 651 isolated draws/3,227 occurrences.
+The image-occurrence-matched schedules repeat an episode once per selected
+fact and assign each repeat inverse multiplicity.  Required invariants are
+equality of the effective fact-weight multiset, exact image-occurrence
+multiset, and pixel exposure.  The resulting two arms each contain 651 draws,
+3,227 image occurrences, and 3,383,754,752 pixels.  The manifest's text count
+is only a Unicode-lexeme proxy.  A separate exact Qwen3-VL-4B profile at
+$256^2$ reports 206,528 image tokens per arm but 415,424 versus 362,185 total
+input tokens and 208,896 versus 155,657 text tokens (episode versus isolated).
+Thus neither the fact-matched nor image-occurrence-matched regime is a
+total-token, FLOP, or wall-clock-compute match.
+
+The controlled optimizer unit is one \texttt{comparison\_id}, not one draw.
+For a group of $k$ facts, the episode schedule contains $k$ identical $k$-fact
+draws with weight $1/k$; its isolated counterpart contains $k$ distinct
+one-fact draws with weight one.  The trainer zeros gradients once, accumulates
+all $k$ draws, and calls Adam once.  It rejects unequal paired group IDs, fact
+sets, draw counts, or update counts.  Stepping Adam after each weighted draw is
+a legacy diagnostic, not a controlled comparison: Adam's nonlinear moments do
+not make a $1/k$-scaled update equivalent to one grouped update.
+
+\section{Reproduction Commands}
+\label{app:commands}
+
+Commands are run from the repository root with the project interpreter.
+\begin{verbatim}
+PY=../habitat/.conda/core/bin/python
+
+$PY -m episode3d.cli \
+  --config configs/epispace_pilot_v1.json
+
+$PY scripts/build_compute_matched_schedules.py \
+  --episode data/epispace_pilot_v1/train.episode_sft.jsonl \
+  --isolated data/epispace_pilot_v1/train.isolated_sft.jsonl \
+  --output-dir data/epispace_pilot_v1/compute_matching \
+  --seed 17
+
+$PY -m episode3d.corpus_audit \
+  data/epispace_pilot_v1
+
+$PY -m episode3d.benchmark_evaluator oracle \
+  --benchmark data/epispace_pilot_v1/benchmark.core.jsonl \
+  --output /tmp/epispace-oracle.jsonl
+
+$PY -m episode3d.benchmark_evaluator evaluate \
+  --benchmark data/epispace_pilot_v1/benchmark.core.jsonl \
+  --predictions /tmp/epispace-oracle.jsonl \
+  --output-dir /tmp/epispace-evaluation
+
+$PY -m pytest -q
+$PY -m ruff check episode3d scripts tests
+\end{verbatim}
+
+The oracle command copies structured targets solely for evaluator smoke
+testing.  It must never be used as a model result.  The authoritative frozen
+statistics are in \texttt{release\_manifest.json}; serialized-only diagnostics
+are in \texttt{corpus\_audit.json}; schedule invariants and hashes are in
+\texttt{compute\_matching/compute\_matching\_manifest.json}.
+
+\section{Asset and License Boundaries}
+\label{app:license}
+
+Raw RGB PNGs are extracted into a release-owned cache, but current JSONL rows
+store machine-local absolute paths.  Consumers must remap the cache prefix
+without changing content hashes.  BEHAVIOR-1K-derived renders remain governed
+by their source academic-use terms.  The present internal artifact does not
+grant redistribution permission.  No real-world transfer, human calibration,
+or model-training result is part of this frozen release.

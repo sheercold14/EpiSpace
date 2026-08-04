@@ -1,0 +1,51 @@
+{
+  "schema_version": "epispace.source_snapshot.v1",
+  "copied_at": "2026-08-04",
+  "copy_policy": "copy_only; source workspaces were not moved or modified",
+  "sources": [
+    {
+      "name": "episode3D",
+      "git_head": "47a4642",
+      "working_tree": "dirty; snapshot includes selected tracked and untracked research code",
+      "copied_components": [
+        "package source",
+        "scripts",
+        "configs",
+        "tests",
+        "research plans",
+        "paper source",
+        "review web source"
+      ]
+    },
+    {
+      "name": "OminiGibson",
+      "git_head": "166a721",
+      "working_tree": "dirty; snapshot includes selected tracked and untracked backend code",
+      "copied_components": [
+        "acquisition package",
+        "collection configs",
+        "backend scripts",
+        "asset catalogs",
+        "backend tests"
+      ]
+    },
+    {
+      "name": "habitat spatial_episode contract layer",
+      "git_head": "8dc01b9",
+      "working_tree": "dirty; snapshot includes the current simulator-independent Python contracts",
+      "copied_components": [
+        "typed data contracts",
+        "operation graph domain model",
+        "simulator-independent compiler services"
+      ]
+    }
+  ],
+  "excluded_from_git": [
+    "3D scene assets",
+    "raw and compiled datasets",
+    "model weights",
+    "simulator installations",
+    "large generated web media",
+    "experiment outputs"
+  ]
+}

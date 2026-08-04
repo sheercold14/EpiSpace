@@ -1,0 +1,42 @@
+schema_version: omnigibson_scene_overrides.v1
+
+# Versioned exceptions discovered by the full 46-scene acquisition audit.
+# These preserve the common M2 recipe while making expensive or unusually
+# constrained scenes reproducible without editing generated job recipes.
+overrides:
+  Rs_int:
+    recipe:
+      recipe_id: omnigibson_static_m2_room_aware_rs_retry
+      trajectory:
+        candidate_count: 256
+        fallback_minimum_distance_m: 0.5
+
+  hall_arch_wood:
+    acquisition_timeout_minutes: 60
+    recipe:
+      recipe_id: omnigibson_static_m2_traversable_indoor_hall_arch_wood
+      trajectory:
+        sampling_strategy: traversable_indoor
+        candidate_count: 16
+  hall_conference_large:
+    acquisition_timeout_minutes: 60
+  hall_glass_ceiling:
+    acquisition_timeout_minutes: 60
+  hall_train_station:
+    acquisition_timeout_minutes: 60
+  house_single_floor:
+    acquisition_timeout_minutes: 60
+  office_cubicles_left:
+    acquisition_timeout_minutes: 60
+  office_large:
+    acquisition_timeout_minutes: 60
+  school_biology:
+    acquisition_timeout_minutes: 40
+  school_chemistry:
+    acquisition_timeout_minutes: 40
+  school_computer_lab_and_infirmary:
+    acquisition_timeout_minutes: 40
+  school_geography:
+    acquisition_timeout_minutes: 40
+  school_gym:
+    acquisition_timeout_minutes: 40

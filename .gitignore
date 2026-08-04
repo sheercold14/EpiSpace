@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+.venv/
+.conda/
+
+# Local workspace and credentials
+.env
+workspace.env
+*.local.yaml
+*.local.json
+.cache/
+
+# Heavy artifacts (the repository tracks manifests, not generated payloads)
+data/
+datasets/
+!manifests/datasets/
+!manifests/datasets/*.json
+outputs/
+artifacts/
+checkpoints/
+models/
+experiments/**/checkpoints/
+experiments/**/predictions/
+experiments/**/logs/
+web/data/
+paper/generated/
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+
+# Simulator dependencies and assets
+.deps/
+.data/
+.tools/
+backends/omnigibson/outputs/
+backends/omnigibson/.deps/
+backends/omnigibson/.data/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

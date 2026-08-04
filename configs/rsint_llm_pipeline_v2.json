@@ -1,0 +1,19 @@
+{
+  "schema_version": "epispace.rsint_llm_pipeline_config.v1",
+  "source": {
+    "bundle": "../../OminiGibson/outputs/Rs_int_seed17"
+  },
+  "backend": {
+    "kind": "codex_exec",
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "codex_binary": "codex",
+    "timeout_seconds": 300
+  },
+  "output": {
+    "directory": "../data/rsint_dialogue_pilot_v2",
+    "cache_directory": "../data/rsint_dialogue_pilot_v2/llm_cache",
+    "web_payload": "../web/data/rsint_dialogue_pilot.v2.json",
+    "web_media_directory": "../web/data/rsint_dialogue_media"
+  }
+}

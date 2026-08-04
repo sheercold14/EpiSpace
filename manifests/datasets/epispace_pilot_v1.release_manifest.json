@@ -1,0 +1,737 @@
+{
+  "schema_version": "epispace.release_manifest.v1",
+  "dataset_id": "epispace-pilot-v1.2-2026-07-17",
+  "created_at": "2026-07-17T04:48:09.011726+00:00",
+  "config": "/data/shichao/data/dataV100/code/episode3D/configs/epispace_pilot_v1.json",
+  "status": "pass",
+  "implementation_integrity": {
+    "schema_version": "epispace.implementation_binding.v1",
+    "file_set": "epispace.release_critical_files.v2",
+    "root_policy": "paths_relative_to_current_episode3d_project_root",
+    "files": {
+      "Makefile": {
+        "path": "Makefile",
+        "bytes": 4702,
+        "sha256": "88e9d6bcc17e81fb6cc63ca5e0bce554036128208d6d7559bfa8df0173b08985"
+      },
+      "episode3d/__init__.py": {
+        "path": "episode3d/__init__.py",
+        "bytes": 174,
+        "sha256": "d2893b8bd771deff6a9e7b49682c18b20daa1ea6f0861f79d7d4eb2f0dc7a7cf"
+      },
+      "episode3d/benchmark_evaluator.py": {
+        "path": "episode3d/benchmark_evaluator.py",
+        "bytes": 32263,
+        "sha256": "0c67e5f8e2002c53b222a751b2fa38ae56df0d7d1eaad8400ec20397d73da5ea"
+      },
+      "episode3d/bundles.py": {
+        "path": "episode3d/bundles.py",
+        "bytes": 34194,
+        "sha256": "2d85bc024ace9aecc93c4c40ab81ccaf0acbe42e303529d98b0ebb8ee513d9fd"
+      },
+      "episode3d/cli.py": {
+        "path": "episode3d/cli.py",
+        "bytes": 1093,
+        "sha256": "45c578991b22cc99156c5d2a7c8db7a39278d7d08de29c6eac9e3b5321d54290"
+      },
+      "episode3d/compilers.py": {
+        "path": "episode3d/compilers.py",
+        "bytes": 110570,
+        "sha256": "75fec7b2a32a5ac97c536937a52100c0308f64e31a7fc8d97a4baa8b3f5dadf3"
+      },
+      "episode3d/compute_matching.py": {
+        "path": "episode3d/compute_matching.py",
+        "bytes": 25551,
+        "sha256": "f81412e11c6e7336439d4b649dacb28ef71656c5ec9ca7c1ee7dbe5bf08cd185"
+      },
+      "episode3d/corpus_audit.py": {
+        "path": "episode3d/corpus_audit.py",
+        "bytes": 92921,
+        "sha256": "efc6f1f34dd32cbf59e164d5588022b85a7647893e39f6c2adcde1cecf36b0c9"
+      },
+      "episode3d/exporters.py": {
+        "path": "episode3d/exporters.py",
+        "bytes": 16422,
+        "sha256": "0778a80c36bb97efdc0828ee12f19775a6339a276186815681a26b53182f7718"
+      },
+      "episode3d/implementation_binding.py": {
+        "path": "episode3d/implementation_binding.py",
+        "bytes": 3578,
+        "sha256": "32eb02b0746d8dade8abec76d7d04e0892ac7ee4702019a73afc510b22526de7"
+      },
+      "episode3d/language.py": {
+        "path": "episode3d/language.py",
+        "bytes": 10467,
+        "sha256": "4f6662524e99758db62884b3f857fa4760d5a22347e86bb49ea5959f56d93dda"
+      },
+      "episode3d/models.py": {
+        "path": "episode3d/models.py",
+        "bytes": 2366,
+        "sha256": "e246db0a28bc9508cdf783f7b2e27d9799e009e54948d7049a87e8cc4cb4b1e6"
+      },
+      "episode3d/pipeline.py": {
+        "path": "episode3d/pipeline.py",
+        "bytes": 47224,
+        "sha256": "77a68dc71855aa406e0a35e03d2722e5b38b1c9eb690927681471ebb0319f516"
+      },
+      "episode3d/programs.py": {
+        "path": "episode3d/programs.py",
+        "bytes": 22761,
+        "sha256": "39e95240c426cdf642e2503ab50da21b33a01862584466d77f4e4f5c9ac10690"
+      },
+      "episode3d/release_verifier.py": {
+        "path": "episode3d/release_verifier.py",
+        "bytes": 65233,
+        "sha256": "7464f631c3a88a7eb0f90868fb0b007a1bc91ddfbbde25865600cd9259b05aef"
+      },
+      "episode3d/semantic_visual_audit.py": {
+        "path": "episode3d/semantic_visual_audit.py",
+        "bytes": 59025,
+        "sha256": "ed1a9c8f8477860536b70a7b5c7b2b39e23dfd08e0054bcd9a16a1d5ecfa7797"
+      },
+      "episode3d/semantic_visual_audit_results.py": {
+        "path": "episode3d/semantic_visual_audit_results.py",
+        "bytes": 26847,
+        "sha256": "f366f37c3a2ac5b9f3b4844924ca5cec0b1c84985c6719be9dda094ad1beb769"
+      },
+      "episode3d/verifiers.py": {
+        "path": "episode3d/verifiers.py",
+        "bytes": 21268,
+        "sha256": "f9c3a23564fef87d08cfef16917ba0cbd634204bd5f9d057847f1430009c9a34"
+      },
+      "scripts/adjudicate_semantic_visual_audit.py": {
+        "path": "scripts/adjudicate_semantic_visual_audit.py",
+        "bytes": 470,
+        "sha256": "f9638a5af75490360a84dde1965dc05d4ee361596259e3dfadc5f6f48432caa0"
+      },
+      "scripts/build_compute_matched_schedules.py": {
+        "path": "scripts/build_compute_matched_schedules.py",
+        "bytes": 2257,
+        "sha256": "6cf981f29e912e4acad353075900e189e3c940d8a7a40361248c4b5b55288416"
+      },
+      "scripts/build_semantic_visual_audit_packet.py": {
+        "path": "scripts/build_semantic_visual_audit_packet.py",
+        "bytes": 453,
+        "sha256": "b6121f739a9641c09095f065c48496b0ae983aa757aa5b890c7c016787544c8c"
+      },
+      "scripts/build_web_release_catalog.py": {
+        "path": "scripts/build_web_release_catalog.py",
+        "bytes": 41996,
+        "sha256": "d49edd777a2cbaf4eb1f8cf7f34621b0db77403616d24b0cde4bff6160538cb2"
+      }
+    },
+    "aggregate_sha256": "e09b52099edc7b7e0e48b478323c68dd4b5fd27fa299559e6351d6424a28c779"
+  },
+  "research_contract": {
+    "main_interface": "RGB + natural-language questions and answers",
+    "program_visibility": "hidden compiler IR",
+    "state_visibility": "auxiliary only when explicitly requested",
+    "quality_policy": "strict plan status + bundle typed gate",
+    "visual_quality_policy": {
+      "policy_id": "epispace.referent_recognizability.v4",
+      "minimum_visible_pixels": 1000,
+      "minimum_bbox_side_px": 28,
+      "minimum_mask_bbox_fill_ratio": 0.1,
+      "severe_multi_border_outer_band_pixel_fraction": 0.35,
+      "severe_single_border_outer_band_pixel_fraction": 0.3,
+      "maximum_severely_clipped_axis_fraction": 0.2,
+      "multi_border_severe_crop": true,
+      "vertical_full_span_severe_crop": true,
+      "maximum_rgb_dominant_color_fraction": 0.6,
+      "minimum_rgb_quantized_entropy_bits": 2.75,
+      "maximum_near_nonstructural_pixel_fraction": 0.35,
+      "maximum_near_any_geometry_pixel_fraction": 0.9,
+      "minimum_raw_negative_category_pixels": 64,
+      "minimum_raw_negative_category_bbox_side_px": 8,
+      "minimum_t10_anchor_pixels": 2000,
+      "minimum_t10_anchor_bbox_side_px": 40,
+      "maximum_t10_anchor_outer_band_pixel_fraction": 0.8,
+      "category_max_height_m": {
+        "coffee_table": 0.65
+      },
+      "visually_confusable_category_groups": [
+        [
+          "bookcase",
+          "candy_dispenser_shelf",
+          "commercial_kitchen_shelf",
+          "dry_food_dispenser_shelf",
+          "grocery_shelf",
+          "shelf",
+          "shelving_unit"
+        ],
+        [
+          "fixed_window",
+          "openable_window",
+          "window"
+        ],
+        [
+          "breakfast_table",
+          "coffee_table",
+          "commercial_kitchen_table",
+          "conference_table",
+          "console_table",
+          "lab_table",
+          "pedestal_table",
+          "table"
+        ],
+        [
+          "clothes_dryer",
+          "washer"
+        ],
+        [
+          "bottom_cabinet",
+          "bottom_cabinet_no_top",
+          "cabinet",
+          "cedar_chest",
+          "chest_of_drawers",
+          "dresser",
+          "metal_bottom_cabinet"
+        ],
+        [
+          "fire_alarm",
+          "fire_sprinkler",
+          "smoke_detector"
+        ],
+        [
+          "downlight",
+          "rectangular_light",
+          "room_light",
+          "spotlight",
+          "square_light",
+          "track_light"
+        ]
+      ],
+      "visual_absence_unsafe_labels": [
+        "fixed_window",
+        "openable_window",
+        "window"
+      ],
+      "minimum_relation_dominance_ratio": 1.25,
+      "model_input_frame_gate": "every actual model_view_id must pass RGB-degeneration and raw-depth camera-collision rules",
+      "model_visibility": "oracle-only admission; never serialized into model input"
+    },
+    "split_unit": "scene",
+    "language_policy": "geometry first; deterministic answers; answer-blind question realization"
+  },
+  "statistics": {
+    "acquisition": {
+      "sweeps": [
+        {
+          "name": "t1-static-m2",
+          "trajectory_class": "T1",
+          "role": "write_source",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/static-m2-room-aware-indoor-seed17-v1/sweep_plan.json",
+          "sweep_plan_sha256": "e2982e62bd679661d80211d9ed3052d7efdad470cfa2d66695e825f4cfd05dc3",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "needs_review": 18,
+            "passed": 28
+          },
+          "strict_bundles_loaded": 28,
+          "missing_optional_reasoning_task_manifests": 0
+        },
+        {
+          "name": "t3-rotation-r0",
+          "trajectory_class": "T3",
+          "role": "write_source",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r0-seed17-v1/sweep_plan.json",
+          "sweep_plan_sha256": "338b13130d36ed379487738f303427a6b9877286aafff5d90c1ee01cbfa9458e",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "failed": 1,
+            "needs_review": 4,
+            "passed": 41
+          },
+          "strict_bundles_loaded": 41,
+          "missing_optional_reasoning_task_manifests": 0
+        },
+        {
+          "name": "t3-rotation-r1",
+          "trajectory_class": "T3",
+          "role": "write_source",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r1-seed23-v1/sweep_plan.json",
+          "sweep_plan_sha256": "c0fbaa343e13720a700b465218f1d561daa9316c9d044ff8401a0f8e19cf68e5",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "failed": 1,
+            "needs_review": 3,
+            "passed": 42
+          },
+          "strict_bundles_loaded": 42,
+          "missing_optional_reasoning_task_manifests": 0
+        },
+        {
+          "name": "t4-adaptive-arc-v3",
+          "trajectory_class": "T4",
+          "role": "write_source",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t4-object-orbit-adaptive-arc-seed17-v3/sweep_plan.json",
+          "sweep_plan_sha256": "c3fc71320506613ea208faedfa2a1410d03f4e9bf6ba97d3d06ba67f0271131c",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "failed": 33,
+            "needs_review": 3,
+            "passed": 10
+          },
+          "strict_bundles_loaded": 10,
+          "missing_optional_reasoning_task_manifests": 0
+        },
+        {
+          "name": "t7-elevation",
+          "trajectory_class": "T7",
+          "role": "write_source",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t7-elevation-seed17-v1/sweep_plan.json",
+          "sweep_plan_sha256": "1cb0d46ea22966304f4864ce0c4030bef72f72f08807decde95a55bd408b57d8",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "failed": 2,
+            "needs_review": 1,
+            "passed": 43
+          },
+          "strict_bundles_loaded": 43,
+          "missing_optional_reasoning_task_manifests": 0
+        },
+        {
+          "name": "t8-occlusion-reveal",
+          "trajectory_class": "T8",
+          "role": "write_source",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t8-occlusion-reveal-seed17-v1/sweep_plan.json",
+          "sweep_plan_sha256": "455508bb7105a68de731935e47bc4be9aa32f60353bdc39083672b384435acf1",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "failed": 24,
+            "needs_review": 14,
+            "passed": 8
+          },
+          "strict_bundles_loaded": 8,
+          "missing_optional_reasoning_task_manifests": 1
+        },
+        {
+          "name": "t10-target-view",
+          "trajectory_class": "T10",
+          "role": "oracle_verifier",
+          "sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t10-target-view-seed17-v1/sweep_plan.json",
+          "sweep_plan_sha256": "c855f23a188d453890971867ce5bcb526d41b4478f934c44274f3cdec5207c63",
+          "planned_jobs": 46,
+          "status_source": "sweep_plan.jobs[].status",
+          "status_counts": {
+            "failed": 8,
+            "needs_review": 17,
+            "passed": 21
+          },
+          "strict_bundles_loaded": 21,
+          "missing_optional_reasoning_task_manifests": 1
+        }
+      ],
+      "planned_jobs": 322,
+      "strict_bundles_loaded": 193,
+      "model_rgb_root": "/data/shichao/data/dataV100/code/episode3D/data/epispace_rgb_v1",
+      "model_rgb_policy": "raw rgb channel extracted from sensors.npz"
+    },
+    "compiled": {
+      "unique_scenes": 46,
+      "source_trajectory_bundles": 158,
+      "source_views": 991,
+      "trajectory_counts": {
+        "T1": 25,
+        "T3": 82,
+        "T4": 10,
+        "T7": 34,
+        "T8": 7
+      },
+      "questions": 884,
+      "task_types": {
+        "counterfactual_verification": 88,
+        "cross_view_relation": 44,
+        "egocentric_relation": 91,
+        "elevation_relation_transfer": 11,
+        "evidence_presence_reveal": 52,
+        "evidence_presence_unknown": 104,
+        "grounding_presence": 175,
+        "last_seen_memory": 45,
+        "metric_distance": 23,
+        "object_centric_perspective": 3,
+        "occlusion_reveal": 1,
+        "occlusion_unknown": 2,
+        "orbit_identity": 6,
+        "rotation_change_detection": 9,
+        "target_view_prediction": 107,
+        "unknown_abstention": 123
+      },
+      "programs": {
+        "counterfactual_cross_view.v1": 88,
+        "cross_view_register_relation.v1": 44,
+        "egocentric_relation.v1": 91,
+        "elevation_relation_transfer.v1": 11,
+        "evidence_presence_reveal.v1": 52,
+        "evidence_presence_unknown.v1": 104,
+        "grounding_presence.v1": 175,
+        "last_seen_memory.v1": 45,
+        "metric_distance.v1": 23,
+        "object_centric_perspective.v1": 3,
+        "occlusion_reveal.v1": 1,
+        "occlusion_unknown.v1": 2,
+        "orbit_identity.v1": 6,
+        "rotation_change_detection.v1": 9,
+        "target_view_prediction.v1": 107,
+        "unknown_abstention.v1": 123
+      },
+      "family_variants": {
+        "canonical": 567,
+        "claim_false": 44,
+        "claim_true": 44,
+        "decisive_deleted": 53,
+        "frame_a": 35,
+        "frame_b": 35,
+        "prefix_unknown": 53,
+        "revealed": 53
+      },
+      "consistency_families": 132,
+      "family_shapes": {
+        "claim_false+claim_true": 44,
+        "decisive_deleted+prefix_unknown+revealed": 53,
+        "frame_a+frame_b": 35
+      },
+      "split_scenes": {
+        "test": 7,
+        "train": 32,
+        "val": 7
+      },
+      "split_bundles": {
+        "test": 20,
+        "train": 110,
+        "val": 28
+      }
+    },
+    "exports": {
+      "episode_sft_records": 340,
+      "isolated_sft_records": 466,
+      "state_aux_records": 102,
+      "benchmark_records": 279,
+      "benchmark_family_records": 110,
+      "benchmark_family_groups": 46,
+      "benchmark_composition_records": 58,
+      "benchmark_core_records": 134,
+      "rlvr_records": 466,
+      "episode_supervised_facts": 466
+    },
+    "rejections": {
+      "count": 913,
+      "reason_counts": {
+        "held_out_verifier_only": 21,
+        "inadmissible_model_input_frame": 68,
+        "no_compiled_questions_after_quality_gating": 14,
+        "plan_status_failed": 69,
+        "plan_status_needs_review": 60,
+        "referent_not_visually_recognizable": 61,
+        "relation_quadrant_ambiguous": 28,
+        "t8_occlusion_family_unavailable_after_quality_gating": 7,
+        "temporal_track_contains_unrecognizable_witness": 72,
+        "trajectory_illegal_task": 90,
+        "unresolvable_or_unrecognizable_entity_reference": 395,
+        "visually_confusable_negative_category": 28
+      }
+    }
+  },
+  "corpus_gates": {
+    "status": "pass",
+    "checks": {
+      "typed_programs_valid": true,
+      "heldout_program_absent_from_train": true,
+      "heldout_atoms_seen_in_train": true,
+      "scene_split_lock": true,
+      "family_split_lock": true,
+      "family_members_complete": true,
+      "family_intervention_contract": true,
+      "family_id_shared_within_consistency_group": true,
+      "paired_fact_multiset_equal": true,
+      "fact_ids_globally_unique": true,
+      "record_ids_unique": true,
+      "heldout_target_rgb_absent_from_sft_input": true,
+      "heldout_target_rgb_hash_absent_from_sft_input": true,
+      "rgb_channel_purity": true,
+      "all_exported_model_frames_admissible": true,
+      "normalized_input_functional_dependency": true,
+      "all_certificates_terminal": true,
+      "all_certificate_checks_pass": true,
+      "certificate_full_reexecution": true,
+      "all_compiled_episodes_nonempty": true,
+      "required_family_shapes_present": true,
+      "required_benchmark_programs_present_per_split": true,
+      "required_benchmark_family_shapes_present_per_split": true,
+      "required_compiled_task_types_present": true,
+      "state_entities_have_quality_gated_witnesses": true
+    },
+    "train_program_ids": [
+      "cross_view_register_relation.v1",
+      "egocentric_relation.v1",
+      "elevation_relation_transfer.v1",
+      "evidence_presence_reveal.v1",
+      "evidence_presence_unknown.v1",
+      "grounding_presence.v1",
+      "last_seen_memory.v1",
+      "metric_distance.v1",
+      "object_centric_perspective.v1",
+      "occlusion_reveal.v1",
+      "occlusion_unknown.v1",
+      "orbit_identity.v1",
+      "rotation_change_detection.v1",
+      "unknown_abstention.v1"
+    ],
+    "train_atoms": [
+      "B",
+      "F",
+      "G",
+      "M",
+      "P",
+      "R",
+      "V"
+    ],
+    "heldout_program_ids": [
+      "counterfactual_cross_view.v1",
+      "target_view_prediction.v1"
+    ],
+    "heldout_atoms": [
+      "B",
+      "F",
+      "G",
+      "P",
+      "R",
+      "V"
+    ],
+    "heldout_benchmark_records": 58,
+    "certificate_replay": {
+      "checked": 884,
+      "passed": 884,
+      "failures": []
+    },
+    "exported_model_frame_admission": {
+      "checked_unique_paths": 918,
+      "inadmissible_count": 0,
+      "inadmissible_path_samples": [],
+      "policy_id": "epispace.referent_recognizability.v4"
+    },
+    "coverage_contract": {
+      "requirements": {
+        "minimum_family_groups_by_shape": {
+          "claim_false+claim_true": 1,
+          "decisive_deleted+prefix_unknown+revealed": 1,
+          "frame_a+frame_b": 1
+        },
+        "minimum_benchmark_family_groups_by_split": {
+          "val": {
+            "claim_false+claim_true": 1,
+            "decisive_deleted+prefix_unknown+revealed": 1,
+            "frame_a+frame_b": 1
+          },
+          "test": {
+            "claim_false+claim_true": 1,
+            "decisive_deleted+prefix_unknown+revealed": 1,
+            "frame_a+frame_b": 1
+          }
+        },
+        "minimum_benchmark_program_records_by_split": {
+          "val": {
+            "counterfactual_cross_view.v1": 1,
+            "target_view_prediction.v1": 1
+          },
+          "test": {
+            "counterfactual_cross_view.v1": 1,
+            "target_view_prediction.v1": 1
+          }
+        },
+        "minimum_compiled_task_type_records": {
+          "elevation_relation_transfer": 1,
+          "occlusion_reveal": 1,
+          "orbit_identity": 1,
+          "target_view_prediction": 1
+        }
+      },
+      "observed_family_groups_by_shape": {
+        "claim_false+claim_true": 44,
+        "decisive_deleted+prefix_unknown+revealed": 53,
+        "frame_a+frame_b": 35
+      },
+      "observed_benchmark_program_records_by_split": {
+        "test": {
+          "counterfactual_cross_view.v1": 20,
+          "cross_view_register_relation.v1": 10,
+          "egocentric_relation.v1": 12,
+          "elevation_relation_transfer.v1": 1,
+          "evidence_presence_reveal.v1": 11,
+          "evidence_presence_unknown.v1": 22,
+          "grounding_presence.v1": 30,
+          "last_seen_memory.v1": 4,
+          "metric_distance.v1": 3,
+          "target_view_prediction.v1": 16,
+          "unknown_abstention.v1": 14
+        },
+        "val": {
+          "counterfactual_cross_view.v1": 14,
+          "cross_view_register_relation.v1": 7,
+          "egocentric_relation.v1": 21,
+          "elevation_relation_transfer.v1": 1,
+          "evidence_presence_reveal.v1": 7,
+          "evidence_presence_unknown.v1": 14,
+          "grounding_presence.v1": 25,
+          "last_seen_memory.v1": 10,
+          "metric_distance.v1": 3,
+          "object_centric_perspective.v1": 1,
+          "target_view_prediction.v1": 8,
+          "unknown_abstention.v1": 25
+        }
+      },
+      "observed_benchmark_family_groups_by_split": {
+        "test": {
+          "claim_false+claim_true": 10,
+          "decisive_deleted+prefix_unknown+revealed": 11,
+          "frame_a+frame_b": 4
+        },
+        "val": {
+          "claim_false+claim_true": 7,
+          "decisive_deleted+prefix_unknown+revealed": 7,
+          "frame_a+frame_b": 7
+        }
+      },
+      "observed_compiled_task_type_records": {
+        "counterfactual_verification": 88,
+        "cross_view_relation": 44,
+        "egocentric_relation": 91,
+        "elevation_relation_transfer": 11,
+        "evidence_presence_reveal": 52,
+        "evidence_presence_unknown": 104,
+        "grounding_presence": 175,
+        "last_seen_memory": 45,
+        "metric_distance": 23,
+        "object_centric_perspective": 3,
+        "occlusion_reveal": 1,
+        "occlusion_unknown": 2,
+        "orbit_identity": 6,
+        "rotation_change_detection": 9,
+        "target_view_prediction": 107,
+        "unknown_abstention": 123
+      }
+    }
+  },
+  "artifacts": {
+    "episode_ir": "episodes.ir.jsonl",
+    "episode_sft": "train.episode_sft.jsonl",
+    "isolated_sft": "train.isolated_sft.jsonl",
+    "state_aux_sft": "train.state_aux_sft.jsonl",
+    "rlvr": "train.rlvr.jsonl",
+    "benchmark": "benchmark.jsonl",
+    "benchmark_family": "benchmark.family.jsonl",
+    "benchmark_composition": "benchmark.composition.jsonl",
+    "benchmark_core": "benchmark.core.jsonl",
+    "rejections": "rejections.jsonl",
+    "source_inventory": "source_inventory.json"
+  },
+  "license_boundary": "BEHAVIOR-1K-derived render media remain subject to the source academic-use terms; this internal manifest does not grant redistribution rights.",
+  "artifact_integrity": {
+    "episode_ir": {
+      "path": "episodes.ir.jsonl",
+      "sha256": "9ee41180ff95dc30d0ed803a580b15a04b49ae31602a25d861d241c6a326afd8",
+      "bytes": 3556245,
+      "records": 158
+    },
+    "episode_sft": {
+      "path": "train.episode_sft.jsonl",
+      "sha256": "be51536ee233bbdc70db8672462695b5be5009629d12e7bc53ee4b6fc3210392",
+      "bytes": 732313,
+      "records": 340
+    },
+    "isolated_sft": {
+      "path": "train.isolated_sft.jsonl",
+      "sha256": "a66a309e8ac69343fc63988eee653698841d5f235f31a6638b89f84793ed9e1f",
+      "bytes": 996847,
+      "records": 466
+    },
+    "state_aux_sft": {
+      "path": "train.state_aux_sft.jsonl",
+      "sha256": "5e40c0855c8ca47385590de2bf11a8229ff3fac388ba5f04215a449f952fa6f5",
+      "bytes": 974772,
+      "records": 102
+    },
+    "rlvr": {
+      "path": "train.rlvr.jsonl",
+      "sha256": "c43e3ef1422d97fbd612a60fb80b1ba60bfb3347b1997089bf34d571759deedd",
+      "bytes": 1022663,
+      "records": 466
+    },
+    "benchmark": {
+      "path": "benchmark.jsonl",
+      "sha256": "a87b9d7e9b738d9adfcc42de3808cd2004f39b645a5ded807276d4cb65ac046d",
+      "bytes": 1084821,
+      "records": 279
+    },
+    "benchmark_family": {
+      "path": "benchmark.family.jsonl",
+      "sha256": "db5be322ee79aaebb2ea4af649980b852647a466ebb35c964e0c1064bf9d00e5",
+      "bytes": 441213,
+      "records": 110
+    },
+    "benchmark_composition": {
+      "path": "benchmark.composition.jsonl",
+      "sha256": "969934c337fb0758cd8a04197eee79f1d6ae134036c893248d67fba990438729",
+      "bytes": 319731,
+      "records": 58
+    },
+    "benchmark_core": {
+      "path": "benchmark.core.jsonl",
+      "sha256": "d497f5085f02a61ba9bc7a5d00e4f59137f35622fa98c0521a3ce1f22adc9b7b",
+      "bytes": 579148,
+      "records": 134
+    },
+    "rejections": {
+      "path": "rejections.jsonl",
+      "sha256": "fd4ad7f6e01733059684839739e092ee07494ffcde905f16491437334bdbc932",
+      "bytes": 297903,
+      "records": 913
+    },
+    "source_inventory": {
+      "path": "source_inventory.json",
+      "sha256": "11f5d06c959c0656433d7d595205610e4b19f7712decc94766be00055b0b52f8",
+      "bytes": 1418997
+    }
+  },
+  "source_integrity": {
+    "config_sha256": "12504315d584917c1d1d83e79e5c8c597bbc1171dd8216d1afd5f22726c16087",
+    "source_inventory_sha256": "11f5d06c959c0656433d7d595205610e4b19f7712decc94766be00055b0b52f8",
+    "sweep_plan_sha256": {
+      "t1-static-m2": "e2982e62bd679661d80211d9ed3052d7efdad470cfa2d66695e825f4cfd05dc3",
+      "t3-rotation-r0": "338b13130d36ed379487738f303427a6b9877286aafff5d90c1ee01cbfa9458e",
+      "t3-rotation-r1": "c0fbaa343e13720a700b465218f1d561daa9316c9d044ff8401a0f8e19cf68e5",
+      "t4-adaptive-arc-v3": "c3fc71320506613ea208faedfa2a1410d03f4e9bf6ba97d3d06ba67f0271131c",
+      "t7-elevation": "1cb0d46ea22966304f4864ce0c4030bef72f72f08807decde95a55bd408b57d8",
+      "t8-occlusion-reveal": "455508bb7105a68de731935e47bc4be9aa32f60353bdc39083672b384435acf1",
+      "t10-target-view": "c855f23a188d453890971867ce5bcb526d41b4478f934c44274f3cdec5207c63"
+    }
+  },
+  "derived_artifacts": {
+    "status": "invalidated_on_dataset_build",
+    "invalidation_policy": [
+      "compute_matching",
+      "evaluation_smoke",
+      "corpus_audit.json",
+      "corpus_audit.md",
+      "semantic_visual_audit",
+      "semantic_visual_audit_packet.json",
+      "semantic_visual_audit_packet.md",
+      "semantic_visual_audit_packet.result.json",
+      "semantic_visual_audit_packet.result.md",
+      "final_release_index.json"
+    ],
+    "required_rebuild_order": [
+      "semantic_visual_audit",
+      "compute_matching",
+      "corpus_audit",
+      "evaluation_smoke",
+      "final_release_index"
+    ]
+  }
+}

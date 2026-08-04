@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epispace"
+version = "0.2.0"
+description = "Simulator-grounded episode learning for compositional spatial reasoning."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "Pillow>=10",
+  "pydantic>=2.10",
+  "PyYAML>=6",
+  "typer>=0.15",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.7",
+]
+train = [
+  "accelerate>=1.6",
+  "peft>=0.15",
+  "qwen-vl-utils>=0.0.14",
+  "torch>=2.6",
+  "transformers>=4.57",
+]
+
+[project.scripts]
+epispace-build = "episode3d.cli:main"
+epispace-audit = "episode3d.corpus_audit:main"
+epispace-eval = "episode3d.benchmark_evaluator:main"
+epispace-verify-release = "episode3d.release_verifier:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["episode3d*", "spatial_episode*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "backends/omnigibson/tests"]
+pythonpath = ["src", "backends/omnigibson/src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "backends/omnigibson/src", "scripts", "tests", "backends/omnigibson/tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501", "RUF001", "UP017"]

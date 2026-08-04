@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>EpiSpace Transform Pilot</title>
+  <link rel="stylesheet" href="transform-pilot.css">
+  <link rel="stylesheet" href="transform-pilot-output.css">
+  <link rel="stylesheet" href="transform-pilot-eval.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="transform-pilot.html"><span class="brand-mark">E3</span><span>EpiSpace Transform Pilot</span></a>
+    <nav><a href="index.html">总览</a><a href="episode-review.html">旧数据审阅</a><span class="active">Transform Pilot</span></nav>
+    <span id="readiness" class="status-chip">读取中</span>
+  </header>
+
+  <main class="app-shell">
+    <section class="thesis">
+      <div>
+        <p class="eyebrow">PROGRAM-GROUNDED EPISODE LEARNING</p>
+        <h1>不是让模型背空间答案，<br>而是学会更新视角。</h1>
+        <p>同一 RGB 与问题构造两个严格配对的监督臂：Answer-only 只监督结论；Grounded-CoT 显式监督可复核的线索、变换和答案。</p>
+      </div>
+      <div class="equation"><span>RGB 序列</span><b>→</b><span>视图记忆</span><b>→</b><span>坐标变换</span><b>→</b><span>答案</span></div>
+    </section>
+
+    <section id="metrics" class="metric-row"></section>
+
+    <section class="workbench">
+      <aside class="control-panel">
+        <div class="panel-head"><span>样本浏览器</span><span id="sample-count" class="muted"></span></div>
+        <label>任务<select id="task-filter"></select></label>
+        <label>样本<select id="sample-select"></select></label>
+        <div id="variant-tabs" class="variant-tabs"></div>
+        <div class="arm-switch" role="group" aria-label="SFT target">
+          <button data-arm="answer_only">Answer-only</button>
+          <button class="active" data-arm="grounded_cot">Grounded-CoT</button>
+        </div>
+        <dl id="record-meta" class="record-meta"></dl>
+      </aside>
+
+      <article class="record-stage">
+        <div class="stage-head">
+          <div><p class="eyebrow">MODEL VIEW</p><h2 id="record-title">真实训练样本</h2></div>
+          <div id="op-graph" class="op-graph"></div>
+        </div>
+        <div id="image-grid" class="image-grid"></div>
+        <div class="dialogue-card">
+          <div class="speaker system">SYSTEM</div><p id="system-text"></p>
+          <div class="speaker user">USER</div><p id="question-text"></p>
+          <div class="speaker assistant">ASSISTANT TARGET</div><pre id="assistant-target"></pre>
+        </div>
+        <section class="model-output-section">
+          <div class="output-section-head">
+            <div>
+              <p class="eyebrow">ZERO-SHOT MODEL RESPONSES</p>
+              <h3>模型实际输出</h3>
+            </div>
+            <span id="output-arm-label" class="output-arm-label"></span>
+          </div>
+          <div id="model-output-grid" class="model-output-grid"></div>
+        </section>
+      </article>
+
+      <aside class="audit-panel">
+        <div class="audit-tabs">
+          <button class="active" data-tab="trace">Trace</button>
+          <button data-tab="certificate">Certificate</button>
+        </div>
+        <div id="trace-panel" class="audit-content"></div>
+        <pre id="certificate-panel" class="audit-content hidden"></pre>
+      </aside>
+    </section>
+
+    <section class="footer-strip">
+      <div><p class="eyebrow">ARTIFACTS</p><div id="artifact-list"></div></div>
+      <div><p class="eyebrow">FROZEN EVALUATION</p><div id="evaluation-status">等待完整数据后运行 SenseNova-SI / InternVL3 零训练评测。</div></div>
+    </section>
+  </main>
+  <script src="transform-pilot.js"></script>
+</body>
+</html>

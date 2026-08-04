@@ -1,0 +1,73 @@
+\section{Learning and Evaluation Interfaces}
+\label{sec:training}
+
+The student is never trained to print the hidden operation graph.  All primary
+records use a Qwen-compatible multimodal chat schema: raw RGB and Chinese text
+are user content, and loss is applied only to assistant tokens.  Hard spatial
+reads receive a short evidence-grounded explanation ending in the surface
+answer; simple presence and metric reads use the answer directly.
+
+\paragraph{B: observe-first episode SFT.}
+For each selected view set, the user first supplies all ordered images and then
+a numbered batch of at most six questions.  The assistant returns aligned
+numbered answers.  The frozen train arm contains \EpiEpisodeRecords{} records
+covering \EpiSupervisedFacts{} facts.  A whole-turn token mean would silently
+give long answers and multi-question records different mass.  We instead map
+each numbered answer to an exact tokenizer span.  For fact $f$ in record $i$,
+let
+\(
+\ell_{if}=-|T_{if}|^{-1}\sum_{t\in T_{if}}
+\log p_\theta(x_{it}\mid x_{i,<t},O_i)
+\).
+With schedule weight $w_i$, the implemented objective is
+\begin{equation}
+  \mathcal L_B(\theta)=\frac{1}{|\mathcal F|}
+  \sum_i w_i\sum_{f\in\mathcal F_i}\ell_{if}.
+  \label{eq:sft}
+\end{equation}
+Numbering, system, user, image-placeholder, program, and certificate tokens
+have zero loss.  Under the repeated-record schedule below, this makes every
+selected fact's total epoch weight exactly one.
+
+\paragraph{Comparison groups are optimizer units.}
+For the visual-exposure-controlled schedule, rows are partitioned by
+\texttt{comparison\_id}.  For each $k$-fact group, either $k$ weighted episode
+draws or $k$ one-fact isolated draws are backpropagated before exactly one Adam
+update.  Both arms must pass paired group/fact/draw validation and use the same
+seeded group order.  Per-draw Adam stepping is ineligible because inverse-repeat
+weights do not commute with Adam (Appendix~\ref{app:matching}).
+
+\paragraph{C: paired isolated-QA control.}
+Each selected fact is separately exported over the same view list, yielding
+\EpiIsolatedRecords{} records.  A comparison ID links each isolated row to its
+episode record; explicit fact IDs verify equality of the fact multisets.  The
+fact-matched regime measures serialized-input amortization (1,168 versus 3,227
+image presentations), not runtime efficiency.  The stricter regime matches 651
+draws, 3,227 image occurrences, and 3,383,754,752 pixels per arm through
+inverse-repeat weights.  Exact profiling gives equal image tokens but 14.70\%
+more total input tokens for episodes; neither regime matches total tokens,
+training FLOPs, or wall time (Appendix~\ref{app:matching}).
+
+\paragraph{Optional interfaces.}
+Arm D contains \EpiStateRecords{} separately requested terminal-belief targets;
+it is never a hint inside B/C and is tested only after their comparison.
+Another \EpiRLVRRecords{} rows carry hidden, deterministic reward
+specifications.  They are verifier-ready; no state-auxiliary, GRPO, policy, or
+family-reward result is claimed.
+
+\paragraph{Core benchmark protocol.}
+The \EpiCoreBenchmarkRecords{}-row core de-duplicates
+\EpiFamilyBenchmarkRecords{} family and \EpiCompositionRecords{} signature
+rows.  It reports structured atomic, evidence, claim, frame, and
+Eq.~\ref{eq:evidence-sensitivity} metrics.  Family exact match is restricted to
+the \EpiFamilyBenchmarkGroups{} complete sibling consistency groups; canonical
+composition-only rows are excluded.  Target-copy predictions validate wiring,
+not model capability.
+
+\paragraph{Falsifiable model study.}
+The future full study trains the same 8B initialization under B/C with the same
+optimizer, replay, group order, and updates.  Its primary outcome is
+macro-averaged test accuracy on the two held-out signatures; 18 validation and
+nine test rows are never pooled for a primary claim.  Family metrics are
+co-primary and uncertainty clusters by scene/family.  A positive result still
+requires total-token/FLOP matching before attribution to organization alone.

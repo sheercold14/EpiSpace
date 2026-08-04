@@ -1,0 +1,130 @@
+\section{The EpiSpace Data Engine}
+\label{sec:engine}
+
+\subsection{Acquisition contract and raw-channel isolation}
+
+EpiSpace consumes existing OmniGibson acquisition bundles without mutating
+them.  Each bundle contains a trajectory plan, ordered observations, camera
+transforms, an entity inventory, RGB/depth/instance sensor arrays, and quality
+reports.  The sweep plan is the authoritative job ledger.  The frozen policy
+accepts only jobs marked \texttt{passed}; the adapter additionally requires all
+core files, contiguous view indices, non-empty entities, integrity
+\texttt{pass}, and a compatible trajectory class.  Review and failed jobs are
+preserved in a reason-coded ledger.
+
+Human previews concatenate RGB, depth, and instance-ID panels and are therefore
+forbidden as model input.  The loader extracts the \texttt{uint8} RGB array from
+each sensor archive into a release-owned PNG, records its dimensions and raw
+pixel SHA-256, and stores instance pixel counts in a sidecar used only during
+compilation.  A purity gate decodes every referenced image, verifies
+1024$\times$1024 RGB content against the sidecar, and rejects paths under a
+preview directory.  Target-view renders are checked against all SFT inputs by
+both path and decoded RGB hash.
+
+Across seven sweeps, \EpiPlannedJobs{} planned jobs produce
+\EpiStrictBundles{} strict bundles.  Of these, \EpiSourceTrajectories{} are
+write sources with \EpiSourceViews{} raw RGB views; 21 T10 bundles are verifier
+sources only.  A fixed hash ranking assigns all descendants of each scene to
+32/7/7 train/validation/test scenes.  No trajectory, sibling family, or target
+render crosses that boundary.
+
+\input{generated/dataset_table}
+
+\subsection{Trajectory semantics and question legality}
+
+Camera motion determines which supervision is identifiable.
+\begin{itemize}
+  \item \textbf{T1 walkthroughs} support overlap, revisit, separated-view
+        registration, memory, metric, relation, and perspective reads.
+  \item \textbf{T3 rotation stations} change yaw at a fixed position.  We
+        supervise two-frame change detection only when exactly one eligible
+        object enters view; metric tasks are rejected because rotation adds no
+        translational baseline.
+  \item \textbf{T4 adaptive arcs} keep a focus instance visible across a
+        collision-free partial orbit.  The safe target is observed-instance
+        identity, not canonical front or an unseen backside; these uniformly
+        positive items are training-only.
+  \item \textbf{T7 elevation ladders} change height and pitch at a station.
+        Two sufficiently visible, unique objects are compared in an explicitly
+        declared anchor-camera frame.
+  \item \textbf{T8 reveal paths} provide a decisive category-presence view and
+        matched evidence-deletion controls when such a family is valid.
+  \item \textbf{T10 target views} never enter a write prefix.  Their RGB is an
+        oracle-only observation used to grade visibility predicted from a
+        same-scene write trajectory.
+\end{itemize}
+T2, T5, T6, and T9 remain expansion slots and are not counted as pilot assets.
+
+Source questions must have an accepted/unknown status, a terminal source
+certificate, and evidence views inside the actual model sequence.  Instance
+questions are retained only when category-plus-view resolves one entity and at
+least one declared anchor contributes 500 instance pixels.  T10 origin,
+facing, and candidate entities require their own unique observed anchors.
+Direction surfaces explicitly name the frame.  All 241 observed ontology
+categories are deterministically localized into Chinese; an audit searches
+model-visible text for residual raw labels.
+
+\subsection{Geometry first, language second}
+
+The compiler fixes an entity binding and structured target before realizing a
+question.  Relations are computed in the declared camera frame; distances are
+rounded only after metric evaluation; last-seen labels are recomputed over the
+actual presented view list; and unknown means that the required category or
+referent is absent from those inputs, not absent from simulator world truth.
+Natural-language templates then verbalize the fixed target.  This ordering
+prevents a data-generation paraphraser from defining label geometry or reading
+the answer-side certificate; it does not prevent a trained student from making
+geometric errors.  Future paraphrasers must consume only question-side facts
+and remain answer-blind.
+
+Each accepted item receives a globally unique fact ID, exact model/evidence
+views, entity IDs in hidden metadata, a typed program, a Chinese surface
+answer, and a replay certificate.  The independent replayer does not trust a
+stored \texttt{passed} bit: it loads the source bundle and recomputes the target
+for all 17 task/program types.  The frozen release replays
+\EpiReplayedCertificates{}/\EpiReplayedCertificates{} targets successfully.
+
+\subsection{Counterfactual family compiler}
+
+The generic family compiler expands validated atomic facts rather than relying
+only on rare hand-authored trajectories.
+\begin{itemize}
+  \item \textbf{Presence evidence (85 triples):} one background RGB is shared
+        by all siblings; the second RGB is either a category-free distractor,
+        a $\geq500$-pixel decisive view, or a different distractor.
+  \item \textbf{Cross-view evidence (5 triples):} two RGBs, including the
+        canonical anchor and one resolvable referent, are shared; only the
+        third image reveals or withholds the second never-co-visible referent.
+  \item \textbf{Trajectory reveal (1 triple):} a T8 decisive view is exchanged
+        against a matched category-free view.
+  \item \textbf{Frame equivariance (\EpiFrameFamilies{} pairs):} the same two
+        images and objects are retained, but forward is anchored to image one
+        versus image two; only pairs whose oracle relation changes are kept.
+  \item \textbf{Claim verification (\EpiClaimFamilies{} pairs):} each certified
+        cross-view relation yields balanced true and false claims with a
+        structured corrected relation.
+\end{itemize}
+This produces \EpiConsistencyFamilies{} complete families.  Missing siblings,
+unequal image counts, inconsistent family IDs, and cross-split membership are
+release-blocking errors.
+
+\subsection{Exports and fail-closed validation}
+
+One intermediate episode IR is rendered into observe-first SFT, paired
+isolated SFT, optional observable-state SFT, RLVR-ready prompts, and benchmark
+rows.  The full diagnostic benchmark contains \EpiBenchmarkRecords{} records.
+The recommended core is the union of all scene-disjoint family rows and all
+semantic-signature holdouts: \EpiCoreBenchmarkRecords{} unique rows, with
+separate \texttt{family} and \texttt{composition} views for disaggregated
+reporting.
+
+Eighteen release gates cover program typing; atom-seen/signature-unseen
+composition; scene and family locks; complete sibling shapes; shared family
+IDs; identical episode/isolated fact multisets; globally unique fact and record
+IDs; target-view path and hash isolation; raw-RGB purity; functional
+input--target dependence; terminal certificates; passing certificate checks;
+and full independent replay.  All pass.  The manifest also retains
+\EpiRejectedItems{} exclusions, dominated by ambiguous references, failed or
+review acquisition jobs, trajectory-illegal tasks, small referents, and
+verifier-only bundles.  Exclusions are part of the reported yield rather than
+silently discarded data.

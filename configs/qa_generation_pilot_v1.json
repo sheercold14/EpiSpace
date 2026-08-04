@@ -1,0 +1,56 @@
+{
+  "schema_version": "epispace.qa_generation_config.v1",
+  "dataset_id": "epispace-claim-grounded-qa-pilot-v1-2026-07-18",
+  "target_question_count": 20,
+  "source": {
+    "episode_ir": "../data/epispace_pilot_v1/episodes.ir.jsonl",
+    "semantic_visual_audit": "../data/epispace_pilot_v1/semantic_visual_audit/result.json",
+    "pipeline_config": "epispace_pilot_v1.json",
+    "heldout_program_ids": [
+      "counterfactual_cross_view.v1",
+      "target_view_prediction.v1"
+    ]
+  },
+  "backend": {
+    "kind": "codex_exec",
+    "provider": "codex-cli",
+    "model": "default",
+    "codex_binary": "/home/shichao/.nvm/versions/node/v20.20.0/bin/codex",
+    "timeout_seconds": 300
+  },
+  "output": {
+    "directory": "../data/qa_generation_pilot_v1",
+    "cache_directory": "../data/qa_generation_cache_v1",
+    "web_payload": "../web/data/qa_generation_pilot.v1.json"
+  },
+  "curated_episode_facts": {
+    "c58ce8f9-ade1-5cea-8c8b-a750d22e7c8e": [
+      "fact-72189a535083eef77091",
+      "fact-98e1ab131f07813942bf",
+      "fact-08a2291c443c8e7ee315",
+      "fact-2431df1fab3917fb8956",
+      "fact-5b23ffdbe08409188b63"
+    ],
+    "94ae917a-b0ff-51fa-949c-39452aba2248": [
+      "fact-a587c1044c0387e9467b",
+      "fact-bc7d129861d4116455fd",
+      "fact-a168ad82f05e6b8fd85e",
+      "fact-ce1b1e34f70416109ebf",
+      "fact-3a72092e3167b0017c0a",
+      "fact-65a398e0cb5c377b853e"
+    ],
+    "a2f1fe74-da7e-546b-aa9d-b1a2f62f9904": [
+      "fact-6b339518cfbd54110ac0",
+      "fact-5c30467d2d1e74eb4646",
+      "fact-f49ebbc2e770d2e790ad",
+      "fact-0b95107154de26eeed67",
+      "fact-ae9e47410179f06a107d"
+    ],
+    "b1a433ea-e1c0-5284-bbb0-62362974f841": [
+      "fact-99bac18d5868dbd10e4a",
+      "fact-dab64f36f1ca1023ed08",
+      "fact-d999aaea09c3e78d4863",
+      "fact-a598a0e82f32c674db7d"
+    ]
+  }
+}

@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Episode3D：面向 SenseNova 空间能力组合泛化的可训练 episode 设计">
+  <title>Episode3D · Compositional Spatial Generalization</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="site-header">
+    <a class="brand" href="#top"><span class="brand-mark">E3</span><span><b>Episode3D</b><small>GENERALIZATION LAB</small></span></a>
+    <nav aria-label="页面导航">
+      <a href="#contract">研究命题</a><a href="#trajectories">轨迹资产</a><a href="#compiled-dialogues">全量训练集</a><a href="#scene-dialogues">配音对照</a><a href="#training">训练契约</a><a href="#evaluation">验证</a>
+    </nav>
+    <span class="evidence-pill"><i></i> REAL GEOMETRY</span>
+  </header>
+
+  <main id="top">
+    <section class="hero shell">
+      <div class="hero-copy">
+        <p class="eyebrow"><span>DATA DESIGN · V1</span> SENSENOVA × OMNIGIBSON</p>
+        <h1>原子能力全部见过，<br><em>组合方式留给测试。</em></h1>
+        <p class="hero-lead">同一场景的有序 RGB 只输入一次，问题 token 位于全部观察之后；几何编译器用 Grounding、Frame、Belief、Metric、Relation、Perspective 与 Verify 生成答案和验证证据。泛化不是“题型更多”，而是未见 graph signature 仍能闭合执行。</p>
+        <div class="hero-actions"><a href="#scene-dialogues" class="button primary">检查模板与配音</a><a href="#training" class="button ghost">查看训练契约</a></div>
+        <div class="hero-metrics">
+          <div><b id="metric-views">37</b><span>attempted scenes</span></div>
+          <div><b id="metric-queries">29</b><span>compiled episodes</span></div>
+          <div><b id="metric-variants">168</b><span>dialogue rounds</span></div>
+          <div><b id="metric-psnr">1/29</b><span>LLM dubbed pilot</span></div>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-frame"><img id="hero-image" alt="OmniGibson Rs_int scene"><span>Rs_int · measured RGB</span></div>
+        <div class="formula-card">
+          <small>PRIMARY DATA UNIT</small>
+          <code>E = { O<sub>1:M</sub>, (q, y)<sub>1:K</sub> }; compiler = { S, π, c }</code>
+          <div class="write-read"><span>M × OBSERVE</span><i>→</i><b>SHARED EVIDENCE</b><i>→</i><span>K × ANSWER</span></div>
+        </div>
+        <aside class="claim"><span>FALSIFIABLE HYPOTHESIS</span><p>共享状态如果被真正使用，应提升 held-out composition 和 family consistency；否则停止 scale。</p></aside>
+      </div>
+    </section>
+
+    <section id="contract" class="section contract-section">
+      <div class="shell">
+        <header class="section-heading">
+          <div><p class="chapter">01 · RESEARCH CONTRACT</p><h2>训练的不是答案链，<br>而是可复用的世界状态。</h2></div>
+          <p>测试组合的每个原子操作都必须在训练中出现；完整 signature 必须没有出现，并且 scene 与 family 严格隔离。</p>
+        </header>
+        <div class="contract-grid">
+          <article class="contract-card featured"><span>CAUSAL AXIS</span><h3>Atoms(test) ⊆ Atoms(train)<br>Signature(test) ∉ Signature(train)</h3><p>只有同时满足这两个条件，才是在测组合，而不是测新技能或模板迁移。</p></article>
+          <article class="contract-card"><span>OBSERVE</span><h3>Question-after-evidence</h3><p>所有图像 token 都在问题 token 之前；显式状态是独立 auxiliary export，不伪装成主 SFT 输入。</p></article>
+          <article class="contract-card"><span>READ</span><h3>Typed I/O closure</h3><p>Relation 必须消费实体与 frame；Perspective 必须消费 belief 与 target view。</p></article>
+          <article class="contract-card"><span>VERIFY</span><h3>Independent execution</h3><p>certificate 来自几何规则，不由模型用文字自我确认。</p></article>
+        </div>
+        <div class="ability-strip" id="ability-strip"></div>
+      </div>
+    </section>
+
+    <section id="trajectories" class="section trajectory-section">
+      <div class="shell">
+        <header class="section-heading light">
+          <div><p class="chapter">02 · TRAJECTORY COLLECTION</p><h2>322 条真实采集，<br>每条都有明确去向。</h2></div>
+          <p>页面直接读取 <code>episode3d-og-trajectories-collection-v1</code>：T1/T3/T4/T7/T8/T10 来自真实渲染，T2/T5 从可见性派生，T9 来自反事实干预；通过、待复核与失败严格分开。</p>
+        </header>
+
+        <div class="trajectory-summary" id="trajectory-summary"></div>
+        <div class="trajectory-coverage" id="trajectory-coverage"></div>
+
+        <div class="collection-dashboard">
+          <article class="collection-totals">
+            <div><p class="panel-kicker">STRICT DATA ACCOUNTING</p><h3>只有通过机器证据门的 episode 才进入训练候选。</h3></div>
+            <div class="collection-status-bar" id="collection-status-bar"></div>
+            <p id="collection-accounting-note"></p>
+          </article>
+          <article class="collection-matrix" id="collection-matrix"></article>
+        </div>
+
+        <div class="collection-browser">
+          <header>
+            <div><p class="panel-kicker">CLASS → SCENE → TRAJECTORY</p><h3 id="collection-browser-title">全部类别场景画廊</h3><p>先按轨迹能力进入类别，再从真实场景卡片打开四通道播放器。通过与待复核 bundle 均可审计，失败任务只展示失败原因。</p></div>
+            <span id="collection-job-count"></span>
+          </header>
+          <div class="collection-filters" id="collection-class-filters"></div>
+          <div class="collection-filters status" id="collection-status-filters"></div>
+          <div class="collection-job-list" id="collection-job-list"></div>
+        </div>
+
+        <div class="trajectory-workbench">
+          <aside class="trajectory-selector" id="trajectory-selector"></aside>
+          <article class="trajectory-inspector">
+            <div class="trajectory-toolbar">
+              <div>
+                <span id="trajectory-status">MACHINE VERIFIED</span>
+                <code id="trajectory-id"></code>
+              </div>
+              <div class="trajectory-channels" id="trajectory-channels">
+                <button class="active" data-trajectory-channel="rgb">RGB</button>
+                <button data-trajectory-channel="depth">DEPTH</button>
+                <button data-trajectory-channel="instance">INSTANCE</button>
+                <button data-trajectory-channel="semantic">SEMANTIC</button>
+                <button id="trajectory-copy-link" type="button">COPY LINK</button>
+              </div>
+            </div>
+            <div class="trajectory-stage">
+              <img id="trajectory-image" alt="真实采集轨迹视图">
+              <div class="trajectory-compass" id="trajectory-compass"></div>
+              <div class="trajectory-hud"><span id="trajectory-view-label"></span><span id="trajectory-channel-label"></span></div>
+            </div>
+            <div class="trajectory-view-stats" id="trajectory-view-stats"></div>
+            <div class="trajectory-strip" id="trajectory-strip"></div>
+          </article>
+        </div>
+
+        <div class="trajectory-method-grid">
+          <article>
+            <p class="panel-kicker dark">ABILITY HYPOTHESIS</p>
+            <h3 id="trajectory-name"></h3>
+            <p id="trajectory-hypothesis"></p>
+            <code id="trajectory-axes"></code>
+          </article>
+          <article>
+            <p class="panel-kicker dark">SELECTION</p>
+            <div id="trajectory-selection"></div>
+          </article>
+          <article class="trajectory-gates">
+            <p class="panel-kicker dark">EXECUTABLE QUALITY GATES</p>
+            <div id="trajectory-gates"></div>
+          </article>
+        </div>
+
+        <div class="derived-heading"><div><p class="panel-kicker">ZERO-RENDER DERIVATION</p><h3>一次采集，多种受控信息结构。</h3></div><p>T2 改变可见视图集合，T5 固定为双视图；派生记录保存共视实体数、朝向差、连通性和可答/弃答状态。</p></div>
+        <div class="derived-trajectory-grid" id="derived-trajectory-grid"></div>
+        <aside class="trajectory-boundary" id="trajectory-boundary"></aside>
+      </div>
+    </section>
+
+    <section id="release" class="section release-section" hidden>
+      <div class="shell">
+        <header class="section-heading">
+          <div><p class="chapter" id="release-chapter">03 · DATA ASSET INSPECTOR</p><h2 id="release-heading">候选先透明展示，<br>正式数据仍然 fail closed。</h2></div>
+          <p id="release-description">优先读取 hash 闭合的正式 release；尚未完成独立 RGB 语义复核时，只展示绑定到 config 与 Episode IR 的机器候选，并明确标出证据边界。</p>
+        </header>
+
+        <article class="release-authority">
+          <div><span id="release-status">LOADING AUTHORITY</span><h3 id="release-dataset-id"></h3><p id="release-authority-note">FORMAL RELEASE OR DISCLOSED CANDIDATE</p></div>
+          <div class="release-hashes"><small id="release-manifest-label">SOURCE A SHA-256</small><code id="release-manifest-sha"></code><small id="release-index-label">SOURCE B SHA-256</small><code id="release-index-sha"></code></div>
+        </article>
+
+        <div class="release-metrics" id="release-metrics"></div>
+        <div class="release-funnel" id="release-funnel"></div>
+
+        <div class="release-contracts">
+          <article><p class="panel-kicker dark">SCENE-LOCKED SPLIT</p><h3>同一世界不跨集合。</h3><div id="release-splits"></div></article>
+          <article><p class="panel-kicker dark">COUNTERFACTUAL FAMILIES</p><h3>答案随证据条件改变。</h3><div id="release-families"></div></article>
+          <article><p class="panel-kicker dark">COMPOSITION HOLDOUT</p><h3>原子见过，signature 留出。</h3><div id="release-composition"></div></article>
+        </div>
+
+        <div class="release-browser">
+          <header>
+            <div><p class="panel-kicker">EPISODE IR → TRAIN / BENCHMARK</p><h3 id="release-browser-title">浏览全部编译 Episode</h3><p id="release-browser-description">目录只加载摘要；打开条目后才读取对应 detail。绿色是模型可见面，蓝色是监督 target，深色 typed graph 与 certificate 是生成器证明，永不进入主输入。</p></div>
+            <span id="release-browser-count"></span>
+          </header>
+          <div class="release-filter-row">
+            <div id="release-split-filters"></div>
+            <div id="release-class-filters"></div>
+            <label><span>SEARCH</span><input id="release-search" type="search" placeholder="episode / task / program"></label>
+          </div>
+          <div class="release-browser-grid">
+            <aside class="release-episode-list" id="release-episode-list"></aside>
+            <article class="release-detail">
+              <div class="release-detail-head"><div><span id="release-detail-badge">LAZY DETAIL</span><code id="release-detail-id"></code></div><div id="release-detail-meta"></div></div>
+              <div class="release-review-scope" id="release-review-scope" hidden></div>
+              <div class="release-stage"><img id="release-image" alt="Release episode RGB"><div><span id="release-view-label"></span><b>MODEL VISIBLE · RGB</b></div></div>
+              <div class="release-view-strip" id="release-view-strip"></div>
+              <div class="release-question-tabs" id="release-question-tabs"></div>
+              <div class="release-evidence-grid">
+                <section class="visible"><small>MODEL VISIBLE</small><h3 id="release-question"></h3><p>有序 RGB + 自然语言问题；没有 pose、depth、oracle 或 expected answer。</p></section>
+                <section class="target"><small>SFT / EVAL TARGET</small><h3 id="release-answer"></h3><div id="release-target-meta"></div></section>
+                <section class="proof"><small>COMPILER PROOF · NEVER INPUT</small><code id="release-signature"></code><div id="release-dag"></div><div id="release-certificate"></div></section>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="release-audit-grid">
+          <article class="semantic-audit-card">
+            <p class="panel-kicker dark">SEMANTIC RGB QUALITY</p>
+            <h3 id="release-semantic-title"></h3>
+            <p class="semantic-audit-boundary" id="release-semantic-boundary"></p>
+            <div class="semantic-audit-counts" id="release-semantic-counts"></div>
+            <div class="semantic-audit-binding">
+              <span>SEED <b id="release-semantic-seed"></b></span>
+              <span>PACKET <code id="release-semantic-packet"></code></span>
+            </div>
+            <div class="semantic-audit-links" id="release-semantic-links"></div>
+          </article>
+          <article><p class="panel-kicker dark">REPLAYED GATES</p><h3 id="release-gate-title"></h3><div id="release-gates"></div></article>
+          <article><p class="panel-kicker dark">EXPORT INVENTORY</p><h3>每个文件都有 records、bytes 与 SHA。</h3><div class="release-artifacts" id="release-artifacts"></div></article>
+        </div>
+        <aside class="release-license"><span>LICENSE BOUNDARY</span><p id="release-license"></p></aside>
+      </div>
+    </section>
+
+    <section id="qa-generation" class="section qa-generation-section" hidden>
+      <div class="shell">
+        <header class="section-heading light">
+          <div><p class="chapter">03A · CLAIM-GROUNDED QA PILOT</p><h2>自然语言可以灵活，<br>几何事实不能漂移。</h2></div>
+          <p>每个 episode 先共享一次完整 RGB 轨迹，再由答案盲的语言模型生成问题；回答只能引用 claim sheet，方向、数值与弃权边界由确定性验证器复算。</p>
+        </header>
+
+        <article class="rsint-flagship" id="rsint-flagship" aria-live="polite">
+          <header class="rsint-flagship-head">
+            <div><span>INCREMENTAL FLAGSHIP</span><h3 id="rsint-flagship-title">正在读取 Rs_int 11图7轮 episode…</h3><p id="rsint-flagship-subtitle">图像必须逐轮释放，不能把未来画面提前铺进上下文。</p></div>
+            <div class="rsint-flagship-score" id="rsint-flagship-score"><b>—</b><small>VERIFIED ROUNDS</small></div>
+          </header>
+          <div class="rsint-flagship-metrics" id="rsint-flagship-metrics"></div>
+          <div class="rsint-round-timeline" id="rsint-round-timeline"></div>
+          <footer class="rsint-export-links" id="rsint-export-links"></footer>
+        </article>
+
+        <article class="qa-pilot-authority" id="qa-pilot-authority" aria-live="polite">
+          <div><span id="qa-pilot-status">LOADING</span><h3 id="qa-pilot-title">正在读取 QA 生成 pilot…</h3><p id="qa-pilot-boundary">data/qa_generation_pilot.v1.json</p></div>
+          <div class="qa-pilot-provenance" id="qa-pilot-provenance"><small>PIPELINE</small><code>waiting for artifact</code></div>
+        </article>
+        <div class="qa-pilot-metrics" id="qa-pilot-metrics"></div>
+
+        <div class="qa-pilot-browser" id="qa-pilot-browser" hidden>
+          <aside class="qa-episode-list" id="qa-episode-list" aria-label="QA pilot episode"></aside>
+          <article class="qa-episode-detail">
+            <header class="qa-episode-head">
+              <div><span id="qa-episode-class"></span><code id="qa-episode-id"></code><h3 id="qa-episode-title"></h3></div>
+              <div class="qa-episode-disposition" id="qa-episode-disposition"></div>
+            </header>
+            <div class="qa-capability-row" id="qa-episode-capabilities"></div>
+
+            <div class="qa-trajectory-head"><div><p class="panel-kicker">MODEL INPUT · ORDERED RGB</p><h3>一次观察，整组问题共享。</h3></div><span id="qa-trajectory-count"></span></div>
+            <div class="qa-trajectory-strip" id="qa-trajectory-strip"></div>
+
+            <div class="qa-comparison-head"><div><p class="panel-kicker">SOURCE → NATURALIZED</p><h3>逐条核对旧问法、新问法与监督答案。</h3></div><span id="qa-question-count"></span></div>
+            <div class="qa-comparison-list" id="qa-comparison-list"></div>
+          </article>
+        </div>
+
+        <aside class="qa-pilot-empty" id="qa-pilot-empty">
+          <b>QA PILOT IS OPTIONAL</b>
+          <p>生成器尚未产出文件时，此处只显示等待状态；轨迹库、数据资产与既有 Pilot 不受影响。</p>
+          <code>web/data/qa_generation_pilot.v1.json</code>
+        </aside>
+      </div>
+    </section>
+
+    <section id="compiled-dialogues" class="section compiled-dialogue-section">
+      <div class="shell">
+        <header class="section-heading light">
+          <div><p class="chapter">03 · CONTROLLED TRAJECTORY → TYPED DAG → SFT</p><h2>165 条 passed 轨迹，<br>全部编译成可训练对话。</h2></div>
+          <p>T3/T4/T7/T8/T10 分别控制转向、环绕、高度、遮挡与目标视角。每轮先执行几何程序，再按 cue → transform → conclusion 组织语言；模型只看 RGB 与自然语言。</p>
+        </header>
+
+        <div class="compiled-corpus-metrics" id="compiled-corpus-metrics">
+          <div><b>165</b><span>episode SFT</span></div><div><b>588</b><span>dialogue rounds</span></div><div><b>818</b><span>ordered RGB</span></div><div><b>0</b><span>compiler rejects</span></div><div><b>5</b><span>T1→T10 strict</span></div>
+        </div>
+
+        <article class="compiled-corpus-contract">
+          <div><small>PRIMARY TRAINING ARM</small><h3>历史 RGB + 当前问题 → 人类可读回答</h3><p>assistant-only loss；DAG、claim、坐标与 mask 不进入默认输入。</p></div>
+          <div class="compiled-flow"><span>SIM TRUTH</span><i>→</i><span>TYPED DAG</span><i>→</i><b>CUE · TRANSFORM · ANSWER</b></div>
+          <div><small>STRICT SCOPE</small><p>T10-read 与 T1→T10-predict 分开标记；没有 source context 时不宣称视角预测。</p></div>
+        </article>
+
+        <div class="compiled-class-strip" id="compiled-class-strip" role="group" aria-label="轨迹类别筛选"></div>
+        <div class="compiled-toolbar">
+          <label><span>SEARCH SCENE</span><input id="compiled-dialogue-search" type="search" placeholder="Beechwood / office / seed17"></label>
+          <span id="compiled-dialogue-filter-count">正在读取全量 corpus report…</span>
+        </div>
+
+        <div class="compiled-browser">
+          <aside class="compiled-list" id="compiled-dialogue-list" aria-label="全量已编译 episode"></aside>
+          <article class="compiled-detail">
+            <header class="compiled-detail-head">
+              <div><span id="compiled-dialogue-status">LAZY LOADING</span><code id="compiled-dialogue-id">选择一条 episode</code><h3 id="compiled-dialogue-title">受控轨迹多轮 QA</h3></div>
+              <div class="compiled-detail-meta" id="compiled-dialogue-meta"></div>
+            </header>
+            <aside class="compiled-scope" id="compiled-dialogue-scope">task scope 随 dialogue JSON 读取。</aside>
+            <div class="compiled-rounds" id="compiled-rounds"><p class="compiled-empty">正在加载 165 条主训练 episode 与 5 条严格 T1→T10 组合样本…</p></div>
+          </article>
+        </div>
+
+        <div class="compiled-footer-grid">
+          <article><p class="panel-kicker">TRAINING EXPORTS</p><h3>主训练臂与 compute-matched 对照。</h3><div class="compiled-export-links">
+            <a href="../data/trajectory_dialogues_v2/all.dialogue_episode_sft.jsonl"><b>EPISODE SFT · 165</b><code>trajectory_dialogues_v2/all.dialogue_episode_sft.jsonl</code></a>
+            <a href="../data/trajectory_dialogues_v2/all.dialogue_isolated_sft.jsonl"><b>ISOLATED SFT · 588</b><code>trajectory_dialogues_v2/all.dialogue_isolated_sft.jsonl</code></a>
+            <a href="../data/t10_compositions_v2/all.dialogue_episode_sft.jsonl"><b>STRICT T1→T10 · 5</b><code>t10_compositions_v2/all.dialogue_episode_sft.jsonl</code></a>
+            <a href="../data/trajectory_dialogues_v2/corpus_report.json"><b>FULL COMPILER REPORT</b><code>trajectory_dialogues_v2/corpus_report.json</code></a>
+          </div></article>
+          <article><p class="panel-kicker">REVIEW RULE</p><h3>自动验真不替代人工看图。</h3><p>先按 class × scene domain × DAG signature 分层抽样；检查对象肉眼可辨、问题确实使用新增图、指称自然、回答先线索后变换再结论。</p></article>
+          <article><p class="panel-kicker">EVIDENCE BOUNDARY</p><h3>两种 T10 不能混称。</h3><p><b>21 条 T10-read</b>读取已给目标视角；只有<b>5 条 T1→T10</b>在答案前屏蔽目标图，并在下一轮用渲染图验证预测。</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="scene-dialogues" class="section scene-dialogue-section">
+      <div class="shell">
+        <header class="section-heading">
+          <div><p class="chapter">04 · TRUTH → SCRIPT → DUBBING</p><h2>几何不动，语言可换；<br>两版逐轮对照。</h2></div>
+          <p>Stage A 用确定性程序从 simulator truth 编译剧本与模板表面；Stage B 只重写问题和回答的语言表面。这里按真实训练时序释放 RGB，并把两版语言、共享 claim 和验证边界放在同一个场景中检查。</p>
+        </header>
+
+        <div class="scene-corpus-metrics" id="scene-corpus-metrics" aria-live="polite">
+          <div><b>37</b><span>attempted scenes</span></div><div><b>—</b><span>compiled episodes</span></div><div><b>—</b><span>rejected scenes</span></div><div><b>—</b><span>dialogue rounds</span></div><div><b>—</b><span>ordered RGB</span></div><div><b>1/29</b><span>LLM dubbed pilot</span></div>
+        </div>
+
+        <article class="scene-corpus-contract">
+          <div><small>MODEL-VISIBLE CONTRACT</small><h3>历史 RGB + 当前问题 → 自然语言回答</h3><p>新图只在对应轮次进入上下文，后续轮次可读取已建立的空间记忆。</p></div>
+          <div class="scene-corpus-flow"><span>NEW RGB</span><i>+</i><span>DIALOGUE MEMORY</span><i>→</i><b>SURFACE ANSWER</b></div>
+          <div><small>HIDDEN SUPERVISION</small><p>Typed operation graph 与 certificate 用于编译、筛选、诊断和未来 RLVR；默认不喂给 Qwen。</p></div>
+        </article>
+
+        <div class="scene-version-bar">
+          <div><small>LANGUAGE SURFACE</small><b>共享同一份几何真值，只比较表达方式</b><p id="scene-dubbing-availability">Merom 提供 Claude 配音；其他场景暂时保留模板版。</p></div>
+          <div class="scene-version-switch" id="scene-version-switch" role="group" aria-label="语言版本">
+            <button type="button" class="active" data-scene-version="compare">并排对照</button>
+            <button type="button" data-scene-version="dubbed">LLM 配音</button>
+            <button type="button" data-scene-version="template">几何模板</button>
+          </div>
+        </div>
+
+        <div class="scene-corpus-toolbar">
+          <label><span>SEARCH SCENE</span><input id="scene-dialogue-search" type="search" placeholder="Merom / restaurant / seed17"></label>
+          <label><span>SPLIT</span><select id="scene-dialogue-split"><option value="all">全部 split</option><option value="train">train</option><option value="validation">validation</option><option value="test">test</option></select></label>
+          <label><span>ROUND COVERAGE</span><select id="scene-dialogue-coverage"><option value="all">全部覆盖度</option><option value="7">完整 7 轮</option><option value="partial">部分轮次</option></select></label>
+          <span id="scene-dialogue-filter-count">正在读取 corpus report…</span>
+        </div>
+
+        <div class="scene-dialogue-browser">
+          <aside class="scene-dialogue-list" id="scene-dialogue-list" aria-label="已编译场景列表"></aside>
+          <article class="scene-dialogue-detail" id="scene-dialogue-detail">
+            <header class="scene-dialogue-head">
+              <div><span id="scene-dialogue-status">LAZY LOADING</span><code id="scene-dialogue-id">选择一个场景</code><h3 id="scene-dialogue-title">逐场景 episode QA</h3></div>
+              <div class="scene-dialogue-meta" id="scene-dialogue-meta"></div>
+            </header>
+            <aside class="scene-frame-contract" id="scene-frame-contract">方向约定随场景 JSON 读取。</aside>
+            <div class="scene-round-timeline" id="scene-round-timeline"><p class="scene-dialogue-empty">正在加载 29 个合格场景的目录…</p></div>
+          </article>
+        </div>
+
+        <div class="scene-corpus-footer-grid">
+          <article>
+            <p class="panel-kicker dark">TRAINING EXPORTS</p><h3>同一事实，两种 SFT 对照臂。</h3>
+            <div class="scene-export-links">
+              <a href="../data/scene_dialogues_v1/train.dialogue_episode_sft.jsonl"><b>EPISODE SFT · 29</b><code>train.dialogue_episode_sft.jsonl</code></a>
+              <a href="../data/scene_dialogues_v1/train.dialogue_isolated_sft.jsonl"><b>ISOLATED SFT · 146</b><code>train.dialogue_isolated_sft.jsonl</code></a>
+              <a href="../data/scene_dialogues_v1/dubbed/Merom_0_int_seed17.dubbed.json"><b>LLM DUBBING PILOT · 1 SCENE</b><code>dubbed/Merom_0_int_seed17.dubbed.json</code></a>
+              <a href="../data/scene_dialogues_v1/corpus_report.json"><b>COMPILER REPORT</b><code>corpus_report.json</code></a>
+            </div>
+          </article>
+          <article>
+            <p class="panel-kicker dark">DIRECTION BALANCE</p><h3>关系标签来自几何执行值。</h3><div class="scene-direction-balance" id="scene-direction-balance"></div>
+          </article>
+          <article>
+            <p class="panel-kicker dark">FAIL-CLOSED REPORT</p><h3>8 个拒收场景不进入训练。</h3><details><summary>查看逐场景拒收原因</summary><div class="scene-rejection-list" id="scene-rejection-list"></div></details>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="episode" class="section episode-section" hidden>
+      <div class="shell">
+        <header class="section-heading light">
+          <div><p class="chapter">04 · REAL EPISODE WALKTHROUGH</p><h2>11 个视图按序进入，<br>问题 token 排在其后。</h2></div>
+          <p>这里的 RGB、depth、instance、semantic、位姿、可见实体和增量计数都来自 `Rs_int_seed17`；切换通道不会改变模型输入策略。</p>
+        </header>
+
+        <div class="episode-console">
+          <div class="viewer-panel">
+            <div class="viewer-toolbar">
+              <div class="channel-tabs" id="channel-tabs">
+                <button class="active" data-channel="rgb">RGB <small>model input</small></button>
+                <button data-channel="depth">Depth <small>target</small></button>
+                <button data-channel="instance">Instance <small>target</small></button>
+                <button data-channel="semantic">Semantic <small>derived</small></button>
+              </div>
+              <button class="expand" id="expand-image" aria-label="放大图像">↗</button>
+            </div>
+            <div class="sensor-stage">
+              <img id="sensor-image" alt="当前传感器视图">
+              <div class="bbox" id="bbox"><span id="bbox-label">fridge</span></div>
+              <div class="sensor-hud"><span id="view-label">view-000</span><span id="channel-label">RGB · MODEL VISIBLE</span></div>
+            </div>
+            <div class="view-stats" id="view-stats"></div>
+          </div>
+          <aside class="state-panel">
+            <p class="panel-kicker">QUERY-HIDDEN STATE · S<sub>t</sub></p>
+            <h3>当前 belief 不是完整 SceneIR。</h3>
+            <div class="state-number"><b id="belief-count">0</b><span>entities written</span></div>
+            <div class="delta-cards" id="delta-cards"></div>
+            <div class="state-curve" id="state-curve"></div>
+            <p class="state-note">离开当前视野只记为 <code>seen_not_current</code>；没有 amodal 证据时不伪造 occluded 标签。</p>
+          </aside>
+        </div>
+        <div class="timeline-title"><span>OBSERVATION ORDER</span><span>write → persist → revisit</span></div>
+        <div class="view-timeline" id="view-timeline"></div>
+        <div class="map-panel">
+          <div><p class="panel-kicker dark">CANONICAL STATE</p><h3>跨房间对象先进入同一坐标系，随后才能被比较。</h3><p>彩色对象属于当前 query；相机轨迹与实体坐标均由真实 acquisition 提供。</p><div class="map-legend"><span><i class="camera-dot"></i> camera</span><span><i class="entity-dot"></i> query entity</span></div></div>
+          <div class="scene-map" id="scene-map"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pilot" class="section pilot-section" hidden>
+      <div class="shell">
+        <header class="section-heading">
+          <div><p class="chapter">05 · GT → PROGRAM → LANGUAGE</p><h2>答案由几何执行，<br>语言代理只负责问法。</h2></div>
+          <p>这是一个可训练 pilot，而不是手写故事：OmniGibson 提供事实，typed executor 产生 target，全新 Codex subagent 只接收不含答案的 semantic slots，最后由确定性规则完成防泄漏校验。</p>
+        </header>
+        <div class="pilot-metrics" id="pilot-metrics"></div>
+        <div class="compiler-flow">
+          <article><span>01</span><small>SIMULATOR ORACLE</small><h3>测量事实</h3><p>pose · mask · visibility · 3D extent</p></article>
+          <i>→</i>
+          <article><span>02</span><small>TYPED EXECUTOR</small><h3>程序先行</h3><p>合法 DAG 执行后锁定 node target 与答案</p></article>
+          <i>→</i>
+          <article><span>03</span><small>SAFE CODEX API</small><h3>无答案改写</h3><p>只看 entities · frame · output schema · skeleton</p></article>
+          <i>→</i>
+          <article><span>04</span><small>DETERMINISTIC GATE</small><h3>重新执行</h3><p>slot · frame · leakage · family split 全部检查</p></article>
+        </div>
+
+        <div class="pilot-workbench">
+          <aside class="pilot-list" id="pilot-list"></aside>
+          <article class="pilot-inspector">
+            <div class="pilot-status"><span id="pilot-disposition"></span><code id="pilot-fingerprint"></code></div>
+            <p class="panel-kicker dark">SUBAGENT NATURALIZATION</p>
+            <h3 id="pilot-question"></h3>
+            <div class="pilot-evidence" id="pilot-evidence"></div>
+            <div class="lineage-grid">
+              <section><small>01 · GT LINEAGE</small><div id="pilot-lineage"></div></section>
+              <section class="safe-api"><small>02 · SAFE API PAYLOAD</small><pre id="pilot-api"></pre></section>
+            </div>
+            <div class="pilot-program" id="pilot-program"></div>
+            <div class="target-grid">
+              <section><small>NODE TARGETS · CE</small><pre id="pilot-nodes"></pre></section>
+              <section><small>SURFACE ANSWER · CE</small><p id="pilot-answer"></p></section>
+              <section><small>NUMERIC POLICY</small><div id="pilot-numeric"></div></section>
+            </div>
+            <div class="validation-row" id="pilot-validation"></div>
+          </article>
+        </div>
+
+        <div class="sft-proof">
+          <div class="sft-proof-copy">
+            <p class="panel-kicker">STRUCTURED-AUX SCHEMA PROTOTYPE</p>
+            <h3>可执行 JSONL，但不是主 release arm。</h3>
+            <p>这条旗舰样例演示 STATE / PROGRAM / NODES / ANSWER / VERIFY 的独立 structured-aux 目标；官方主 episode/isolated SFT 只监督编号 surface answer。两种 schema 不在论文中混写成同一个 loss。</p>
+            <div class="sft-links"><a href="data/pilot_qwen_sft.v1.jsonl">查看完整 JSONL ↗</a><code id="sft-record-id"></code></div>
+          </div>
+          <div class="sft-message-preview">
+            <div class="message user"><b>USER · LABEL = −100</b><pre id="sft-user-preview"></pre></div>
+            <div class="message assistant"><b>ASSISTANT · CE TARGET</b><pre id="sft-target-preview"></pre></div>
+          </div>
+        </div>
+        <aside class="blocked-callout"><span>REJECTED BY PILOT GATE</span><b id="blocked-query"></b><p id="blocked-reason"></p><code id="blocked-fix"></code></aside>
+      </div>
+    </section>
+
+    <section id="program" class="section program-section" hidden>
+      <div class="shell">
+        <header class="section-heading">
+          <div><p class="chapter">06 · TYPED READ WORKBENCH</p><h2>一个状态，九个 read，<br>覆盖六类空间能力。</h2></div>
+          <p>选择 query 后，证据视图、实体、DAG、答案、certificate 和 loss target 同步变化。红色标签表示完整 graph signature 在训练中留出。</p>
+        </header>
+        <div class="query-filters" id="query-filters"></div>
+        <div class="program-grid">
+          <aside class="query-list" id="query-list"></aside>
+          <article class="query-detail">
+            <div class="query-meta"><span id="ability-label"></span><span id="role-label"></span></div>
+            <h3 id="question-text"></h3>
+            <div class="signature"><small>PROGRAM SIGNATURE</small><code id="program-signature"></code></div>
+            <div class="dag-flow" id="dag-flow"></div>
+            <div class="answer-grid">
+              <div><small>EXECUTED ANSWER</small><pre id="answer-json"></pre></div>
+              <div><small>CERTIFICATE</small><div class="certificate-list" id="certificate-list"></div></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="family" class="section family-section" hidden>
+      <div class="shell">
+        <header class="section-heading light">
+          <div><p class="chapter">07 · EPISODE FAMILY</p><h2>同一个世界，五种证据条件，<br>整个 family 锁在同一 split。</h2></div>
+          <p>我们不是把 siblings 分到训练和测试中“送分”，而是在同一 split 内测它们应保持或应改变的性质。</p>
+        </header>
+        <div class="family-layout">
+          <div class="variant-list" id="variant-list"></div>
+          <div class="variant-inspector">
+            <div class="split-lock"><span>FAMILY LOCK</span><b>c632…229b</b><i>不可跨 split</i></div>
+            <h3 id="variant-name">canonical</h3>
+            <p id="variant-invariant"></p>
+            <div class="order-ribbon" id="order-ribbon"></div>
+            <div class="variant-result"><small>EXPECTED BEHAVIOR</small><b id="variant-behavior"></b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="training" class="section training-section">
+      <div class="shell">
+        <header class="section-heading">
+          <div><p class="chapter">04 · TRAINING CONTRACT</p><h2>主任务监督答案，<br>结构目标单独导出。</h2></div>
+          <p>当前 episode/isolated SFT 导出仍使用 Stage A 模板表面；Stage B 只有一场语言 pilot，待全量验证并重新导出后才能进入训练消融。两种表面共享同一几何真值，主 loss 只监督 assistant answer。</p>
+        </header>
+        <div class="channel-policy" id="channel-policy"></div>
+        <div class="training-phases">
+          <article><span>A</span><small>CURRENT MAIN SFT</small><h3>模板 episode ↔ isolated</h3><code>RGB₁:ₘ + q₁:ₖ → y₁:ₖ</code><p>29 条 episode 与 146 条 isolated 已导出；事实、图像证据和 assistant-only loss 边界明确。</p></article>
+          <article><span>B</span><small>SURFACE ABLATION · PILOT</small><h3>同 truth，替换为 LLM 配音</h3><code>(q,y)<sub>template</sub> ↔ (q,y)<sub>dubbed</sub></code><p>目前只有 Merom 1/29；不能把单场 JSON 当成全量 dubbed SFT。</p></article>
+          <article><span>C</span><small>HIDDEN COMPILER</small><h3>Program + certificate</h3><code>GT → π → y → verify</code><p>用于编译、筛选、RLVR 与诊断；不作为主模型可见输入。</p></article>
+        </div>
+        <div class="loss-card">
+          <div><small>IMPLEMENTED MAIN OBJECTIVE</small><h3>L<sub>main</sub> = Σ<sub>group g</sub> |F<sub>g</sub>|<sup>−1</sup> Σ<sub>f∈F<sub>g</sub></sub> CE(answer<sub>f</sub>)</h3></div>
+          <p>一次 comparison group 才执行一次 optimizer step。State auxiliary 和 RLVR 是显式分离的导出，不混写成已经发生的 multi-task loss。</p>
+        </div>
+        <div class="record-inspector">
+          <div class="record-copy"><p class="panel-kicker dark">SELECTED QUERY · LOSS MASK</p><h3>同一条 query 的训练边界</h3><p>绿色为模型可见输入，蓝色为要计算 loss 的 target，灰色为生成器专用且必须屏蔽的 oracle。</p><div class="token-legend"><span class="input">INPUT</span><span class="target">TARGET</span><span class="masked">MASKED</span></div></div>
+          <div class="token-box" id="token-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="evaluation" class="section evaluation-section">
+      <div class="shell">
+        <header class="section-heading light">
+          <div><p class="chapter">05 · FALSIFICATION</p><h2>成对 A/B，把可控项写进 manifest。</h2></div>
+          <p>场景、事实、答案、图像集合、视觉曝光与 group-level optimizer updates 受控；总文本 token 与总 FLOP 单独报告，不宣称天然相等。正式模型结果将在通过 benchmark SHA 绑定后另行展示。</p>
+        </header>
+        <div class="eval-grid">
+          <article class="baseline"><small>CONTROL</small><h3>Isolated-QA SFT</h3><p>每条记录只监督一个 fact；图像证据、编号回答格式与 episode arm 对齐。</p></article>
+          <div class="versus">VS</div>
+          <article class="treatment"><small>TREATMENT</small><h3>Episode-structured SFT</h3><p>同一图像前缀一次承载多个 fact；主 loss 仍只落在对应 surface answer token。</p></article>
+        </div>
+        <div class="threshold-grid">
+          <div><b>+5pp</b><span>held-out composition</span></div><div><b>+10pp</b><span>family consistency</span></div><div><b>≤1pp</b><span>ordinary QA drop</span></div><div><b>≤3pp</b><span>state-only gap</span></div>
+        </div>
+        <div class="split-matrix">
+          <div><small>TRAIN ATOMS</small><div class="atom-row" id="train-atoms"></div></div>
+          <i>compose at test →</i>
+          <div><small>HELD-OUT SIGNATURES</small><div class="signature-list" id="heldout-signatures"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section boundary-section">
+      <div class="shell">
+        <header class="section-heading"><div><p class="chapter">06 · EVIDENCE BOUNDARY</p><h2>页面展示了数据契约，<br>没有提前宣布模型胜利。</h2></div><p>Measured、Designed 和 Not claimed 三类信息明确分开，防止把 simulator oracle 或研究目标写成训练结果。</p></header>
+        <div class="boundary-grid" id="boundary-grid"></div>
+        <footer class="page-footer"><span>EPISODE3D · GENERALIZATION DATA CONTRACT V1</span><a href="../skill/plan/空间组合泛化Episode数据设计_v1.md">阅读完整中文规范 →</a></footer>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="image-dialog"><button id="close-dialog" aria-label="关闭">×</button><img id="dialog-image" alt="放大传感器图像"><p id="dialog-caption"></p></dialog>
+</body>
+</html>

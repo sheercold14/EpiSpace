@@ -1,0 +1,24 @@
+name: Experiment
+description: Register a reproducible research experiment
+title: "[Experiment]: "
+labels: ["experiment"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+    validations:
+      required: true
+  - type: textarea
+    id: protocol
+    attributes:
+      label: Protocol and controls
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Config, dataset manifest, seeds and outputs
+    validations:
+      required: true
+

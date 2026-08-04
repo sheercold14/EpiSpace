@@ -1,0 +1,94 @@
+\section{Introduction}
+\label{sec:intro}
+
+Multimodal large language models (MLLMs) can recognize furniture yet fail when
+the answer requires joining separated views, changing reference frames,
+remembering an object that left view, or distinguishing \emph{unseen} from
+\emph{absent}.  VSI-Bench, MindCube, MMSI-Bench, and ViewSpatial-Bench expose
+complementary versions of this gap~\citep{yang2024thinking,yin2025mindcube,
+yang2025mmsi,li2025viewspatial}.  Large instruction collections such as
+SenseNova-SI broaden coverage, but their analyses also show shortcut
+sensitivity and mixed gains from textual chain-of-thought
+recipes~\citep{cai2025sensenova}.  The remaining issue is not simply how many
+spatial answers a model sees, but which computation its supervision makes
+economical.
+
+\input{figures/overview}
+
+An isolated sample $(O,q,y)$ does not identify that computation.  A model may
+integrate the ordered observations $O$ into a reusable belief and execute the
+query $q$, or map local image--language cues directly to $y$.  Answer loss
+rewards both.  A fluent rationale does not establish that its intermediate
+claims were correct or causally used.  Explicit maps, tools, simulator QA, and
+streaming-memory benchmarks already provide valuable alternatives
+\citep{sprite2026,s3bench2026,cog3dmap2026,sagent2026}; our goal is therefore
+not to claim another first instance of any one component.  We instead seek a
+controlled data intervention that tests evidence-sensitive compositional
+behavior hidden by independent-answer accuracy.  Such behavior is necessary
+for, but does not by itself identify, a reusable internal scene model.
+
+Our first-principles unit is a \emph{counterfactual episode family}.  The
+scene and latent fact are fixed across sibling records, while one legal
+intervention changes the available evidence, the queried frame, or the truth
+of a claim.  A complete evidence family contains (i) a matched prefix lacking
+the decisive visual evidence, (ii) a revealed sibling containing it, and
+(iii) a sibling in which that evidence is replaced; the answer must follow
+\emph{unknown $\rightarrow$ known $\rightarrow$ unknown}.  Frame siblings
+hold the two RGB images fixed while changing which camera defines forward, so
+the categorical direction must transform.  Claim siblings use the same
+cross-view geometry but balance true and false propositions.  These
+obligations make evidence sensitivity measurable and expose the always-guess
+and always-abstain solutions.
+
+We combine families with an \emph{observe-first, read-many} training format.
+An ordered RGB stream is presented before any downstream question, after
+which up to six heterogeneous reads share that observation.  The model-visible
+interface remains ordinary RGB and language.  A paired isolated-QA arm is
+compiled from the identical fact and image set.  We provide two explicit
+comparison regimes: fact matching quantifies serialized-input amortization,
+whereas an importance-weighted schedule equalizes image occurrences and pixel
+exposure.  The latter is a visual-exposure control, not a match of total text
+tokens, training FLOPs, or wall-clock compute; these are reported separately.
+
+\textbf{EpiSpace} realizes this design as a read-only compiler over
+OmniGibson/BEHAVIOR-1K acquisitions~\citep{li2024behavior}.  It extracts raw
+RGB from sensor archives; rejects trajectory--question mismatches; resolves
+entity references with instance masks and a minimum-pixel rule; builds an
+observable anchor-camera belief containing only seen entities; and attaches a
+typed, answer-free program over grounding, frame, belief, metric, relation,
+perspective, and verification operations.  Programs, poses, depth, masks, and
+certificates never enter the primary prompt.  Each target is independently
+recomputed from the source bundle, and a target render used for perspective
+verification is excluded by both path and RGB hash.
+
+The frozen pilot turns \EpiPlannedJobs{} planned jobs into
+\EpiStrictBundles{} strict bundles over \EpiScenes{} scenes.  It contains
+\EpiSourceViews{} model-visible RGB views, \EpiCompiledQuestions{} replayed
+questions, and \EpiConsistencyFamilies{} complete sibling families.  The
+paired train export supervises \EpiSupervisedFacts{} facts; the core benchmark
+contains \EpiCoreBenchmarkRecords{} records, including
+\EpiFamilyBenchmarkGroups{} scene-disjoint families and
+\EpiCompositionRecords{} instances of two semantic program signatures absent
+from training although every constituent operation is seen.
+
+Our contributions are:
+\begin{itemize}
+  \item \textbf{A falsifiable supervision unit.}  Counterfactual evidence,
+        frame, and claim siblings turn persistence, transformation, and
+        epistemic honesty into joint obligations rather than independent QA.
+  \item \textbf{A fail-closed geometry-to-episode compiler.}  Exact-input
+        certificates, raw-channel isolation, typed hidden programs,
+        reference-resolution gates, scene/family locks, and independent target
+        replay produce auditable RGB--language records without exposing an
+        oracle scaffold to the student.
+  \item \textbf{A controlled benchmark and training contract.}  Same-fact and
+        image-occurrence/pixel-matched schedules control facts and visual
+        exposure while logging unmatched text/FLOPs; semantic-signature holdout tests
+        composition; accuracy-conditioned evidence sensitivity prevents
+        consistent-but-wrong behavior from appearing successful.
+\end{itemize}
+
+This submission reports the frozen data asset, its independent corpus audit,
+and deterministic comparison schedules.  Model-training, external-transfer,
+and human-evaluation results are intentionally outside the present evidence
+and are not claimed.

@@ -1,0 +1,61 @@
+{
+  "accuracy": 0.3623775751435326,
+  "by_split": {
+    "test": {
+      "accuracy": 0.3700980392156863,
+      "count": 408,
+      "joint_correct_trace_rate": 0.0,
+      "semantic_accuracy": 0.3700980392156863,
+      "trace_format_rate": 0.0
+    },
+    "train": {
+      "accuracy": 0.3619842829076621,
+      "count": 2036,
+      "joint_correct_trace_rate": 0.0,
+      "semantic_accuracy": 0.3619842829076621,
+      "trace_format_rate": 0.0
+    },
+    "validation": {
+      "accuracy": 0.3578336557059961,
+      "count": 517,
+      "joint_correct_trace_rate": 0.0,
+      "semantic_accuracy": 0.3578336557059961,
+      "trace_format_rate": 0.0
+    }
+  },
+  "by_task": {
+    "among5_cross_view_relation.v1": {
+      "accuracy": 0.3375,
+      "count": 320,
+      "joint_correct_trace_rate": 0.0,
+      "option_text_consistency_rate": 1.0,
+      "semantic_accuracy": 0.3375,
+      "trace_format_rate": 0.0
+    },
+    "self_rotation_query.v1": {
+      "accuracy": 0.36539189700870883,
+      "count": 2641,
+      "joint_correct_trace_rate": 0.0,
+      "option_text_consistency_rate": 1.0,
+      "semantic_accuracy": 0.36539189700870883,
+      "trace_format_rate": 0.0
+    }
+  },
+  "evaluated": 2961,
+  "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_all.jsonl",
+  "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_all.jsonl",
+  "evaluation_scope": "all",
+  "joint_correct_trace_rate": 0.0,
+  "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.5-InternVL3-8B",
+  "option_text_comparable_count": 980,
+  "option_text_consistency_count": 980,
+  "option_text_consistency_rate": 1.0,
+  "prompt_mode": "answer_only",
+  "record_index_range": {
+    "start": 0,
+    "stop": null
+  },
+  "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+  "semantic_accuracy": 0.3623775751435326,
+  "trace_format_rate": 0.0
+}

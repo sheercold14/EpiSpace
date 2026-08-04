@@ -1,0 +1,75 @@
+{
+  "audit": {
+    "answer_distribution": {
+      "among5_cross_view_relation.v1/back": 80,
+      "among5_cross_view_relation.v1/front": 80,
+      "among5_cross_view_relation.v1/left": 80,
+      "among5_cross_view_relation.v1/right": 80,
+      "self_rotation_query.v1/back": 856,
+      "self_rotation_query.v1/front": 242,
+      "self_rotation_query.v1/left": 709,
+      "self_rotation_query.v1/right": 834
+    },
+    "checks": {
+      "answer_and_cot_arms_have_identical_inputs_and_labels": true,
+      "counterfactual_answers_follow_declared_semantics": true,
+      "counterfactual_siblings_share_question_options_and_query": true,
+      "every_among_query_has_all_five_counterfactual_variants": true,
+      "every_cot_has_grounded_cue_transform_conclusion": true,
+      "scene_disjoint_splits": true
+    },
+    "complete_counterfactual_query_groups": 64,
+    "counterfactual_rates": {
+      "mirror_flips_fixed_frame_chirality": 1.0,
+      "mirror_preserves_fixed_frame_depth": 1.0,
+      "permutation_changes_fixed_frame_relation": 1.0,
+      "radius_invariance": 1.0,
+      "rotate90_changes_fixed_frame_relation": 1.0
+    },
+    "counts_by_task_split": {
+      "among5_cross_view_relation.v1/test": 80,
+      "among5_cross_view_relation.v1/train": 160,
+      "among5_cross_view_relation.v1/validation": 80,
+      "self_rotation_query.v1/test": 328,
+      "self_rotation_query.v1/train": 1876,
+      "self_rotation_query.v1/validation": 437
+    },
+    "scene_counts": {
+      "test": 9,
+      "train": 39,
+      "validation": 11
+    },
+    "schema_version": "epispace.transform_dataset_audit.v1",
+    "status": "pass"
+  },
+  "counts": {
+    "among5_records": 320,
+    "balanced_by_split": {
+      "test": 172,
+      "train": 724,
+      "validation": 240
+    },
+    "by_split": {
+      "test": 408,
+      "train": 2036,
+      "validation": 517
+    },
+    "complete_among5_families": 16,
+    "pruned_unreferenced_media_files": 32,
+    "self_rotation_records": 2641,
+    "teacher_records": 2961,
+    "unique_base_facts": 1803
+  },
+  "dataset_id": "epispace-transform-pilot-v1-2026-07-22",
+  "readiness": {
+    "minimum_complete_among5_families": 15,
+    "minimum_self_rotation_base_facts": 150,
+    "scale_gate": true
+  },
+  "schema_version": "epispace.transform_dataset.v1",
+  "sources": {
+    "among5_sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/sweep_plan.json",
+    "self_rotation_facts": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/preflight/self_rotation.base_facts.jsonl"
+  },
+  "status": "data_ready"
+}

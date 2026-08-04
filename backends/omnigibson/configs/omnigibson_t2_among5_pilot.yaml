@@ -1,0 +1,72 @@
+schema_version: omnigibson_episode_recipe.v1
+recipe_id: omnigibson_t2_among5_pilot_hall_conference_large_seed17
+seed: 17
+source:
+  dataset_name: behavior-1k-assets
+  source_version: behavior-1k-v3.9.0
+  scene_model: hall_conference_large
+  scene_instance: null
+  load_mode: structure_only
+  floor: 0
+trajectory:
+  trajectory_class: T2
+  sampling_strategy: procedural_among5
+  outbound_view_count: 4
+  candidate_count: 64
+  minimum_distance_m: 1.0
+  fallback_minimum_distance_m: 1.0
+  maximum_distance_m: 4.0
+  camera_height_m: 1.8
+  minimum_wall_clearance_m: 1.0
+among5:
+  protocol_version: omnigibson_among5_layout.v1
+  layout_id: hall_conference_large.seed17.identity.p0
+  layout_radius_m: 1.1
+  camera_radius_m: 2.8
+  layout_yaw_deg: 0.0
+  mirrored: false
+  camera_azimuth_deg: [0.0, 90.0, 180.0, 270.0]
+  camera_pitch_down_deg: 25.0
+  center_rank: 0
+  minimum_object_gap_m: 0.1
+  minimum_camera_wall_margin_m: 0.25
+  satellite_order:
+    - among_chair
+    - among_lamp
+    - among_trash_can
+    - among_plant
+  assets:
+    - name: among_anchor_table
+      category: pedestal_table
+      model: nyprvh
+      role: anchor
+      bbox_size_m: [0.623169, 0.621939, 0.593731]
+    - name: among_chair
+      category: straight_chair
+      model: mgzcic
+      role: satellite
+      bbox_size_m: [0.636247, 0.590042, 0.677532]
+    - name: among_lamp
+      category: floor_lamp
+      model: jqsuky
+      role: satellite
+      bbox_size_m: [0.423388, 0.423387, 1.243237]
+    - name: among_trash_can
+      category: public_trash_can
+      model: gsgutn
+      role: satellite
+      bbox_size_m: [0.520634, 0.520634, 0.692911]
+    - name: among_plant
+      category: pot_plant
+      model: cecdwu
+      role: satellite
+      bbox_size_m: [0.487892, 0.678218, 0.673789]
+sensor:
+  width_px: 1024
+  height_px: 1024
+  horizontal_fov_deg: 90.0
+  near_m: 0.05
+  far_m: 30.0
+  minimum_instance_pixels: 128
+  render_warmup_frames: 4
+  high_quality_rendering: true

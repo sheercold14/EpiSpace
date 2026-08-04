@@ -1,0 +1,443 @@
+{
+ "compiled": [
+  {
+   "acquisition_id": "Beechwood_0_int_seed17",
+   "split": "validation",
+   "rounds": [
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "covis_relation",
+    "temporal"
+   ]
+  },
+  {
+   "acquisition_id": "Beechwood_1_int_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "crossview",
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "Benevolence_1_int_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "Ihlen_1_int_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "Merom_0_int_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "Pomaria_0_int_seed17",
+   "split": "train",
+   "rounds": [
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "covis_relation",
+    "temporal"
+   ]
+  },
+  {
+   "acquisition_id": "Pomaria_1_int_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory"
+   ]
+  },
+  {
+   "acquisition_id": "Pomaria_2_int_seed17",
+   "split": "test",
+   "rounds": [
+    "r01-inventory",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "covis_relation",
+    "temporal"
+   ]
+  },
+  {
+   "acquisition_id": "Rs_int_seed17",
+   "split": "validation",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "Wainscott_0_int_seed17",
+   "split": "test",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "gates_bedroom_seed17",
+   "split": "test",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "grocery_store_asian_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "grocery_store_cafe_seed17",
+   "split": "test",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory"
+   ]
+  },
+  {
+   "acquisition_id": "grocery_store_convenience_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "temporal",
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "grocery_store_half_stocked_seed17",
+   "split": "validation",
+   "rounds": [
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "covis_relation",
+    "temporal"
+   ]
+  },
+  {
+   "acquisition_id": "hall_glass_ceiling_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "crossview"
+   ]
+  },
+  {
+   "acquisition_id": "hall_train_station_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "hotel_suite_large_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "crossview",
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "hotel_suite_small_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "house_double_floor_lower_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "house_double_floor_upper_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "crossview"
+   ]
+  },
+  {
+   "acquisition_id": "house_single_floor_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "office_bike_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "crossview",
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "restaurant_asian_seed17",
+   "split": "train",
+   "rounds": [
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "epistemic_loop"
+   ]
+  },
+  {
+   "acquisition_id": "restaurant_brunch_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "restaurant_cafeteria_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "restaurant_diner_seed17",
+   "split": "validation",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "school_geography_seed17",
+   "split": "train",
+   "rounds": [
+    "r01-inventory",
+    "r02-covis-relation",
+    "r03-temporal-recall",
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": []
+  },
+  {
+   "acquisition_id": "school_gym_seed17",
+   "split": "train",
+   "rounds": [
+    "r04-crossview-relation",
+    "r05-object-perspective",
+    "r06-epistemic-loop",
+    "r07-layout-summary"
+   ],
+   "skipped": [
+    "inventory",
+    "covis_relation",
+    "temporal"
+   ]
+  }
+ ],
+ "rejected": {
+  "Ihlen_0_int_seed17": "insufficient certified rounds: kept=1 skipped=['inventory', 'covis_relation', 'temporal', 'crossview', 'perspective', 'layout']",
+  "hall_conference_large_seed17": "insufficient certified rounds: kept=0 skipped=['inventory', 'covis_relation', 'temporal', 'crossview', 'perspective', 'epistemic_loop', 'layout', 'unreleased_views:11']",
+  "office_vendor_machine_seed17": "insufficient certified rounds: kept=0 skipped=['inventory', 'covis_relation', 'temporal', 'crossview', 'perspective', 'epistemic_loop', 'layout', 'unreleased_views:11']",
+  "restaurant_hotel_seed17": "insufficient certified rounds: kept=4 skipped=['crossview', 'perspective', 'layout']",
+  "restaurant_urban_seed17": "insufficient certified rounds: kept=3 skipped=['inventory', 'temporal', 'crossview', 'epistemic_loop']",
+  "school_biology_seed17": "insufficient certified rounds: kept=3 skipped=['inventory', 'covis_relation', 'temporal', 'epistemic_loop']",
+  "school_chemistry_seed17": "insufficient certified rounds: kept=0 skipped=['inventory', 'covis_relation', 'temporal', 'crossview', 'perspective', 'epistemic_loop', 'layout', 'unreleased_views:11']",
+  "school_computer_lab_and_infirmary_seed17": "insufficient certified rounds: kept=0 skipped=['inventory', 'covis_relation', 'temporal', 'crossview', 'perspective', 'epistemic_loop', 'layout', 'unreleased_views:11']"
+ },
+ "direction_balance": {
+  "behind": 12,
+  "left_of": 14,
+  "in_front_of": 13,
+  "right_of": 12
+ },
+ "unnamed_labels": {}
+}

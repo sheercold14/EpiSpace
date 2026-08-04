@@ -1,0 +1,78 @@
+\documentclass{article}
+% ICLR 2027 style not yet released (as of 2026-07). Using iclr2026 style;
+% swap the two lines below + .bst when the official 2027 kit ships.
+\usepackage{iclr2026_conference,times}
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+\title{EpiSpace: Counterfactual Episode Families\\
+for Systematic Spatial Composition}
+
+% Anonymous by default; uncomment for camera-ready.
+% \iclrfinalcopy
+
+\author{Anonymous authors\\
+\texttt{anonymous}}
+
+\begin{document}
+
+\input{generated/dataset_stats}
+\maketitle
+
+\begin{abstract}
+Spatial QA accuracy alone cannot distinguish a reusable scene model from a
+question-specific shortcut.  We ask a controlled question: under identical
+selected facts and, in the stricter regime, matched image/pixel exposure, does
+\emph{observe-first, read-many}
+supervision improve unseen compositions over isolated QA?  We introduce
+\textbf{EpiSpace}, a geometry-to-episode compiler whose basic unit is a
+counterfactual sibling family.  Siblings share a scene and latent fact while a
+single evidence or reference-frame intervention requires the answer to change,
+remain valid, or become unknown.  Typed answer-free programs define a
+signature-disjoint composition split; geometry remains hidden and is used only
+to construct and independently replay certificates.  The frozen pilot audits
+\EpiPlannedJobs{} simulator jobs, retains \EpiStrictBundles{} strict bundles
+over \EpiScenes{} scenes, and extracts \EpiSourceViews{} raw RGB views from
+\EpiSourceTrajectories{} write trajectories.  It compiles
+\EpiCompiledQuestions{} questions and \EpiConsistencyFamilies{} complete
+families---\EpiEvidenceFamilies{} evidence triples, \EpiClaimFamilies{} claim
+pairs, and \EpiFrameFamilies{} frame-equivariant pairs.  The release exports
+\EpiSupervisedFacts{} exactly paired training facts and a
+\EpiCoreBenchmarkRecords{}-item core benchmark containing
+\EpiFamilyBenchmarkGroups{} scene-disjoint families and
+\EpiCompositionRecords{} held-out-program items.  All
+\EpiReplayedCertificates{} targets replay from source geometry; raw-RGB purity,
+family completeness, input--target functionality, split locks, and target-view
+hash isolation pass.  We also release deterministic fact-matched and
+image-occurrence-matched schedules and define accuracy-conditioned evidence
+sensitivity, which cannot be maximized by always abstaining.  This paper
+reports a validated data asset and a falsifiable training protocol; image and
+pixel exposure are controlled, but text tokens, FLOPs, and wall-clock compute
+are not matched.  No model improvement is claimed before the frozen comparison
+is run.
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/related}
+\input{sections/principles}
+\input{sections/engine}
+\input{sections/training}
+\input{sections/experiments}
+\input{sections/conclusion}
+
+\bibliography{references}
+\bibliographystyle{iclr2026_conference}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

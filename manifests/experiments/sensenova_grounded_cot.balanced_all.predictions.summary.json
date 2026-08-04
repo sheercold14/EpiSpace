@@ -1,0 +1,61 @@
+{
+  "accuracy": 0.2579225352112676,
+  "by_split": {
+    "test": {
+      "accuracy": 0.21511627906976744,
+      "count": 172,
+      "joint_correct_trace_rate": 0.0872093023255814,
+      "semantic_accuracy": 0.22093023255813954,
+      "trace_format_rate": 0.3546511627906977
+    },
+    "train": {
+      "accuracy": 0.2596685082872928,
+      "count": 724,
+      "joint_correct_trace_rate": 0.12016574585635359,
+      "semantic_accuracy": 0.26243093922651933,
+      "trace_format_rate": 0.425414364640884
+    },
+    "validation": {
+      "accuracy": 0.2833333333333333,
+      "count": 240,
+      "joint_correct_trace_rate": 0.1375,
+      "semantic_accuracy": 0.2833333333333333,
+      "trace_format_rate": 0.4125
+    }
+  },
+  "by_task": {
+    "among5_cross_view_relation.v1": {
+      "accuracy": 0.15,
+      "count": 320,
+      "joint_correct_trace_rate": 0.06875,
+      "option_text_consistency_rate": 1.0,
+      "semantic_accuracy": 0.15,
+      "trace_format_rate": 0.275
+    },
+    "self_rotation_query.v1": {
+      "accuracy": 0.3002450980392157,
+      "count": 816,
+      "joint_correct_trace_rate": 0.13848039215686275,
+      "option_text_consistency_rate": 0.9829059829059829,
+      "semantic_accuracy": 0.30392156862745096,
+      "trace_format_rate": 0.46568627450980393
+    }
+  },
+  "evaluated": 1136,
+  "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_balanced_all.jsonl",
+  "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_balanced_all.jsonl",
+  "evaluation_scope": "balanced_all",
+  "joint_correct_trace_rate": 0.11883802816901408,
+  "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.1-InternVL3-8B",
+  "option_text_comparable_count": 391,
+  "option_text_consistency_count": 385,
+  "option_text_consistency_rate": 0.9846547314578005,
+  "prompt_mode": "grounded_cot",
+  "record_index_range": {
+    "start": 0,
+    "stop": null
+  },
+  "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+  "semantic_accuracy": 0.2605633802816901,
+  "trace_format_rate": 0.4119718309859155
+}

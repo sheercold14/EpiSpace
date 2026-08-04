@@ -1,0 +1,106 @@
+{
+  "schema_version": "epispace.pipeline_config.v1",
+  "dataset_id": "epispace-pilot-v1.2-2026-07-17",
+  "output_dir": "../data/epispace_pilot_v1",
+  "model_rgb_dir": "../data/epispace_rgb_v1",
+  "latex_output_dir": "../paper/generated",
+  "quality_policy": {
+    "accepted_plan_statuses": [
+      "passed"
+    ]
+  },
+  "splits": {
+    "seed": "epispace-scene-split-v1",
+    "train": 32,
+    "val": 7,
+    "test": 7
+  },
+  "composition_holdout": {
+    "program_ids": [
+      "counterfactual_cross_view.v1",
+      "target_view_prediction.v1"
+    ]
+  },
+  "corpus_requirements": {
+    "minimum_family_groups_by_shape": {
+      "claim_false+claim_true": 1,
+      "decisive_deleted+prefix_unknown+revealed": 1,
+      "frame_a+frame_b": 1
+    },
+    "minimum_benchmark_family_groups_by_split": {
+      "val": {
+        "claim_false+claim_true": 1,
+        "decisive_deleted+prefix_unknown+revealed": 1,
+        "frame_a+frame_b": 1
+      },
+      "test": {
+        "claim_false+claim_true": 1,
+        "decisive_deleted+prefix_unknown+revealed": 1,
+        "frame_a+frame_b": 1
+      }
+    },
+    "minimum_benchmark_program_records_by_split": {
+      "val": {
+        "counterfactual_cross_view.v1": 1,
+        "target_view_prediction.v1": 1
+      },
+      "test": {
+        "counterfactual_cross_view.v1": 1,
+        "target_view_prediction.v1": 1
+      }
+    },
+    "minimum_compiled_task_type_records": {
+      "elevation_relation_transfer": 1,
+      "occlusion_reveal": 1,
+      "orbit_identity": 1,
+      "target_view_prediction": 1
+    }
+  },
+  "export": {
+    "max_questions_per_episode": 6
+  },
+  "sources": [
+    {
+      "name": "t1-static-m2",
+      "trajectory_class": "T1",
+      "role": "write_source",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/static-m2-room-aware-indoor-seed17-v1/sweep_plan.json"
+    },
+    {
+      "name": "t3-rotation-r0",
+      "trajectory_class": "T3",
+      "role": "write_source",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/t3-rotation-station-r0-seed17-v1/sweep_plan.json"
+    },
+    {
+      "name": "t3-rotation-r1",
+      "trajectory_class": "T3",
+      "role": "write_source",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/t3-rotation-station-r1-seed23-v1/sweep_plan.json"
+    },
+    {
+      "name": "t4-adaptive-arc-v3",
+      "trajectory_class": "T4",
+      "role": "write_source",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/t4-object-orbit-adaptive-arc-seed17-v3/sweep_plan.json"
+    },
+    {
+      "name": "t7-elevation",
+      "trajectory_class": "T7",
+      "role": "write_source",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/t7-elevation-seed17-v1/sweep_plan.json"
+    },
+    {
+      "name": "t8-occlusion-reveal",
+      "trajectory_class": "T8",
+      "role": "write_source",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/t8-occlusion-reveal-seed17-v1/sweep_plan.json"
+    },
+    {
+      "name": "t10-target-view",
+      "trajectory_class": "T10",
+      "role": "oracle_verifier",
+      "sweep_plan": "../../OminiGibson/outputs/sweeps/t10-target-view-seed17-v1/sweep_plan.json"
+    }
+  ]
+}

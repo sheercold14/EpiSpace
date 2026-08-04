@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Episode Learning for Spatial Generalization · OmniGibson M1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="oral_demo.css">
+  <script id="episode-data" type="application/json">__EPISODE_DATA__</script>
+  <script defer src="oral_demo.js"></script>
+</head>
+<body>
+  <div class="reading-progress" id="reading-progress"></div>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="返回顶部">
+      <span class="brand-mark">S</span>
+      <span><b>Spatial Episode</b><small>OmniGibson · M1</small></span>
+    </a>
+    <nav aria-label="页面导航">
+      <a href="#principles">原理</a>
+      <a href="#mechanism">机制</a>
+      <a href="#episode">Episode</a>
+      <a href="#query">Trace</a>
+      <a href="#training">训练</a>
+      <a href="#evaluation">验证</a>
+    </nav>
+    <span class="artifact-pill"><i></i> REAL ARTIFACT</span>
+  </header>
+
+  <main id="top">
+    <section class="hero section-shell">
+      <div class="hero-copy">
+        <p class="eyebrow"><span>ORAL DEMO</span> SPATIAL MENTAL MODEL · 2027</p>
+        <h1>一个场景只建一次态，<br><em>让所有问题共享<br>同一个世界。</em></h1>
+        <p class="hero-lead">
+          空间泛化不应来自更长的文字 CoT，而应来自可复用、可变换、可验证的内部状态。
+          Episode 把多视图变成<strong>写操作</strong>，把跨能力问题变成<strong>typed read</strong>，
+          再用 certificate 拒绝不自洽的中间状态。
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#episode">进入真实 Episode</a>
+          <a class="button ghost" href="#evaluation">查看可证伪实验</a>
+        </div>
+        <div class="metric-strip" aria-label="episode 核心统计">
+          <div><b data-bind="view-count">11</b><span>ordered views</span></div>
+          <div><b data-bind="entity-count">80</b><span>canonical entities</span></div>
+          <div><b data-bind="query-count">12</b><span>verified reads</span></div>
+          <div><b data-bind="loop-psnr">31.57</b><span>dB RGB closure</span></div>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="episode 读写结构">
+        <div class="hero-frame">
+          <img id="hero-image" alt="OmniGibson Rs_int 场景">
+          <div class="frame-hud top"><span>Rs_int / view-000</span><span>1024² · HQ</span></div>
+          <div class="frame-hud bottom"><span class="live-dot"></span> Evidence-backed render</div>
+        </div>
+        <div class="hero-flow">
+          <div class="flow-node"><small>01 · WRITE</small><b>M views</b><span>G → F → B</span></div>
+          <i>→</i>
+          <div class="flow-node state"><small>02 · PERSIST</small><b>Canonical state</b><span>world / observable / belief</span></div>
+          <i>→</i>
+          <div class="flow-node"><small>03 · READ</small><b>K queries</b><span>R / M / P → V</span></div>
+        </div>
+        <div class="claim-card">
+          <span class="claim-label hypothesis">TRAINING HYPOTHESIS</span>
+          <p>共享状态迫使不同问题复用同一几何解释；held-out composition 决定它是否真的泛化。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="thesis-band">
+      <div class="section-shell thesis-grid">
+        <p class="chapter">00 · THESIS</p>
+        <blockquote>
+          <span>不是让模型“说出”空间推理，</span>
+          而是让它维护一个<span class="accent">能被多条路径反复执行</span>的空间模型。
+        </blockquote>
+        <div class="thesis-note">
+          <b>Operation trace &gt; text CoT</b>
+          <p>组合单位从自然语言 token 变成有类型约束的空间算子；局部错误可定位、可验证、可拒绝。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="principles" class="section section-shell">
+      <div class="section-heading">
+        <div><p class="chapter">01 · FIRST PRINCIPLES</p><h2>Accuracy 不是心智模型。<br>模型性必须能被测量。</h2></div>
+        <p class="section-intro">五条认知性质同时定义数据结构、训练奖励与评测协议。右侧状态只描述当前 M1 artifact，不外推训练结果。</p>
+      </div>
+      <div class="principle-grid">
+        <article class="principle-card featured">
+          <span class="principle-index">P1</span><span class="claim-label evidence">IN ARTIFACT</span>
+          <h3>持久性 · Persistence</h3>
+          <p>状态跨视图与跨查询保留，不为每一道题重新解释世界。</p>
+          <footer><b>可测量：</b>state delta、state-only sufficiency</footer>
+        </article>
+        <article class="principle-card">
+          <span class="principle-index">P2</span><span class="claim-label protocol">PROTOCOL NEXT</span>
+          <h3>路径无关 · Path independence</h3>
+          <p>同一组证据以不同合法顺序摄取，最终状态与答案应收敛。</p>
+          <footer><b>可测量：</b>shuffle state distance / Δaccuracy</footer>
+        </article>
+        <article class="principle-card">
+          <span class="principle-index">P3</span><span class="claim-label evidence">IN ARTIFACT</span>
+          <h3>视角等变 · Equivariance</h3>
+          <p>ego 与 allo 查询通过显式 frame transform 闭合，而非依赖隐式方向词。</p>
+          <footer><b>可测量：</b>canonical↔ego cycle error</footer>
+        </article>
+        <article class="principle-card">
+          <span class="principle-index">P4</span><span class="claim-label evidence">IN ARTIFACT</span>
+          <h3>组合闭合 · Closure</h3>
+          <p>相邻变换的复合必须与跨视角直接估计一致；答案能从 state 再执行得到。</p>
+          <footer><b>可测量：</b>pose closure、state↔answer agreement</footer>
+        </article>
+        <article class="principle-card">
+          <span class="principle-index">P5</span><span class="claim-label partial">SCHEMA READY</span>
+          <h3>知所不知 · Epistemic awareness</h3>
+          <p>能力缺口、欠定证据和低 margin 必须显式 rejected / unknown。</p>
+          <footer><b>可测量：</b>selective risk、abstention calibration</footer>
+        </article>
+      </div>
+    </section>
+
+    <section id="mechanism" class="section section-contrast">
+      <div class="section-shell">
+        <div class="section-heading compact">
+          <div><p class="chapter">02 · GENERALIZATION MECHANISM</p><h2>泛化来自结构约束，<br>不是 QA 数量。</h2></div>
+          <span class="claim-label hypothesis">CAUSAL HYPOTHESIS · REQUIRES ABLATION</span>
+        </div>
+        <div class="comparison">
+          <article class="comparison-card muted">
+            <p class="comparison-tag">ISOLATED QA</p>
+            <h3>每题重新猜一个世界</h3>
+            <div class="qa-stack"><span>view → Q₁ → A₁</span><span>view → Q₂ → A₂</span><span>view → Q₃ → A₃</span></div>
+            <ul><li>答案级梯度稀疏</li><li>中间表示不可执行</li><li>问题之间允许自相矛盾</li></ul>
+          </article>
+          <div class="versus">VS</div>
+          <article class="comparison-card active">
+            <p class="comparison-tag">EPISODE LEARNING</p>
+            <h3>M 次写入，一个共享世界，K 次读取</h3>
+            <div class="episode-schematic">
+              <div class="write-stack"><span>v₁</span><span>v₂</span><span>…</span><span>vₘ</span></div>
+              <i>→</i><div class="shared-state">S<sub>canonical</sub><small>persistent + typed</small></div><i>→</i>
+              <div class="read-stack"><span>q₁</span><span>q₂</span><span>…</span><span>qₖ</span></div>
+            </div>
+            <ul><li><b>复用压力：</b>多问共享同一状态</li><li><b>组合压力：</b>新题必须现场复合算子</li><li><b>一致性压力：</b>错误状态会同时破坏多个 read</li></ul>
+          </article>
+        </div>
+        <div class="mechanism-row">
+          <article><span>01</span><h4>Read / Write 解耦</h4><p>PT 是状态写入骨干；SR、MM、CR 是带 frame transform 的读取。</p></article>
+          <article><span>02</span><h4>Typed I/O 封闭</h4><p><code>Relation(entity, entity, frame)</code> 无法跳过 grounding 或坐标对齐。</p></article>
+          <article><span>03</span><h4>局部监督密集</h4><p>state delta、operation、margin 与 certificate 给每个错误位置梯度。</p></article>
+          <article><span>04</span><h4>反捷径可证伪</h4><p>shuffle、novel view、state-only 与 held-out composition 专门攻击语言先验。</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="episode" class="section section-shell episode-section">
+      <div class="section-heading">
+        <div><p class="chapter">03 · LIVE EPISODE</p><h2>Rs_int：11 个有序视图，<br>增量写入同一 belief。</h2></div>
+        <div class="artifact-summary"><span class="claim-label evidence">VERIFIED ARTIFACT</span><p>点击时间轴查看 RGB、米制深度、对象与语义证据。</p></div>
+      </div>
+
+      <div class="episode-stage">
+        <div class="viewer-panel">
+          <div class="viewer-toolbar">
+            <div class="channel-tabs" role="tablist" aria-label="传感器通道">
+              <button class="active" data-channel="rgb">RGB <small>model visible</small></button>
+              <button data-channel="depth">Depth <small>supervision</small></button>
+              <button data-channel="instance">Instance <small>supervision</small></button>
+              <button data-channel="semantic">Semantic <small>derived</small></button>
+            </div>
+            <button class="icon-button" id="expand-image" aria-label="全屏查看">↗</button>
+          </div>
+          <div class="sensor-canvas"><img id="sensor-image" alt="当前视图传感器图像"><div class="sensor-overlay"><span id="sensor-view-id"></span><span id="sensor-channel-label"></span></div></div>
+          <div class="view-facts" id="view-facts"></div>
+        </div>
+
+        <aside class="state-panel">
+          <div class="panel-kicker">SHARED STATE · S<sub>t</sub></div>
+          <h3>不是帧缓存，<br>而是规范坐标中的增量状态。</h3>
+          <div class="state-count"><b id="belief-count">0</b><span>unique entities written</span></div>
+          <div class="delta-grid">
+            <div><b id="added-count">0</b><span>added now</span></div>
+            <div><b id="reobserved-count">0</b><span>reobserved</span></div>
+            <div><b id="visible-count">0</b><span>visible</span></div>
+          </div>
+          <div class="state-chart" id="state-chart" aria-label="belief state growth chart"></div>
+          <p class="micro-note">M1 记录 observable state delta；unknown / occluded 的完整 belief target 将在动态与欠定 episode 中扩展。</p>
+        </aside>
+      </div>
+
+      <div class="timeline-header"><span>OBSERVATION ORDER</span><span>← outbound · return →</span></div>
+      <div class="view-timeline" id="view-timeline" role="listbox" aria-label="episode 视图时间轴"></div>
+
+      <div class="map-card">
+        <div class="map-copy"><p class="panel-kicker">CANONICAL MAP</p><h3>所有相机与对象进入同一米制坐标系。</h3><p>当前视角为亮色相机点；点击查询后，subject / reference 会在地图中高亮。</p><div class="map-legend"><span><i class="dot camera"></i>camera path</span><span><i class="dot subject"></i>subject</span><span><i class="dot reference"></i>reference</span></div></div>
+        <div class="scene-map" id="scene-map" aria-label="场景俯视图"></div>
+      </div>
+    </section>
+
+    <section id="query" class="section section-ink">
+      <div class="section-shell">
+        <div class="section-heading compact">
+          <div><p class="chapter">04 · TYPED OPERATION TRACE</p><h2>每一个答案，都是一张<br>可执行、可检查的 DAG。</h2></div>
+          <div class="query-navigation"><button id="query-prev" aria-label="上一条查询">←</button><span><b id="query-position">01</b> / <span data-bind="query-count">12</span></span><button id="query-next" aria-label="下一条查询">→</button></div>
+        </div>
+        <div class="relation-filters" id="relation-filters" aria-label="关系筛选"></div>
+
+        <div class="query-stage">
+          <article class="query-card">
+            <div class="query-meta"><span id="query-id">QUERY</span><span class="claim-label evidence">ACCEPTED · CERTIFIED</span></div>
+            <h3 id="formal-question"></h3>
+            <div class="entity-pair">
+              <div><small>SUBJECT</small><b id="subject-name"></b><code id="subject-position"></code></div>
+              <span>relative to</span>
+              <div><small>REFERENCE</small><b id="reference-name"></b><code id="reference-position"></code></div>
+            </div>
+            <div class="answer-line"><span>ANSWER</span><b id="query-answer"></b><small id="query-answer-raw"></small></div>
+            <div class="evidence-line"><span>evidence view</span><button id="evidence-view"></button></div>
+          </article>
+
+          <article class="certificate-card">
+            <div class="panel-kicker">VERIFICATION CERTIFICATE</div>
+            <div class="certificate-result"><span class="checkmark">✓</span><div><b>PASS</b><small>relation_evidence.v1</small></div></div>
+            <div id="certificate-checks" class="certificate-checks"></div>
+            <div class="margin-meter"><div><span>decision margin</span><b id="margin-value"></b></div><div class="meter-track"><i id="margin-bar"></i><em id="margin-threshold"></em></div><small>threshold = 0.40 m</small></div>
+          </article>
+        </div>
+
+        <div class="dag-section">
+          <div class="dag-heading"><div><span>OPERATION GRAPH</span><b id="dag-signature">G → F → B → R → V</b></div><p>边只连接类型合法的中间值；V 节点是 answer gate，而非解释性尾巴。</p></div>
+          <div class="dag-canvas" id="dag-canvas"></div>
+          <div class="op-legend" id="op-legend"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="training" class="section section-shell">
+      <div class="section-heading">
+        <div><p class="chapter">05 · SFT OBJECTIVE</p><h2>训练的目标不是复述 trace，<br>而是学会更新并执行状态。</h2></div>
+        <p class="section-intro">同一 episode 内先摄取 M 个 view，监督每步状态变化；再从最终/中间 state 批量读取 K 个问题。Oracle 通道只产监督，绝不作为模型输入。</p>
+      </div>
+      <div class="channel-policy" id="channel-policy"></div>
+      <div class="training-flow">
+        <article><span class="phase-number">A</span><div><small>WRITE PHASE</small><h3>逐视图建态</h3><p><code>(RGBₜ, Sₜ₋₁) → ΔSₜ, Sₜ</code></p><ul><li>对象绑定与 canonical 注册</li><li>显式 world_from_camera</li><li>新增 / 重观测 / 未知</li></ul></div></article>
+        <article><span class="phase-number">B</span><div><small>READ PHASE</small><h3>按题生成 typed DAG</h3><p><code>(S, q) → graph → answer</code></p><ul><li>模块选择与 I/O 类型</li><li>frame transform 必经</li><li>held-out 组合现场执行</li></ul></div></article>
+        <article><span class="phase-number">C</span><div><small>VERIFY PHASE</small><h3>拒绝不自洽状态</h3><p><code>V(S, graph, answer) → pass / reject</code></p><ul><li>关系 margin 与证据可见性</li><li>state—answer 再执行一致</li><li>欠定时 abstain</li></ul></div></article>
+      </div>
+      <div class="loss-card">
+        <div><p class="panel-kicker">MULTI-TASK LOSS</p><h3>让“模型性”本身产生梯度。</h3></div>
+        <div class="loss-equation"><span>ℒ =</span><b>λ<sub>ans</sub>ℒ<sub>ans</sub></b><i>+</i><b>λ<sub>state</sub>ℒ<sub>Δstate</sub></b><i>+</i><b>λ<sub>op</sub>ℒ<sub>op</sub></b><i>+</i><b>λ<sub>verify</sub>ℒ<sub>V</sub></b><i>+</i><b class="future">λ<sub>cons</sub>ℒ<sub>closure</sub></b></div>
+        <p><span class="claim-label evidence">M1 SUPERVISES</span> answer / state delta / operation / certificate　 <span class="claim-label protocol">PAIRED EPISODES</span> order invariance / contrast / counterfactual closure</p>
+      </div>
+    </section>
+
+    <section id="evaluation" class="section section-evaluation">
+      <div class="section-shell">
+        <div class="section-heading compact">
+          <div><p class="chapter">06 · FALSIFIABLE EVALUATION</p><h2>胜利条件不是“看起来会推理”，<br>而是 held-out composition 不塌。</h2></div>
+          <span class="claim-label protocol">EXPERIMENT CONTRACT · NO RESULT CLAIMED</span>
+        </div>
+        <div class="experiment-card">
+          <div class="experiment-arm"><small>CONTROL</small><h3>Isolated-QA SFT</h3><p>相同场景、相同问题、相同 token 与训练预算；episode 结构被打散。</p></div>
+          <div class="experiment-center"><span>SAME DATA BUDGET</span><b>≠</b><span>DIFFERENT STRUCTURE</span></div>
+          <div class="experiment-arm active"><small>TREATMENT</small><h3>Episode-structured SFT</h3><p>按场景批量写态、共享读取、状态与证书密集监督。</p></div>
+        </div>
+        <div class="evaluation-grid">
+          <article><span>01</span><h3>Held-out PT × SR</h3><p>训练只见位姿写入探针与 canonical SR；测试 novel-view SR，必须现场复合。</p><b>主泛化指标</b></article>
+          <article><span>02</span><h3>Order invariance</h3><p>合法图像顺序置换后，比较最终 state distance 与答案 Δaccuracy。</p><b>P2 · 路径无关</b></article>
+          <article><span>03</span><h3>State-only sufficiency</h3><p>建态后撤掉原始图像；若 state-only ≈ full context，状态才是充分统计量。</p><b>P1 · 持久状态</b></article>
+          <article><span>04</span><h3>Closure & calibration</h3><p>位姿复合、state-answer 一致、selective risk 与 unknown 的校准共同报告。</p><b>P3–P5</b></article>
+        </div>
+        <div class="evidence-boundary">
+          <article><span class="claim-label evidence">THIS DEMO ESTABLISHES</span><ul><li>真实可渲染 episode 合同</li><li>多通道证据对齐与闭环</li><li>typed trace + certificate 可执行</li><li>训练所需监督可程序化生成</li></ul></article>
+          <article><span class="claim-label hypothesis">THIS DEMO DOES NOT ESTABLISH</span><ul><li>单个 episode 能带来泛化</li><li>OmniGibson 域能替代真实扫描</li><li>文本 CoT 在所有条件下无效</li><li>当前 M1 已覆盖 P/M/unknown</li></ul></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section appendix section-shell">
+      <div class="section-heading compact"><div><p class="chapter">APPENDIX · ARTIFACT CARD</p><h2>每个数字都能回到文件。</h2></div></div>
+      <div class="artifact-card-grid">
+        <div><span>EPISODE</span><b data-bind="episode-id"></b></div>
+        <div><span>SCENE / SOURCE</span><b data-bind="scene-source"></b></div>
+        <div><span>RECIPE</span><b data-bind="recipe-id"></b></div>
+        <div><span>CANONICAL FRAME</span><b>+X right · +Y forward · +Z up</b></div>
+        <div><span>SOURCE DIGEST</span><b data-bind="source-digest"></b></div>
+        <div><span>LICENSE</span><b data-bind="license-id"></b></div>
+      </div>
+      <div class="capability-row"><div><span>DECLARED CAPABILITIES</span><p id="capabilities"></p></div><div><span>EXPLICIT GAPS</span><p id="capability-gaps"></p></div></div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div><b>Spatial Episode Learning</b><span>One scene · one state · many verifiable reads.</span></div><a href="#top">Back to top ↑</a></footer>
+
+  <dialog id="image-dialog"><button id="close-dialog" aria-label="关闭">×</button><img id="dialog-image" alt="全尺寸传感器图像"><p id="dialog-caption"></p></dialog>
+</body>
+</html>

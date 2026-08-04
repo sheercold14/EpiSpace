@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Episode3D 全量轨迹 episode 独立审阅器">
+  <title>Episode3D · Episode Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="episode-review.css">
+  <script defer src="episode-review.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="episode-review.html"><span>E3</span><div><b>Episode Review</b><small>GEOMETRY-COMPILED · MODEL-VISIBLE RGB</small></div></a>
+    <div class="corpus-stats" id="corpus-stats" aria-live="polite">
+      <span><b>—</b><small>EPISODES</small></span><span><b>—</b><small>ROUNDS</small></span><span><b>—</b><small>RGB</small></span>
+    </div>
+    <a class="back-link" href="index.html#compiled-dialogues">返回研究总览</a>
+  </header>
+
+  <main class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <label><span>SEARCH</span><input id="episode-search" type="search" placeholder="scene / seed / class"></label>
+        <div class="class-filters" id="class-filters" role="group" aria-label="轨迹类型"></div>
+        <p id="filter-count">正在读取 corpus…</p>
+      </div>
+      <div class="episode-list" id="episode-list"></div>
+    </aside>
+
+    <article class="episode-detail" id="episode-detail">
+      <header class="episode-head">
+        <div>
+          <span id="episode-status">LOADING</span>
+          <h1 id="episode-title">正在读取 episode</h1>
+          <code id="episode-id">—</code>
+        </div>
+        <div class="episode-meta" id="episode-meta"></div>
+      </header>
+
+      <section class="scope-card" id="scope-card">
+        <b>TASK SCOPE</b><p>随 episode JSON 读取。</p>
+      </section>
+
+      <section class="sequence-bar">
+        <div><small>MODEL INPUT</small><b>新增 RGB + 历史对话</b></div>
+        <i>→</i>
+        <div><small>TRAINING TARGET</small><b>自然语言回答</b></div>
+        <i>→</i>
+        <div><small>HIDDEN REVIEW</small><b>DAG + claims + certificate</b></div>
+      </section>
+
+      <div class="round-list" id="round-list"></div>
+    </article>
+  </main>
+
+  <dialog id="image-dialog">
+    <button id="close-dialog" type="button" aria-label="关闭">×</button>
+    <img id="dialog-image" alt="Episode RGB 放大图">
+    <p id="dialog-caption"></p>
+  </dialog>
+</body>
+</html>

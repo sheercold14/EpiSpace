@@ -1,0 +1,41 @@
+\section{Data-Asset Validation}
+\label{sec:experiments}
+
+We measure the frozen corpus, schedules, and evaluator; target-copy predictions
+test wiring and are not a spatial-reasoning baseline.  No trained-model result
+is reported here.
+
+\subsection{Frozen pilot yield}
+
+Of 322 terminated jobs, fail-closed loading retains 172 write trajectories and
+21 T10 verifiers over 46 scenes: 1,063 RGB views compile into 1,093 questions.
+The export has 340 episode, 651 isolated, 116 optional-state, and 651
+verifier-ready rows.  All 133 groups have their required shape (91 evidence,
+37 claim, five frame); exclusions remain reason-coded.
+
+\subsection{Benchmark partitions and shortcut visibility}
+
+The 370-row validation/test diagnostic contains a 112-row family view with 42
+scene-disjoint sibling groups and a 27-row composition view (18 validation,
+nine test); their union is the 115-row core.  A same-partition target-majority
+diagnostic reaches 62.61\% on the core but is neither learned nor no-image.
+Target-copy recovers 115/115 rows, 42 sibling groups, 28 evidence triples
+(14/14 validation/test), 12 claim pairs, and two validation-only frame pairs.
+Canonical composition-only rows never count as families; malformed or missing
+predictions are incorrect.
+
+\subsection{Independent integrity evidence}
+
+Geometry replay and an implementation-independent serialized audit reproduce
+1,093/1,093 targets and all 133 shapes, find no split leakage or raw ontology in
+20,503 visible text fields, and verify paired facts, held-out signatures,
+target-view hash isolation, and input--target functionality.  The eighteen
+gates and portability boundary are in Appendix~\ref{app:gates}.
+
+\subsection{Facts and visual exposure are separate controls}
+
+Fact matching yields 63.81\% fewer serialized image presentations, not measured
+runtime savings.  The stricter schedule matches facts, draws, images, pixels,
+and optimizer groups, but episodes retain 14.70\% more total input tokens;
+FLOPs and wall time remain unmatched (Appendix~\ref{app:matching}).  These
+controls imply no learning gain; the frozen comparison remains to be reported.

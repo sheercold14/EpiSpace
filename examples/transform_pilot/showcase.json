@@ -1,0 +1,5063 @@
+{
+  "artifacts": {
+    "balanced_sft": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/balanced_isolated_grounded_cot_train.jsonl",
+    "episode_sft": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/episode_grounded_cot_train.jsonl",
+    "eval_inputs_all": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_all.jsonl",
+    "eval_inputs_balanced_all": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_balanced_all.jsonl",
+    "eval_oracle_all": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_all.jsonl",
+    "eval_oracle_balanced_all": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_balanced_all.jsonl",
+    "teacher": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/teacher_records.jsonl"
+  },
+  "catalog": {
+    "complete_among_families": 16,
+    "record_count": 2961,
+    "split_counts": {
+      "test": 408,
+      "train": 2036,
+      "validation": 517
+    },
+    "task_counts": {
+      "among5_cross_view_relation.v1": 320,
+      "self_rotation_query.v1": 2641
+    }
+  },
+  "evaluation": {
+    "SenseNova-SI-1.1-InternVL3-8B.answer_only.all": {
+      "accuracy": 0.24214792299898683,
+      "by_split": {
+        "test": {
+          "accuracy": 0.20588235294117646,
+          "count": 408,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.20588235294117646,
+          "trace_format_rate": 0.0
+        },
+        "train": {
+          "accuracy": 0.24410609037328093,
+          "count": 2036,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.24410609037328093,
+          "trace_format_rate": 0.0
+        },
+        "validation": {
+          "accuracy": 0.26305609284332687,
+          "count": 517,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.26305609284332687,
+          "trace_format_rate": 0.0
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.09375,
+          "count": 320,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": null,
+          "semantic_accuracy": 0.09375,
+          "trace_format_rate": 0.0
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.260128739113972,
+          "count": 2641,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": null,
+          "semantic_accuracy": 0.260128739113972,
+          "trace_format_rate": 0.0
+        }
+      },
+      "evaluated": 2961,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_all.jsonl",
+      "evaluation_scope": "all",
+      "joint_correct_trace_rate": 0.0,
+      "model_id": "SenseNova-SI-1.1-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.1-InternVL3-8B",
+      "option_text_comparable_count": 0,
+      "option_text_consistency_count": 0,
+      "option_text_consistency_rate": null,
+      "prompt_mode": "answer_only",
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.24214792299898683,
+      "trace_format_rate": 0.0
+    },
+    "SenseNova-SI-1.1-InternVL3-8B.answer_only.balanced_all": {
+      "accuracy": 0.2869718309859155,
+      "by_split": {
+        "test": {
+          "accuracy": 0.18604651162790697,
+          "count": 172,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.18604651162790697,
+          "trace_format_rate": 0.0
+        },
+        "train": {
+          "accuracy": 0.3149171270718232,
+          "count": 724,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3149171270718232,
+          "trace_format_rate": 0.0
+        },
+        "validation": {
+          "accuracy": 0.275,
+          "count": 240,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.275,
+          "trace_format_rate": 0.0
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.09375,
+          "count": 320,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": null,
+          "semantic_accuracy": 0.09375,
+          "trace_format_rate": 0.0
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.3627450980392157,
+          "count": 816,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": null,
+          "semantic_accuracy": 0.3627450980392157,
+          "trace_format_rate": 0.0
+        }
+      },
+      "evaluated": 1136,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_balanced_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_balanced_all.jsonl",
+      "evaluation_scope": "balanced_all",
+      "joint_correct_trace_rate": 0.0,
+      "model_id": "SenseNova-SI-1.1-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.1-InternVL3-8B",
+      "option_text_comparable_count": 0,
+      "option_text_consistency_count": 0,
+      "option_text_consistency_rate": null,
+      "prompt_mode": "answer_only",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.2869718309859155,
+      "trace_format_rate": 0.0
+    },
+    "SenseNova-SI-1.1-InternVL3-8B.grounded_cot.all": {
+      "accuracy": 0.22053360351232693,
+      "by_split": {
+        "test": {
+          "accuracy": 0.23284313725490197,
+          "count": 408,
+          "joint_correct_trace_rate": 0.10049019607843138,
+          "semantic_accuracy": 0.24019607843137256,
+          "trace_format_rate": 0.41911764705882354
+        },
+        "train": {
+          "accuracy": 0.20923379174852652,
+          "count": 2036,
+          "joint_correct_trace_rate": 0.0869351669941061,
+          "semantic_accuracy": 0.2107072691552063,
+          "trace_format_rate": 0.45088408644400785
+        },
+        "validation": {
+          "accuracy": 0.2553191489361702,
+          "count": 517,
+          "joint_correct_trace_rate": 0.11218568665377177,
+          "semantic_accuracy": 0.25338491295938104,
+          "trace_format_rate": 0.4622823984526112
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.15,
+          "count": 320,
+          "joint_correct_trace_rate": 0.06875,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.15,
+          "trace_format_rate": 0.275
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.2290798939795532,
+          "count": 2641,
+          "joint_correct_trace_rate": 0.09617569102612647,
+          "option_text_consistency_rate": 0.9824098504837291,
+          "semantic_accuracy": 0.23097311624384703,
+          "trace_format_rate": 0.46951912154486936
+        }
+      },
+      "evaluated": 2961,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_all.jsonl",
+      "evaluation_scope": "all",
+      "joint_correct_trace_rate": 0.09321175278622088,
+      "model_id": "SenseNova-SI-1.1-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.1-InternVL3-8B",
+      "option_text_comparable_count": 1177,
+      "option_text_consistency_count": 1157,
+      "option_text_consistency_rate": 0.9830076465590484,
+      "prompt_mode": "grounded_cot",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.2222222222222222,
+      "trace_format_rate": 0.4484971293481932
+    },
+    "SenseNova-SI-1.1-InternVL3-8B.grounded_cot.balanced_all": {
+      "accuracy": 0.2579225352112676,
+      "by_split": {
+        "test": {
+          "accuracy": 0.21511627906976744,
+          "count": 172,
+          "joint_correct_trace_rate": 0.0872093023255814,
+          "semantic_accuracy": 0.22093023255813954,
+          "trace_format_rate": 0.3546511627906977
+        },
+        "train": {
+          "accuracy": 0.2596685082872928,
+          "count": 724,
+          "joint_correct_trace_rate": 0.12016574585635359,
+          "semantic_accuracy": 0.26243093922651933,
+          "trace_format_rate": 0.425414364640884
+        },
+        "validation": {
+          "accuracy": 0.2833333333333333,
+          "count": 240,
+          "joint_correct_trace_rate": 0.1375,
+          "semantic_accuracy": 0.2833333333333333,
+          "trace_format_rate": 0.4125
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.15,
+          "count": 320,
+          "joint_correct_trace_rate": 0.06875,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.15,
+          "trace_format_rate": 0.275
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.3002450980392157,
+          "count": 816,
+          "joint_correct_trace_rate": 0.13848039215686275,
+          "option_text_consistency_rate": 0.9829059829059829,
+          "semantic_accuracy": 0.30392156862745096,
+          "trace_format_rate": 0.46568627450980393
+        }
+      },
+      "evaluated": 1136,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_balanced_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_balanced_all.jsonl",
+      "evaluation_scope": "balanced_all",
+      "joint_correct_trace_rate": 0.11883802816901408,
+      "model_id": "SenseNova-SI-1.1-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.1-InternVL3-8B",
+      "option_text_comparable_count": 391,
+      "option_text_consistency_count": 385,
+      "option_text_consistency_rate": 0.9846547314578005,
+      "prompt_mode": "grounded_cot",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.2605633802816901,
+      "trace_format_rate": 0.4119718309859155
+    },
+    "SenseNova-SI-1.5-InternVL3-8B.answer_only.all": {
+      "accuracy": 0.3623775751435326,
+      "by_split": {
+        "test": {
+          "accuracy": 0.3700980392156863,
+          "count": 408,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3700980392156863,
+          "trace_format_rate": 0.0
+        },
+        "train": {
+          "accuracy": 0.3619842829076621,
+          "count": 2036,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3619842829076621,
+          "trace_format_rate": 0.0
+        },
+        "validation": {
+          "accuracy": 0.3578336557059961,
+          "count": 517,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3578336557059961,
+          "trace_format_rate": 0.0
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.3375,
+          "count": 320,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3375,
+          "trace_format_rate": 0.0
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.36539189700870883,
+          "count": 2641,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.36539189700870883,
+          "trace_format_rate": 0.0
+        }
+      },
+      "evaluated": 2961,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_all.jsonl",
+      "evaluation_scope": "all",
+      "joint_correct_trace_rate": 0.0,
+      "model_id": "SenseNova-SI-1.5-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.5-InternVL3-8B",
+      "option_text_comparable_count": 980,
+      "option_text_consistency_count": 980,
+      "option_text_consistency_rate": 1.0,
+      "prompt_mode": "answer_only",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.3623775751435326,
+      "trace_format_rate": 0.0
+    },
+    "SenseNova-SI-1.5-InternVL3-8B.answer_only.balanced_all": {
+      "accuracy": 0.3336267605633803,
+      "by_split": {
+        "test": {
+          "accuracy": 0.32558139534883723,
+          "count": 172,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.32558139534883723,
+          "trace_format_rate": 0.0
+        },
+        "train": {
+          "accuracy": 0.3314917127071823,
+          "count": 724,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3314917127071823,
+          "trace_format_rate": 0.0
+        },
+        "validation": {
+          "accuracy": 0.3458333333333333,
+          "count": 240,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3458333333333333,
+          "trace_format_rate": 0.0
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.3375,
+          "count": 320,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3375,
+          "trace_format_rate": 0.0
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.3321078431372549,
+          "count": 816,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3321078431372549,
+          "trace_format_rate": 0.0
+        }
+      },
+      "evaluated": 1136,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_balanced_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_balanced_all.jsonl",
+      "evaluation_scope": "balanced_all",
+      "joint_correct_trace_rate": 0.0,
+      "model_id": "SenseNova-SI-1.5-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.5-InternVL3-8B",
+      "option_text_comparable_count": 408,
+      "option_text_consistency_count": 408,
+      "option_text_consistency_rate": 1.0,
+      "prompt_mode": "answer_only",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.3336267605633803,
+      "trace_format_rate": 0.0
+    },
+    "SenseNova-SI-1.5-InternVL3-8B.grounded_cot.all": {
+      "accuracy": 0.38331644714623436,
+      "by_split": {
+        "test": {
+          "accuracy": 0.3897058823529412,
+          "count": 408,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3897058823529412,
+          "trace_format_rate": 0.0
+        },
+        "train": {
+          "accuracy": 0.38163064833005894,
+          "count": 2036,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.38163064833005894,
+          "trace_format_rate": 0.0
+        },
+        "validation": {
+          "accuracy": 0.3849129593810445,
+          "count": 517,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3849129593810445,
+          "trace_format_rate": 0.0
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.3625,
+          "count": 320,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3625,
+          "trace_format_rate": 0.0
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.3858386974630822,
+          "count": 2641,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3858386974630822,
+          "trace_format_rate": 0.0
+        }
+      },
+      "evaluated": 2961,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_all.jsonl",
+      "evaluation_scope": "all",
+      "joint_correct_trace_rate": 0.0,
+      "model_id": "SenseNova-SI-1.5-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.5-InternVL3-8B",
+      "option_text_comparable_count": 245,
+      "option_text_consistency_count": 245,
+      "option_text_consistency_rate": 1.0,
+      "prompt_mode": "grounded_cot",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.38331644714623436,
+      "trace_format_rate": 0.0
+    },
+    "SenseNova-SI-1.5-InternVL3-8B.grounded_cot.balanced_all": {
+      "accuracy": 0.352112676056338,
+      "by_split": {
+        "test": {
+          "accuracy": 0.3313953488372093,
+          "count": 172,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.3313953488372093,
+          "trace_format_rate": 0.0
+        },
+        "train": {
+          "accuracy": 0.34806629834254144,
+          "count": 724,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.34806629834254144,
+          "trace_format_rate": 0.0
+        },
+        "validation": {
+          "accuracy": 0.37916666666666665,
+          "count": 240,
+          "joint_correct_trace_rate": 0.0,
+          "semantic_accuracy": 0.37916666666666665,
+          "trace_format_rate": 0.0
+        }
+      },
+      "by_task": {
+        "among5_cross_view_relation.v1": {
+          "accuracy": 0.3625,
+          "count": 320,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3625,
+          "trace_format_rate": 0.0
+        },
+        "self_rotation_query.v1": {
+          "accuracy": 0.3480392156862745,
+          "count": 816,
+          "joint_correct_trace_rate": 0.0,
+          "option_text_consistency_rate": 1.0,
+          "semantic_accuracy": 0.3480392156862745,
+          "trace_format_rate": 0.0
+        }
+      },
+      "evaluated": 1136,
+      "evaluation_inputs": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_inputs_balanced_all.jsonl",
+      "evaluation_oracle": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/dataset/eval_oracle_balanced_all.jsonl",
+      "evaluation_scope": "balanced_all",
+      "joint_correct_trace_rate": 0.0,
+      "model_id": "SenseNova-SI-1.5-InternVL3-8B",
+      "model_path": "/data/shichao/data/dataV100/models/sensenova/SenseNova-SI-1.5-InternVL3-8B",
+      "option_text_comparable_count": 137,
+      "option_text_consistency_count": 137,
+      "option_text_consistency_rate": 1.0,
+      "prompt_mode": "grounded_cot",
+      "record_index_range": {
+        "start": 0,
+        "stop": null
+      },
+      "schema_version": "epispace.sensenova_zeroshot_eval.v1",
+      "semantic_accuracy": 0.352112676056338,
+      "trace_format_rate": 0.0
+    }
+  },
+  "report": {
+    "audit": {
+      "answer_distribution": {
+        "among5_cross_view_relation.v1/back": 80,
+        "among5_cross_view_relation.v1/front": 80,
+        "among5_cross_view_relation.v1/left": 80,
+        "among5_cross_view_relation.v1/right": 80,
+        "self_rotation_query.v1/back": 856,
+        "self_rotation_query.v1/front": 242,
+        "self_rotation_query.v1/left": 709,
+        "self_rotation_query.v1/right": 834
+      },
+      "checks": {
+        "answer_and_cot_arms_have_identical_inputs_and_labels": true,
+        "counterfactual_answers_follow_declared_semantics": true,
+        "counterfactual_siblings_share_question_options_and_query": true,
+        "every_among_query_has_all_five_counterfactual_variants": true,
+        "every_cot_has_grounded_cue_transform_conclusion": true,
+        "scene_disjoint_splits": true
+      },
+      "complete_counterfactual_query_groups": 64,
+      "counterfactual_rates": {
+        "mirror_flips_fixed_frame_chirality": 1.0,
+        "mirror_preserves_fixed_frame_depth": 1.0,
+        "permutation_changes_fixed_frame_relation": 1.0,
+        "radius_invariance": 1.0,
+        "rotate90_changes_fixed_frame_relation": 1.0
+      },
+      "counts_by_task_split": {
+        "among5_cross_view_relation.v1/test": 80,
+        "among5_cross_view_relation.v1/train": 160,
+        "among5_cross_view_relation.v1/validation": 80,
+        "self_rotation_query.v1/test": 328,
+        "self_rotation_query.v1/train": 1876,
+        "self_rotation_query.v1/validation": 437
+      },
+      "scene_counts": {
+        "test": 9,
+        "train": 39,
+        "validation": 11
+      },
+      "schema_version": "epispace.transform_dataset_audit.v1",
+      "status": "pass"
+    },
+    "counts": {
+      "among5_records": 320,
+      "balanced_by_split": {
+        "test": 172,
+        "train": 724,
+        "validation": 240
+      },
+      "by_split": {
+        "test": 408,
+        "train": 2036,
+        "validation": 517
+      },
+      "complete_among5_families": 16,
+      "pruned_unreferenced_media_files": 32,
+      "self_rotation_records": 2641,
+      "teacher_records": 2961,
+      "unique_base_facts": 1803
+    },
+    "dataset_id": "epispace-transform-pilot-v1-2026-07-22",
+    "readiness": {
+      "minimum_complete_among5_families": 15,
+      "minimum_self_rotation_base_facts": 150,
+      "scale_gate": true
+    },
+    "schema_version": "epispace.transform_dataset.v1",
+    "sources": {
+      "among5_sweep_plan": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/sweep_plan.json",
+      "self_rotation_facts": "/data/shichao/data/dataV100/code/episode3D/data/transform_pilot_v1/preflight/self_rotation.base_facts.jsonl"
+    },
+    "status": "data_ready"
+  },
+  "schema_version": "epispace.transform_web.v2",
+  "showcase_records": [
+    {
+      "answer": {
+        "key": "B",
+        "label": "left",
+        "surface": "B. 左侧",
+        "text": "左侧"
+      },
+      "base_fact_id": "transform-fact-b5220e7d3a6ce148f252",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": -81.853699,
+          "center_margin_deg": 36.853699,
+          "effective_margin_deg": 25.930829,
+          "front_m": 0.301484,
+          "label": "left",
+          "obb_angular_radius_deg": 10.92287,
+          "right_m": -2.106133
+        },
+        "cue_measurement": {
+          "bearing_deg": 38.146301,
+          "center_margin_deg": 6.853699,
+          "effective_margin_deg": -4.069171,
+          "front_m": 1.673223,
+          "label": "front",
+          "obb_angular_radius_deg": 10.92287,
+          "right_m": 1.314159
+        },
+        "current_measurement": {
+          "bearing_deg": 38.146301,
+          "center_margin_deg": 6.853699,
+          "effective_margin_deg": -4.069171,
+          "front_m": 1.673223,
+          "label": "front",
+          "obb_angular_radius_deg": 10.92287,
+          "right_m": 1.314159
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": false,
+          "episodic_memory_required_by_construction": false,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r1-seed23-v1/bundles/restaurant_asian_t3_seed23",
+        "target_orientation_view_withheld": "view-004"
+      },
+      "family_id": "7d68e886-bfb5-50d5-91fc-23653d38ee7f",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "left"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": 38.146301,
+              "entity": "9ea19ca9-2aad-5624-8566-5ea23d535e13",
+              "predicate": "observed_in",
+              "view_id": "view-002"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 29571
+            }
+          ],
+          "surface": "第1张图中可以确认扶手椅位于我的右前方；目标在当前图中仍可直接定位。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": 0
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": 120
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "当前最后一图就是这条视觉线索所在的朝向。我保持扶手椅在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转120度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-002caaf8d1584b52cb4a/view-01.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向右转120度，转身后的画面不会提供。扶手椅会位于你的哪个方向？ A. 右侧 B. 左侧 C. 后方 D. 前方",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向右转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "B",
+            "ground_truth_label": "left",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "B",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "B",
+            "ground_truth_label": "left",
+            "prediction": "D",
+            "prediction_semantic_label": "front",
+            "response": "<cue>扶手椅</cue><transform>right</transform><answer>D. 前方</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "B",
+            "ground_truth_label": "left",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "B. 左侧",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "B",
+            "ground_truth_label": "left",
+            "prediction": "C",
+            "prediction_semantic_label": "back",
+            "response": "<answer>C</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-002caaf8d1584b52cb4a",
+      "scene_id": "3df8b6de-57d8-5ed1-a878-62aa570aa707",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>B. 左侧</answer>",
+        "grounded_cot": "<cue>第1张图中可以确认扶手椅位于我的右前方；目标在当前图中仍可直接定位。</cue>\n<transform>当前最后一图就是这条视觉线索所在的朝向。我保持扶手椅在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转120度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>B. 左侧</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "view_local"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "left",
+        "surface": "C. 左侧",
+        "text": "左侧"
+      },
+      "base_fact_id": "transform-fact-98ef599ea1b0a5dffef2",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": -68.471693,
+          "center_margin_deg": 23.471693,
+          "effective_margin_deg": 18.021193,
+          "front_m": 2.462145,
+          "label": "left",
+          "obb_angular_radius_deg": 5.4505,
+          "right_m": -6.241474
+        },
+        "cue_measurement": {
+          "bearing_deg": -8.471693,
+          "center_margin_deg": 36.528307,
+          "effective_margin_deg": 31.077807,
+          "front_m": 6.636348,
+          "label": "front",
+          "obb_angular_radius_deg": 5.4505,
+          "right_m": -0.988457
+        },
+        "current_measurement": {
+          "bearing_deg": -128.471693,
+          "center_margin_deg": 6.528307,
+          "effective_margin_deg": 1.077807,
+          "front_m": -4.174203,
+          "label": "left",
+          "obb_angular_radius_deg": 5.4505,
+          "right_m": -5.253017
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": true,
+          "episodic_memory_required_by_construction": true,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r0-seed17-v1/bundles/Benevolence_1_int_t3_seed17",
+        "target_orientation_view_withheld": "view-001"
+      },
+      "family_id": "fba68556-40d6-5736-a3e7-2e52b67ad78b",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "left"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": -8.471693,
+              "entity": "259f5763-01fb-5474-b875-dfe8eba27ad6",
+              "predicate": "observed_in",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 10266
+            }
+          ],
+          "surface": "第1张图中可以确认冰箱位于我的大致正前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": -240
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": -60
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "从第1张图到当前最后一图，我已经原地向左转了240度。我保持冰箱在场景中的位置不动，只更新自身朝向；然后执行题设的“向左转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-00341771a7e740d8f67c/view-01.png",
+          "data/transform_pilot_media/transform-sft-00341771a7e740d8f67c/view-02.png",
+          "data/transform_pilot_media/transform-sft-00341771a7e740d8f67c/view-03.png",
+          "data/transform_pilot_media/transform-sft-00341771a7e740d8f67c/view-04.png",
+          "data/transform_pilot_media/transform-sft-00341771a7e740d8f67c/view-05.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向左转60度，转身后的画面不会提供。冰箱会位于你的哪个方向？ A. 右侧 B. 前方 C. 左侧 D. 后方",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向左转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "B",
+            "prediction_semantic_label": "front",
+            "response": "B",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "B",
+            "prediction_semantic_label": "front",
+            "response": "<cue>Image-1 shows the dining area with a table and chairs, and the kitchen is visible in the distance. Image-2 shows the same dining area but from a different angle, with the couch and a different part of the room visible. Image-3 shows the living area with the couch and the wall with shelves. Image-4 shows the living area with the couch and the wall with windows. Image-5 shows the living area with the couch and the wall with a whiteboard and windows.</cue> <transform>From Image-5, turning left 60 degrees would face the wall with the whiteboard and windows, which corresponds to Image-1. In Image-1, the kitchen is visible in the distance. Therefore, the correct choice is B. 前方.</transform> <answer>B</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "B",
+            "prediction_semantic_label": "front",
+            "response": "B",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "B",
+            "prediction_semantic_label": "front",
+            "response": "<answer>B</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-00341771a7e740d8f67c",
+      "scene_id": "8d669a91-1a42-5c07-be97-6e9fe12983d2",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>C. 左侧</answer>",
+        "grounded_cot": "<cue>第1张图中可以确认冰箱位于我的大致正前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。</cue>\n<transform>从第1张图到当前最后一图，我已经原地向左转了240度。我保持冰箱在场景中的位置不动，只更新自身朝向；然后执行题设的“向左转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>C. 左侧</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "episodic_memory"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "A",
+        "label": "back",
+        "surface": "A. 后方",
+        "text": "后方"
+      },
+      "base_fact_id": "transform-fact-55c9844f30b0e20575ea",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": -168.102346,
+          "center_margin_deg": 33.102346,
+          "effective_margin_deg": 16.594194,
+          "front_m": -2.39318,
+          "label": "back",
+          "obb_angular_radius_deg": 16.508152,
+          "right_m": -0.50422
+        },
+        "cue_measurement": {
+          "bearing_deg": 11.897654,
+          "center_margin_deg": 33.102346,
+          "effective_margin_deg": 16.594194,
+          "front_m": 2.39318,
+          "label": "front",
+          "obb_angular_radius_deg": 16.508152,
+          "right_m": 0.50422
+        },
+        "current_measurement": {
+          "bearing_deg": 11.897654,
+          "center_margin_deg": 33.102346,
+          "effective_margin_deg": 16.594194,
+          "front_m": 2.39318,
+          "label": "front",
+          "obb_angular_radius_deg": 16.508152,
+          "right_m": 0.50422
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": false,
+          "episodic_memory_required_by_construction": false,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r1-seed23-v1/bundles/hotel_suite_large_t3_seed23",
+        "target_orientation_view_withheld": "view-005"
+      },
+      "family_id": "3d9a9635-6957-550b-9fc3-d36a45224043",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "back"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": 11.897654,
+              "entity": "59ed19e8-1fcd-52c2-9232-74055e467d28",
+              "predicate": "observed_in",
+              "view_id": "view-002"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 42636
+            }
+          ],
+          "surface": "第1张图中可以确认壁挂电视位于我的大致正前方；目标在当前图中仍可直接定位。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": 0
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": 180
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "当前最后一图就是这条视觉线索所在的朝向。我保持壁挂电视在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转180度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-00b05329aa053feba822/view-01.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向右转180度，转身后的画面不会提供。壁挂电视会位于你的哪个方向？ A. 后方 B. 前方 C. 左侧 D. 右侧",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向右转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "A",
+            "ground_truth_label": "back",
+            "prediction": "A",
+            "prediction_semantic_label": "back",
+            "response": "A",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "back",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "<cue>旋转180度</cue> <transform>左右颠倒</transform> <answer>D. 右侧</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "back",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "back",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "<answer>D</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-00b05329aa053feba822",
+      "scene_id": "47135be1-d8cb-59c8-928d-8712878b7bf6",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>A. 后方</answer>",
+        "grounded_cot": "<cue>第1张图中可以确认壁挂电视位于我的大致正前方；目标在当前图中仍可直接定位。</cue>\n<transform>当前最后一图就是这条视觉线索所在的朝向。我保持壁挂电视在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转180度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>A. 后方</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "view_local"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "right",
+        "surface": "C. 右侧",
+        "text": "右侧"
+      },
+      "base_fact_id": "transform-fact-c1f92853c103f852a75d",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": 98.146301,
+          "center_margin_deg": 36.853699,
+          "effective_margin_deg": 25.930829,
+          "front_m": -0.301484,
+          "label": "right",
+          "obb_angular_radius_deg": 10.92287,
+          "right_m": 2.106133
+        },
+        "cue_measurement": {
+          "bearing_deg": 38.146301,
+          "center_margin_deg": 6.853699,
+          "effective_margin_deg": -4.069171,
+          "front_m": 1.673223,
+          "label": "front",
+          "obb_angular_radius_deg": 10.92287,
+          "right_m": 1.314159
+        },
+        "current_measurement": {
+          "bearing_deg": 38.146301,
+          "center_margin_deg": 6.853699,
+          "effective_margin_deg": -4.069171,
+          "front_m": 1.673223,
+          "label": "front",
+          "obb_angular_radius_deg": 10.92287,
+          "right_m": 1.314159
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": false,
+          "episodic_memory_required_by_construction": false,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r1-seed23-v1/bundles/restaurant_asian_t3_seed23",
+        "target_orientation_view_withheld": "view-001"
+      },
+      "family_id": "7d68e886-bfb5-50d5-91fc-23653d38ee7f",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "right"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": 38.146301,
+              "entity": "9ea19ca9-2aad-5624-8566-5ea23d535e13",
+              "predicate": "observed_in",
+              "view_id": "view-002"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 29571
+            }
+          ],
+          "surface": "第1张图中可以确认扶手椅位于我的右前方；目标在当前图中仍可直接定位。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": 0
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": -60
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "当前最后一图就是这条视觉线索所在的朝向。我保持扶手椅在场景中的位置不动，只更新自身朝向；然后执行题设的“向左转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-00dd779b63c8fc3f11e8/view-01.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向左转60度，转身后的画面不会提供。扶手椅会位于你的哪个方向？ A. 前方 B. 左侧 C. 右侧 D. 后方",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向左转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "right",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "right",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "<cue>扶手椅</cue> <transform>前方</transform> <answer>A. 前方</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "right",
+            "prediction": "C",
+            "prediction_semantic_label": "right",
+            "response": "C",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "right",
+            "prediction": "C",
+            "prediction_semantic_label": "right",
+            "response": "<answer>C</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-00dd779b63c8fc3f11e8",
+      "scene_id": "3df8b6de-57d8-5ed1-a878-62aa570aa707",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>C. 右侧</answer>",
+        "grounded_cot": "<cue>第1张图中可以确认扶手椅位于我的右前方；目标在当前图中仍可直接定位。</cue>\n<transform>当前最后一图就是这条视觉线索所在的朝向。我保持扶手椅在场景中的位置不动，只更新自身朝向；然后执行题设的“向左转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>C. 右侧</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "view_local"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "D",
+        "label": "back",
+        "surface": "D. 后方",
+        "text": "后方"
+      },
+      "base_fact_id": "transform-fact-234eb3c477334ba8f4a8",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": 155.096192,
+          "center_margin_deg": 20.096192,
+          "effective_margin_deg": 15.653126,
+          "front_m": -7.243574,
+          "label": "back",
+          "obb_angular_radius_deg": 4.443066,
+          "right_m": 3.36294
+        },
+        "cue_measurement": {
+          "bearing_deg": 35.096192,
+          "center_margin_deg": 9.903808,
+          "effective_margin_deg": 5.460742,
+          "front_m": 6.534179,
+          "label": "front",
+          "obb_angular_radius_deg": 4.443066,
+          "right_m": 4.591649
+        },
+        "current_measurement": {
+          "bearing_deg": 95.096192,
+          "center_margin_deg": 39.903808,
+          "effective_margin_deg": 35.460742,
+          "front_m": -0.709395,
+          "label": "right",
+          "obb_angular_radius_deg": 4.443066,
+          "right_m": 7.954589
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": true,
+          "episodic_memory_required_by_construction": true,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r1-seed23-v1/bundles/office_bike_t3_seed23",
+        "target_orientation_view_withheld": "view-001"
+      },
+      "family_id": "94149d19-89ca-5ae0-900d-e634445d52e6",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "back"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": 35.096192,
+              "entity": "b36e8c0a-e7a7-5890-a459-3e162ea4ccf7",
+              "predicate": "observed_in",
+              "view_id": "view-003"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 1324
+            }
+          ],
+          "surface": "第4张图中可以确认单柱桌位于我的右前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": -60
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": -60
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "从第4张图到当前最后一图，我已经原地向左转了60度。我保持单柱桌在场景中的位置不动，只更新自身朝向；然后执行题设的“向左转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-01864e1e5831fd565edb/view-01.png",
+          "data/transform_pilot_media/transform-sft-01864e1e5831fd565edb/view-02.png",
+          "data/transform_pilot_media/transform-sft-01864e1e5831fd565edb/view-03.png",
+          "data/transform_pilot_media/transform-sft-01864e1e5831fd565edb/view-04.png",
+          "data/transform_pilot_media/transform-sft-01864e1e5831fd565edb/view-05.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向左转60度，转身后的画面不会提供。单柱桌会位于你的哪个方向？ A. 右侧 B. 左侧 C. 前方 D. 后方",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向左转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "back",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "back",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "<cue>Image-4显示了一个办公空间，单柱桌位于画面中央偏左。</cue><transform>根据题目要求，以Image-4为起始视角，向左旋转60度。</transform><answer>C",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "back",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "B. 左侧",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "back",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "<answer>C</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-01864e1e5831fd565edb",
+      "scene_id": "ce636576-4c1c-58a9-90d7-c7b2ae002d51",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>D. 后方</answer>",
+        "grounded_cot": "<cue>第4张图中可以确认单柱桌位于我的右前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。</cue>\n<transform>从第4张图到当前最后一图，我已经原地向左转了60度。我保持单柱桌在场景中的位置不动，只更新自身朝向；然后执行题设的“向左转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>D. 后方</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "episodic_memory"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "D",
+        "label": "front",
+        "surface": "D. 前方",
+        "text": "前方"
+      },
+      "base_fact_id": "transform-fact-91c00454ca4fb51cde0e",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": -4.947578,
+          "center_margin_deg": 40.052422,
+          "effective_margin_deg": 14.235956,
+          "front_m": 1.604025,
+          "label": "front",
+          "obb_angular_radius_deg": 25.816466,
+          "right_m": -0.138855
+        },
+        "cue_measurement": {
+          "bearing_deg": 55.052422,
+          "center_margin_deg": 10.052422,
+          "effective_margin_deg": -15.764044,
+          "front_m": 0.922265,
+          "label": "right",
+          "obb_angular_radius_deg": 25.816466,
+          "right_m": 1.319699
+        },
+        "current_measurement": {
+          "bearing_deg": 55.052422,
+          "center_margin_deg": 10.052422,
+          "effective_margin_deg": -15.764044,
+          "front_m": 0.922265,
+          "label": "right",
+          "obb_angular_radius_deg": 25.816466,
+          "right_m": 1.319699
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": false,
+          "episodic_memory_required_by_construction": false,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r0-seed17-v1/bundles/Benevolence_2_int_t3_seed17",
+        "target_orientation_view_withheld": "view-001"
+      },
+      "family_id": "94ae917a-b0ff-51fa-949c-39452aba2248",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "front"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": 55.052422,
+              "entity": "e58dc3c3-d2c0-5cb8-bbd1-ee59dc177afd",
+              "predicate": "observed_in",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 59806
+            }
+          ],
+          "surface": "第1张图中可以确认婴儿床位于我的右前方；目标在当前图中仍可直接定位。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": 0
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": 60
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "当前最后一图就是这条视觉线索所在的朝向。我保持婴儿床在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-01887e517daefb2d5d27/view-01.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向右转60度，转身后的画面不会提供。婴儿床会位于你的哪个方向？ A. 后方 B. 左侧 C. 右侧 D. 前方",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向右转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "D",
+            "ground_truth_label": "front",
+            "prediction": "D",
+            "prediction_semantic_label": "front",
+            "response": "D",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "D",
+            "ground_truth_label": "front",
+            "prediction": "D",
+            "prediction_semantic_label": "front",
+            "response": "<cue>旋转</cue><transform>60</transform><answer>D",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "front",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "B. 左侧",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "front",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "<answer>B</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-01887e517daefb2d5d27",
+      "scene_id": "19a99703-2fae-5387-a288-e8fcf047d8e5",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>D. 前方</answer>",
+        "grounded_cot": "<cue>第1张图中可以确认婴儿床位于我的右前方；目标在当前图中仍可直接定位。</cue>\n<transform>当前最后一图就是这条视觉线索所在的朝向。我保持婴儿床在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转60度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>D. 前方</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "view_local"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "A",
+        "label": "front",
+        "surface": "A. 前方",
+        "text": "前方"
+      },
+      "base_fact_id": "transform-fact-9e98f2e0cb36a9b33615",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": 18.315215,
+          "center_margin_deg": 26.684785,
+          "effective_margin_deg": 15.062916,
+          "front_m": 12.711631,
+          "label": "front",
+          "obb_angular_radius_deg": 11.621869,
+          "right_m": 4.207715
+        },
+        "cue_measurement": {
+          "bearing_deg": -41.684785,
+          "center_margin_deg": 3.315215,
+          "effective_margin_deg": -8.306654,
+          "front_m": 9.999803,
+          "label": "front",
+          "obb_angular_radius_deg": 11.621869,
+          "right_m": -8.904737
+        },
+        "current_measurement": {
+          "bearing_deg": -161.684785,
+          "center_margin_deg": 26.684785,
+          "effective_margin_deg": 15.062916,
+          "front_m": -12.711631,
+          "label": "back",
+          "obb_angular_radius_deg": 11.621869,
+          "right_m": -4.207715
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": true,
+          "episodic_memory_required_by_construction": true,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r0-seed17-v1/bundles/house_single_floor_t3_seed17",
+        "target_orientation_view_withheld": "view-005"
+      },
+      "family_id": "8ef5a004-ccb8-574d-ade8-c897f0abcf32",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "front"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": -41.684785,
+              "entity": "b918d1a3-8793-5faa-b38f-d1e435d3583f",
+              "predicate": "observed_in",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 5068
+            }
+          ],
+          "surface": "第1张图中可以确认汽车位于我的左前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": 120
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": 180
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "从第1张图到当前最后一图，我已经原地向右转了120度。我保持汽车在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转180度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-018b07af8947b7253f76/view-01.png",
+          "data/transform_pilot_media/transform-sft-018b07af8947b7253f76/view-02.png",
+          "data/transform_pilot_media/transform-sft-018b07af8947b7253f76/view-03.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向右转180度，转身后的画面不会提供。汽车会位于你的哪个方向？ A. 前方 B. 左侧 C. 后方 D. 右侧",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向右转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "B",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "B",
+            "prediction_semantic_label": "left",
+            "response": "<cue>Image-1</cue> <transform>right_120</transform> <answer>B",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "back",
+            "response": "<answer>C</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-018b07af8947b7253f76",
+      "scene_id": "5ed3b79f-3057-5ca4-9fe1-b8c27b941b40",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>A. 前方</answer>",
+        "grounded_cot": "<cue>第1张图中可以确认汽车位于我的左前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。</cue>\n<transform>从第1张图到当前最后一图，我已经原地向右转了120度。我保持汽车在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转180度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>A. 前方</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "episodic_memory"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "D",
+        "label": "right",
+        "surface": "D. 右侧",
+        "text": "右侧"
+      },
+      "base_fact_id": "transform-fact-c832d9edbc8558008a51",
+      "certificate": {
+        "answer_measurement": {
+          "bearing_deg": 112.876305,
+          "center_margin_deg": 22.123695,
+          "effective_margin_deg": 18.472002,
+          "front_m": -2.903393,
+          "label": "right",
+          "obb_angular_radius_deg": 3.651693,
+          "right_m": 6.881232
+        },
+        "cue_measurement": {
+          "bearing_deg": -7.123695,
+          "center_margin_deg": 37.876305,
+          "effective_margin_deg": 34.224611,
+          "front_m": 7.411018,
+          "label": "front",
+          "obb_angular_radius_deg": 3.651693,
+          "right_m": -0.926204
+        },
+        "current_measurement": {
+          "bearing_deg": -67.123695,
+          "center_margin_deg": 22.123695,
+          "effective_margin_deg": 18.472002,
+          "front_m": 2.903393,
+          "label": "left",
+          "obb_angular_radius_deg": 3.651693,
+          "right_m": -6.881232
+        },
+        "program_minimality": {
+          "entity_absent_from_current_view": true,
+          "episodic_memory_required_by_construction": true,
+          "target_view_withheld": true
+        },
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t3-rotation-station-r0-seed17-v1/bundles/grocery_store_asian_t3_seed17",
+        "target_orientation_view_withheld": "view-005"
+      },
+      "family_id": "fd7fffab-2101-5880-8484-5366f2b6de00",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "right"
+        },
+        "cue": {
+          "claims": [
+            {
+              "bearing_deg": -7.123695,
+              "entity": "25e5504a-0648-5ad5-9a2f-113f781f6271",
+              "predicate": "observed_in",
+              "view_id": "view-001"
+            },
+            {
+              "predicate": "visible_pixels",
+              "value": 5330
+            }
+          ],
+          "surface": "第2张图中可以确认干货分配架位于我的大致正前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "predicate": "history_turn_right_deg",
+              "value": 60
+            },
+            {
+              "predicate": "query_turn_right_deg",
+              "value": 180
+            },
+            {
+              "equation": "bearing_after = bearing_before - observer_turn",
+              "predicate": "egocentric_update"
+            }
+          ],
+          "surface": "从第2张图到当前最后一图，我已经原地向右转了60度。我保持干货分配架在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转180度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-04825fc37efcad18c1c1/view-01.png",
+          "data/transform_pilot_media/transform-sft-04825fc37efcad18c1c1/view-02.png",
+          "data/transform_pilot_media/transform-sft-04825fc37efcad18c1c1/view-03.png"
+        ],
+        "question": "你现在站在最后一张图的原地朝向。假设接下来向右转180度，转身后的画面不会提供。干货分配架会位于你的哪个方向？ A. 前方 B. 后方 C. 左侧 D. 右侧",
+        "system": "这些图按时间顺序拍于同一站位；相邻两图之间，观察者原地向右转60度。请只依据图像和已知动作更新物体相对你的方向。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "B",
+            "prediction_semantic_label": "back",
+            "response": "B",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "C",
+            "prediction_semantic_label": "left",
+            "response": "<cue>Image-1</cue> <transform>Image-2</transform> <answer>C</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "B",
+            "prediction_semantic_label": "back",
+            "response": "B. 后方",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "B",
+            "prediction_semantic_label": "back",
+            "response": "<answer>B</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "B_view_memory",
+          "F_self",
+          "R_bearing",
+          "V"
+        ],
+        "typed_signature": "G(ordered_rgb,entity_hint)->B_view_memory->F_self(turn_sequence)->R_bearing->V_direction"
+      },
+      "query_index": null,
+      "record_id": "transform-sft-04825fc37efcad18c1c1",
+      "scene_id": "a6dbe44e-4c88-5e59-b138-a4988c959b54",
+      "split": "train",
+      "targets": {
+        "answer_only": "<answer>D. 右侧</answer>",
+        "grounded_cot": "<cue>第2张图中可以确认干货分配架位于我的大致正前方；目标在最后一图中已经不可见，必须保留先前视角中的位置。</cue>\n<transform>从第2张图到当前最后一图，我已经原地向右转了60度。我保持干货分配架在场景中的位置不动，只更新自身朝向；然后执行题设的“向右转180度”。人向一侧转动时，同一物体在自我坐标中按相反方向等角度更新。</transform>\n<answer>D. 右侧</answer>"
+      },
+      "task_id": "self_rotation_query.v1",
+      "task_tags": [
+        "perspective_taking",
+        "mental_simulation",
+        "episodic_memory"
+      ],
+      "variant_id": null
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "left",
+        "surface": "C. 左侧",
+        "text": "左侧"
+      },
+      "base_fact_id": "among-fact-28a1b6b53acb7f1bf082",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -109.462149,
+          "center_margin_deg": 25.537851,
+          "effective_margin_deg": 14.402229,
+          "front_m": -1.251317,
+          "label": "left",
+          "obb_angular_radius_deg": 11.135621,
+          "right_m": -3.541043
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 0.065389,
+            "among_chair": 0.444663,
+            "among_plant": 1.146192,
+            "among_trash_can": 0.10451
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_chair",
+            "among_plant",
+            "among_trash_can",
+            "among_backpack"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 230,
+              "bbox_width_px": 215,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 15835
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 203,
+              "bbox_width_px": 202,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 14429
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 221,
+              "bbox_width_px": 165,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 25010
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 169,
+              "bbox_width_px": 142,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 14754
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.035824,
+            "among_chair": 0.000884,
+            "among_plant": 0.02002,
+            "among_trash_can": 0.004305
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-003",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_radius185_seed35",
+        "subject_view_id": "view-001",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "left"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_plant",
+              "view_id": "view-001"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_backpack",
+              "view_id": "view-003"
+            },
+            {
+              "entities": [
+                "among_plant",
+                "among_backpack"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第2张图中，脚凳位于盆栽前方；第4张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-1f0ac808cc745ebcbd0d/view-01.png",
+          "data/transform_pilot_media/transform-sft-1f0ac808cc745ebcbd0d/view-02.png",
+          "data/transform_pilot_media/transform-sft-1f0ac808cc745ebcbd0d/view-03.png",
+          "data/transform_pilot_media/transform-sft-1f0ac808cc745ebcbd0d/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，盆栽在背包的哪个方向？ A. 前方 B. 后方 C. 左侧 D. 右侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "C",
+            "prediction_semantic_label": "left",
+            "response": "<cue>Image-1</cue> <transform>Image-2</transform> <answer>C. 左侧</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "<answer>D</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 2,
+      "record_id": "transform-sft-1f0ac808cc745ebcbd0d",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>C. 左侧</answer>",
+        "grounded_cot": "<cue>第2张图中，脚凳位于盆栽前方；第4张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>C. 左侧</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "radius185"
+    },
+    {
+      "answer": {
+        "key": "D",
+        "label": "right",
+        "surface": "D. 右侧",
+        "text": "右侧"
+      },
+      "base_fact_id": "among-fact-28a1b6b53acb7f1bf082",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": 69.357657,
+          "center_margin_deg": 24.357657,
+          "effective_margin_deg": 11.128956,
+          "front_m": 1.108621,
+          "label": "right",
+          "obb_angular_radius_deg": 13.228701,
+          "right_m": 2.942833
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 0.078835,
+            "among_chair": 0.514179,
+            "among_plant": 1.355938,
+            "among_trash_can": 0.120796
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 250,
+              "bbox_width_px": 234,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 19429
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 153,
+              "bbox_width_px": 149,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 14946
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 29255
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 220,
+              "bbox_width_px": 212,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 15883
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.035821,
+            "among_chair": 0.000875,
+            "among_plant": 0.019206,
+            "among_trash_can": 0.004306
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-001",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_mirror_seed33",
+        "subject_view_id": "view-003",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "right"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_plant",
+              "view_id": "view-003"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_backpack",
+              "view_id": "view-001"
+            },
+            {
+              "entities": [
+                "among_plant",
+                "among_backpack"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第4张图中，脚凳位于盆栽前方；第2张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-262355d4f96bc9a5cdb7/view-01.png",
+          "data/transform_pilot_media/transform-sft-262355d4f96bc9a5cdb7/view-02.png",
+          "data/transform_pilot_media/transform-sft-262355d4f96bc9a5cdb7/view-03.png",
+          "data/transform_pilot_media/transform-sft-262355d4f96bc9a5cdb7/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，盆栽在背包的哪个方向？ A. 前方 B. 后方 C. 左侧 D. 右侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "<cue>Image-1</cue> <transform>Image-4</transform> <answer>A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "D",
+            "ground_truth_label": "right",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "<answer>D</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 2,
+      "record_id": "transform-sft-262355d4f96bc9a5cdb7",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>D. 右侧</answer>",
+        "grounded_cot": "<cue>第4张图中，脚凳位于盆栽前方；第2张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>D. 右侧</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "mirror"
+    },
+    {
+      "answer": {
+        "key": "B",
+        "label": "back",
+        "surface": "B. 后方",
+        "text": "后方"
+      },
+      "base_fact_id": "among-fact-28a1b6b53acb7f1bf082",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": 161.003997,
+          "center_margin_deg": 26.003997,
+          "effective_margin_deg": 12.858035,
+          "front_m": -2.992863,
+          "label": "back",
+          "obb_angular_radius_deg": 13.145962,
+          "right_m": 1.030292
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 1.280862,
+            "among_chair": 0.03301,
+            "among_plant": 0.720078,
+            "among_trash_can": 0.154176
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant",
+            "among_chair"
+          ],
+          "expected_target_by_view": [
+            "among_backpack",
+            "among_chair",
+            "among_plant",
+            "among_trash_can"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 184,
+              "bbox_width_px": 165,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 17676
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 262,
+              "bbox_width_px": 189,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 37575
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 216,
+              "bbox_width_px": 144,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 14091
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 29176
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.002553,
+            "among_chair": 0.014357,
+            "among_plant": 0.037277,
+            "among_trash_can": 0.003386
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-000",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_permute1_seed34",
+        "subject_view_id": "view-002",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "back"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_plant",
+              "view_id": "view-002"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_backpack",
+              "view_id": "view-000"
+            },
+            {
+              "entities": [
+                "among_plant",
+                "among_backpack"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第3张图中，脚凳位于盆栽前方；第1张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-266c84edbb4cd7704bbb/view-01.png",
+          "data/transform_pilot_media/transform-sft-266c84edbb4cd7704bbb/view-02.png",
+          "data/transform_pilot_media/transform-sft-266c84edbb4cd7704bbb/view-03.png",
+          "data/transform_pilot_media/transform-sft-266c84edbb4cd7704bbb/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，盆栽在背包的哪个方向？ A. 前方 B. 后方 C. 左侧 D. 右侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "B",
+            "ground_truth_label": "back",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "B",
+            "ground_truth_label": "back",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "<cue>Image-1</cue> <transform>Image-3</transform> <answer>A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "B",
+            "ground_truth_label": "back",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "B",
+            "ground_truth_label": "back",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "<answer>D</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 2,
+      "record_id": "transform-sft-266c84edbb4cd7704bbb",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>B. 后方</answer>",
+        "grounded_cot": "<cue>第3张图中，脚凳位于盆栽前方；第1张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>B. 后方</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "permute1"
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "front",
+        "surface": "C. 前方",
+        "text": "前方"
+      },
+      "base_fact_id": "among-fact-cde38e12ae113a25a385",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -20.19618,
+          "center_margin_deg": 24.80382,
+          "effective_margin_deg": 10.597746,
+          "front_m": 3.006425,
+          "label": "front",
+          "obb_angular_radius_deg": 14.206075,
+          "right_m": -1.105921
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 0.075382,
+            "among_chair": 0.514179,
+            "among_plant": 1.323054,
+            "among_trash_can": 0.120796
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_chair",
+            "among_plant",
+            "among_trash_can",
+            "among_backpack"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 250,
+              "bbox_width_px": 234,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 19429
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 218,
+              "bbox_width_px": 218,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 16926
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 29255
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 185,
+              "bbox_width_px": 153,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 17512
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.035824,
+            "among_chair": 0.000875,
+            "among_plant": 0.020077,
+            "among_trash_can": 0.004306
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-002",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_identity_seed31",
+        "subject_view_id": "view-000",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "front"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_chair",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_trash_can",
+              "view_id": "view-002"
+            },
+            {
+              "entities": [
+                "among_chair",
+                "among_trash_can"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第1张图中，脚凳位于椅子前方；第3张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-31c9a4687777619415e8/view-01.png",
+          "data/transform_pilot_media/transform-sft-31c9a4687777619415e8/view-02.png",
+          "data/transform_pilot_media/transform-sft-31c9a4687777619415e8/view-03.png",
+          "data/transform_pilot_media/transform-sft-31c9a4687777619415e8/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，椅子在垃圾桶的哪个方向？ A. 右侧 B. 后方 C. 前方 D. 左侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "B",
+            "prediction_semantic_label": "back",
+            "response": "<cue>Image-1 shows the chair to the left of the ottoman; Image-2 shows the plant to the left of the ottoman; Image-3 shows the trash can to the left of the ottoman; Image-4 shows the bag to the left of the ottoman.</cue> <transform>From Image-1 to Image-2, the chair moves to the right of the frame; from Image-2 to Image-3, the plant moves to the right of the frame; from Image-3 to Image-4, the trash can moves to the right of the frame. The sequence of rightward shifts indicates a leftward camera rotation. Therefore, the correct answer is B. 后方.</transform> <answer>B</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C. 前方",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "<answer>C</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 1,
+      "record_id": "transform-sft-31c9a4687777619415e8",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>C. 前方</answer>",
+        "grounded_cot": "<cue>第1张图中，脚凳位于椅子前方；第3张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>C. 前方</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "identity"
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "left",
+        "surface": "C. 左侧",
+        "text": "左侧"
+      },
+      "base_fact_id": "among-fact-28a1b6b53acb7f1bf082",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -109.379548,
+          "center_margin_deg": 25.620452,
+          "effective_margin_deg": 12.827422,
+          "front_m": -1.080307,
+          "label": "left",
+          "obb_angular_radius_deg": 12.79303,
+          "right_m": -3.071197
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 0.075382,
+            "among_chair": 0.514179,
+            "among_plant": 1.323054,
+            "among_trash_can": 0.120796
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_chair",
+            "among_plant",
+            "among_trash_can",
+            "among_backpack"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 250,
+              "bbox_width_px": 234,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 19429
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 218,
+              "bbox_width_px": 218,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 16926
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 29255
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 185,
+              "bbox_width_px": 153,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 17512
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.035824,
+            "among_chair": 0.000875,
+            "among_plant": 0.020077,
+            "among_trash_can": 0.004306
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-003",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_identity_seed31",
+        "subject_view_id": "view-001",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "left"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_plant",
+              "view_id": "view-001"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_backpack",
+              "view_id": "view-003"
+            },
+            {
+              "entities": [
+                "among_plant",
+                "among_backpack"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第2张图中，脚凳位于盆栽前方；第4张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-44579158b44364a6b6c5/view-01.png",
+          "data/transform_pilot_media/transform-sft-44579158b44364a6b6c5/view-02.png",
+          "data/transform_pilot_media/transform-sft-44579158b44364a6b6c5/view-03.png",
+          "data/transform_pilot_media/transform-sft-44579158b44364a6b6c5/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，盆栽在背包的哪个方向？ A. 前方 B. 后方 C. 左侧 D. 右侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "C",
+            "prediction_semantic_label": "left",
+            "response": "<cue>Image-1</cue> <transform>Image-2</transform> <answer>C. 左侧</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "left",
+            "prediction": "C",
+            "prediction_semantic_label": "left",
+            "response": "<answer>C</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 2,
+      "record_id": "transform-sft-44579158b44364a6b6c5",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>C. 左侧</answer>",
+        "grounded_cot": "<cue>第2张图中，脚凳位于盆栽前方；第4张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>C. 左侧</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "identity"
+    },
+    {
+      "answer": {
+        "key": "A",
+        "label": "front",
+        "surface": "A. 前方",
+        "text": "前方"
+      },
+      "base_fact_id": "among-fact-28a1b6b53acb7f1bf082",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -20.982128,
+          "center_margin_deg": 24.017872,
+          "effective_margin_deg": 11.148629,
+          "front_m": 3.021167,
+          "label": "front",
+          "obb_angular_radius_deg": 12.869243,
+          "right_m": -1.158636
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 1.284312,
+            "among_chair": 0.033607,
+            "among_plant": 0.687187,
+            "among_trash_can": 0.153525
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_plant",
+            "among_trash_can",
+            "among_backpack",
+            "among_chair"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 219,
+              "bbox_width_px": 152,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 15672
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 29286
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 167,
+              "bbox_width_px": 176,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 17197
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 242,
+              "bbox_width_px": 183,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 35147
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.001751,
+            "among_chair": 0.01436,
+            "among_plant": 0.037516,
+            "among_trash_can": 0.003394
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-002",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_rotate90_seed32",
+        "subject_view_id": "view-000",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "front"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_plant",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_backpack",
+              "view_id": "view-002"
+            },
+            {
+              "entities": [
+                "among_plant",
+                "among_backpack"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第1张图中，脚凳位于盆栽前方；第3张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-87f386af9bbf1b2d548c/view-01.png",
+          "data/transform_pilot_media/transform-sft-87f386af9bbf1b2d548c/view-02.png",
+          "data/transform_pilot_media/transform-sft-87f386af9bbf1b2d548c/view-03.png",
+          "data/transform_pilot_media/transform-sft-87f386af9bbf1b2d548c/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，盆栽在背包的哪个方向？ A. 前方 B. 后方 C. 左侧 D. 右侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "D",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "D",
+            "prediction_semantic_label": "right",
+            "response": "<cue>Image-1</cue> <transform>Image-3</transform> <answer>D. 右侧</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "A",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "A",
+            "ground_truth_label": "front",
+            "prediction": "A",
+            "prediction_semantic_label": "front",
+            "response": "<answer>A</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 2,
+      "record_id": "transform-sft-87f386af9bbf1b2d548c",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>A. 前方</answer>",
+        "grounded_cot": "<cue>第1张图中，脚凳位于盆栽前方；第3张图中，脚凳位于背包前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>A. 前方</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "rotate90"
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "front",
+        "surface": "C. 前方",
+        "text": "前方"
+      },
+      "base_fact_id": "among-fact-cde38e12ae113a25a385",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -20.169693,
+          "center_margin_deg": 24.830307,
+          "effective_margin_deg": 12.479004,
+          "front_m": 3.476271,
+          "label": "front",
+          "obb_angular_radius_deg": 12.351303,
+          "right_m": -1.276932
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 0.065389,
+            "among_chair": 0.444663,
+            "among_plant": 1.146192,
+            "among_trash_can": 0.10451
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_chair",
+            "among_plant",
+            "among_trash_can",
+            "among_backpack"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 230,
+              "bbox_width_px": 215,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 15835
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 203,
+              "bbox_width_px": 202,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 14429
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 221,
+              "bbox_width_px": 165,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 25010
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 169,
+              "bbox_width_px": 142,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 14754
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.035824,
+            "among_chair": 0.000884,
+            "among_plant": 0.02002,
+            "among_trash_can": 0.004305
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-002",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_radius185_seed35",
+        "subject_view_id": "view-000",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "front"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_chair",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_trash_can",
+              "view_id": "view-002"
+            },
+            {
+              "entities": [
+                "among_chair",
+                "among_trash_can"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第1张图中，脚凳位于椅子前方；第3张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-987ee9ccc0f884eeea14/view-01.png",
+          "data/transform_pilot_media/transform-sft-987ee9ccc0f884eeea14/view-02.png",
+          "data/transform_pilot_media/transform-sft-987ee9ccc0f884eeea14/view-03.png",
+          "data/transform_pilot_media/transform-sft-987ee9ccc0f884eeea14/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，椅子在垃圾桶的哪个方向？ A. 右侧 B. 后方 C. 前方 D. 左侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "<cue>Image-1 shows the chair to the left of the stool; Image-2 shows the plant to the left of the stool; Image-3 shows the trash can to the left of the stool; Image-4 shows the bag to the left of the stool.</cue> <transform>From Image-1 to Image-2, the chair moves from left to right; from Image-2 to Image-3, the plant moves from left to right; from Image-3 to Image-4, the trash can moves from left to right. The relative left-right order is chair, plant, trash can, bag. The bag is to the right of the stool in Image-4, so the chair is to the right of the stool in Image-1.</transform> <answer>A</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "A. 选项文本",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "<answer>C</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 1,
+      "record_id": "transform-sft-987ee9ccc0f884eeea14",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>C. 前方</answer>",
+        "grounded_cot": "<cue>第1张图中，脚凳位于椅子前方；第3张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>C. 前方</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "radius185"
+    },
+    {
+      "answer": {
+        "key": "A",
+        "label": "right",
+        "surface": "A. 右侧",
+        "text": "右侧"
+      },
+      "base_fact_id": "among-fact-cde38e12ae113a25a385",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": 69.939519,
+          "center_margin_deg": 24.939519,
+          "effective_margin_deg": 10.672117,
+          "front_m": 1.093875,
+          "label": "right",
+          "obb_angular_radius_deg": 14.267402,
+          "right_m": 2.995555
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 1.284312,
+            "among_chair": 0.033607,
+            "among_plant": 0.687187,
+            "among_trash_can": 0.153525
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_plant",
+            "among_trash_can",
+            "among_backpack",
+            "among_chair"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 219,
+              "bbox_width_px": 152,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 15672
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 29286
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 167,
+              "bbox_width_px": 176,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 17197
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 242,
+              "bbox_width_px": 183,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 35147
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.001751,
+            "among_chair": 0.01436,
+            "among_plant": 0.037516,
+            "among_trash_can": 0.003394
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-001",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_rotate90_seed32",
+        "subject_view_id": "view-003",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "right"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_chair",
+              "view_id": "view-003"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_trash_can",
+              "view_id": "view-001"
+            },
+            {
+              "entities": [
+                "among_chair",
+                "among_trash_can"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第4张图中，脚凳位于椅子前方；第2张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-9c009d9d01b45a876c34/view-01.png",
+          "data/transform_pilot_media/transform-sft-9c009d9d01b45a876c34/view-02.png",
+          "data/transform_pilot_media/transform-sft-9c009d9d01b45a876c34/view-03.png",
+          "data/transform_pilot_media/transform-sft-9c009d9d01b45a876c34/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，椅子在垃圾桶的哪个方向？ A. 右侧 B. 后方 C. 前方 D. 左侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "right",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "A",
+            "ground_truth_label": "right",
+            "prediction": "D",
+            "prediction_semantic_label": "left",
+            "response": "<cue>Image-1</cue> <transform>Image-2</transform> <answer>D. Left</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "A",
+            "ground_truth_label": "right",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "A",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "A",
+            "ground_truth_label": "right",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "<answer>A</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 1,
+      "record_id": "transform-sft-9c009d9d01b45a876c34",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>A. 右侧</answer>",
+        "grounded_cot": "<cue>第4张图中，脚凳位于椅子前方；第2张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>A. 右侧</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "rotate90"
+    },
+    {
+      "answer": {
+        "key": "D",
+        "label": "left",
+        "surface": "D. 左侧",
+        "text": "左侧"
+      },
+      "base_fact_id": "among-fact-cde38e12ae113a25a385",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -109.939935,
+          "center_margin_deg": 25.060065,
+          "effective_margin_deg": 10.886193,
+          "front_m": -1.095052,
+          "label": "left",
+          "obb_angular_radius_deg": 14.173872,
+          "right_m": -3.018471
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 1.280862,
+            "among_chair": 0.03301,
+            "among_plant": 0.720078,
+            "among_trash_can": 0.154176
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant",
+            "among_chair"
+          ],
+          "expected_target_by_view": [
+            "among_backpack",
+            "among_chair",
+            "among_plant",
+            "among_trash_can"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 184,
+              "bbox_width_px": 165,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 17676
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 262,
+              "bbox_width_px": 189,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 37575
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 216,
+              "bbox_width_px": 144,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 14091
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 29176
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.002553,
+            "among_chair": 0.014357,
+            "among_plant": 0.037277,
+            "among_trash_can": 0.003386
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-003",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_permute1_seed34",
+        "subject_view_id": "view-001",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "left"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_chair",
+              "view_id": "view-001"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_trash_can",
+              "view_id": "view-003"
+            },
+            {
+              "entities": [
+                "among_chair",
+                "among_trash_can"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第2张图中，脚凳位于椅子前方；第4张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-aaff3d2400515580a428/view-01.png",
+          "data/transform_pilot_media/transform-sft-aaff3d2400515580a428/view-02.png",
+          "data/transform_pilot_media/transform-sft-aaff3d2400515580a428/view-03.png",
+          "data/transform_pilot_media/transform-sft-aaff3d2400515580a428/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，椅子在垃圾桶的哪个方向？ A. 右侧 B. 后方 C. 前方 D. 左侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "left",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "D",
+            "ground_truth_label": "left",
+            "prediction": "D",
+            "prediction_semantic_label": "left",
+            "response": "<cue>Image-1</cue> <transform>Image-2</transform> <answer>D. 左侧</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "left",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "A",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "D",
+            "ground_truth_label": "left",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "<answer>A</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 1,
+      "record_id": "transform-sft-aaff3d2400515580a428",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>D. 左侧</answer>",
+        "grounded_cot": "<cue>第2张图中，脚凳位于椅子前方；第4张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>D. 左侧</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "permute1"
+    },
+    {
+      "answer": {
+        "key": "C",
+        "label": "front",
+        "surface": "C. 前方",
+        "text": "前方"
+      },
+      "base_fact_id": "among-fact-cde38e12ae113a25a385",
+      "certificate": {
+        "co_visible_view_ids": [],
+        "frame": "camera@view-000",
+        "measurement": {
+          "bearing_deg": -20.19618,
+          "center_margin_deg": 24.80382,
+          "effective_margin_deg": 10.597746,
+          "front_m": 3.006425,
+          "label": "front",
+          "obb_angular_radius_deg": 14.206075,
+          "right_m": -1.105921
+        },
+        "protocol_version": "omnigibson_mindcube_among_layout.v2",
+        "quality_gate": {
+          "among_asset_count_per_view": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "cardinal_bearing_error_deg": {
+            "among_backpack": 0.078835,
+            "among_chair": 0.514179,
+            "among_plant": 1.355938,
+            "among_trash_can": 0.120796
+          },
+          "checks": {
+            "all_assets_have_runtime_ids": true,
+            "all_assets_present_in_snapshot": true,
+            "anchor_is_recognizable_and_uncropped": true,
+            "anchor_visible_in_all_views": true,
+            "camera_ring_certified": true,
+            "cardinal_bearing_error_at_most_5_deg": true,
+            "declared_object_gap_passes": true,
+            "each_satellite_has_exactly_one_witness_view": true,
+            "each_view_contains_exactly_anchor_and_one_satellite": true,
+            "exactly_five_declared_assets": true,
+            "expected_satellite_visible_in_its_view": true,
+            "four_views": true,
+            "no_single_view_reveals_full_layout": true,
+            "one_anchor_four_satellites": true,
+            "one_unique_expected_satellite_per_view": true,
+            "radial_error_at_most_5_cm": true,
+            "satellite_is_recognizable_and_uncropped": true,
+            "unique_names_and_categories": true
+          },
+          "declared_asset_names": [
+            "among_anchor_footstool",
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "expected_target_by_view": [
+            "among_chair",
+            "among_backpack",
+            "among_trash_can",
+            "among_plant"
+          ],
+          "model_asset_footprints": [
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 58067
+            },
+            {
+              "bbox_height_px": 250,
+              "bbox_width_px": 234,
+              "name": "among_chair",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-000",
+              "visible_pixels": 19429
+            },
+            {
+              "bbox_height_px": 308,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 57730
+            },
+            {
+              "bbox_height_px": 153,
+              "bbox_width_px": 149,
+              "name": "among_backpack",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-001",
+              "visible_pixels": 14946
+            },
+            {
+              "bbox_height_px": 310,
+              "bbox_width_px": 272,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 57763
+            },
+            {
+              "bbox_height_px": 240,
+              "bbox_width_px": 180,
+              "name": "among_trash_can",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-002",
+              "visible_pixels": 29255
+            },
+            {
+              "bbox_height_px": 311,
+              "bbox_width_px": 273,
+              "name": "among_anchor_footstool",
+              "role": "anchor",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 58192
+            },
+            {
+              "bbox_height_px": 220,
+              "bbox_width_px": 212,
+              "name": "among_plant",
+              "role": "target",
+              "touches_image_border": false,
+              "view_id": "view-003",
+              "visible_pixels": 15883
+            }
+          ],
+          "radial_error_m": {
+            "among_backpack": 0.035821,
+            "among_chair": 0.000875,
+            "among_plant": 0.019206,
+            "among_trash_can": 0.004306
+          },
+          "status": "pass",
+          "visibility_contract": "central_plus_one_partial",
+          "visible_view_count_by_asset": {
+            "among_anchor_footstool": 4,
+            "among_backpack": 1,
+            "among_chair": 1,
+            "among_plant": 1,
+            "among_trash_can": 1
+          }
+        },
+        "reference_view_id": "view-002",
+        "source_bundle": "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/bundles/hall_conference_large_t2_among5_mirror_seed33",
+        "subject_view_id": "view-000",
+        "visibility_contract": "central_plus_one_partial"
+      },
+      "family_id": "hall_conference_large.among5.cf.v1",
+      "grounded_trace": {
+        "conclusion": {
+          "label": "front"
+        },
+        "cue": {
+          "claims": [
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_chair",
+              "view_id": "view-000"
+            },
+            {
+              "predicate": "anchor_before_satellite",
+              "satellite": "among_trash_can",
+              "view_id": "view-002"
+            },
+            {
+              "entities": [
+                "among_chair",
+                "among_trash_can"
+              ],
+              "predicate": "not_co_visible"
+            }
+          ],
+          "surface": "第1张图中，脚凳位于椅子前方；第3张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。"
+        },
+        "schema_version": "epispace.grounded_cot.v1",
+        "transform": {
+          "claims": [
+            {
+              "anchor": "among_anchor_footstool",
+              "ordered_view_step_deg": 90,
+              "predicate": "register_views"
+            },
+            {
+              "frame": "camera@view-000",
+              "predicate": "query_frame"
+            }
+          ],
+          "surface": "相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。"
+        }
+      },
+      "model_input": {
+        "images": [
+          "data/transform_pilot_media/transform-sft-e6b5f5d715309f43f3dc/view-01.png",
+          "data/transform_pilot_media/transform-sft-e6b5f5d715309f43f3dc/view-02.png",
+          "data/transform_pilot_media/transform-sft-e6b5f5d715309f43f3dc/view-03.png",
+          "data/transform_pilot_media/transform-sft-e6b5f5d715309f43f3dc/view-04.png"
+        ],
+        "question": "以第1张图拍摄者面向脚凳的方向为“前”，椅子在垃圾桶的哪个方向？ A. 右侧 B. 后方 C. 前方 D. 左侧",
+        "system": "四张图来自同一布局：相机位于中心脚凳与外围物体之间，相邻拍摄点沿逆时针方向绕脚凳移动90度，并始终面向脚凳。每张图只给出脚凳和一个外围物体的局部证据。"
+      },
+      "model_outputs": {
+        "SenseNova-SI-1.1-InternVL3-8B": {
+          "answer_only": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "C",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "<cue>Image-1 shows the chair to the left of the ottoman; Image-2 shows the trash can to the left of the ottoman; Image-3 shows the trash can to the right of the ottoman; Image-4 shows the plant to the right of the ottoman.</cue> <transform>From Image-1 to Image-2, the chair moves from left to right; from Image-2 to Image-3, the chair moves from right to left; from Image-3 to Image-4, the chair moves from left to right. The camera's facing direction remains constant, so the chair's relative position to the ottoman is right-to-left-to-right. Therefore, the chair is to the right of the ottoman.</transform> <answer>A</answer>",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": true,
+              "has_transform": true
+            }
+          }
+        },
+        "SenseNova-SI-1.5-InternVL3-8B": {
+          "answer_only": {
+            "correct": false,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "A",
+            "prediction_semantic_label": "right",
+            "response": "A. 选项文本",
+            "semantic_correct": false,
+            "trace_format": {
+              "has_answer": false,
+              "has_cue": false,
+              "has_transform": false
+            }
+          },
+          "grounded_cot": {
+            "correct": true,
+            "ground_truth": "C",
+            "ground_truth_label": "front",
+            "prediction": "C",
+            "prediction_semantic_label": "front",
+            "response": "<answer>C</answer>",
+            "semantic_correct": true,
+            "trace_format": {
+              "has_answer": true,
+              "has_cue": false,
+              "has_transform": false
+            }
+          }
+        }
+      },
+      "operation_graph": {
+        "nodes": [
+          "G",
+          "F_anchor_register",
+          "B_layout",
+          "R",
+          "V"
+        ],
+        "typed_signature": "G(partial_views,anchor)->F_register(anchor,ordered_motion)->B_layout5->R/P(query_frame)->V_direction"
+      },
+      "query_index": 1,
+      "record_id": "transform-sft-e6b5f5d715309f43f3dc",
+      "scene_id": "hall_conference_large",
+      "split": "validation",
+      "targets": {
+        "answer_only": "<answer>C. 前方</answer>",
+        "grounded_cot": "<cue>第1张图中，脚凳位于椅子前方；第3张图中，脚凳位于垃圾桶前方。这两件物体没有在同一张图中出现。</cue>\n<transform>相邻拍摄点沿同一方向绕脚凳移动90度并始终面向脚凳。我用四图中反复出现的脚凳对齐两个证据视角，把两件物体登记到以第1图朝向为“前”的同一平面，再比较它们的位置。</transform>\n<answer>C. 前方</answer>"
+      },
+      "task_id": "among5_cross_view_relation.v1",
+      "task_tags": [
+        "cognitive_mapping",
+        "cross_view_integration",
+        "spatial_relation"
+      ],
+      "variant_id": "mirror"
+    }
+  ],
+  "title": "EpiSpace Transform Pilot"
+}

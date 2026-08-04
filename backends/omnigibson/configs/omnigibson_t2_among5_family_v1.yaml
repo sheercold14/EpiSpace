@@ -1,0 +1,45 @@
+schema_version: omnigibson_among5_family_config.v1
+family_id: t2-among5-counterfactual-v1
+base_recipe: omnigibson_t2_among5_pilot.yaml
+split_manifest: ../dataset/manifests/behavior-1k-v3.9.0-scene-splits.v1.json
+base_seed: 17
+
+# Candidate rooms were selected from previously successful T3 scans with at
+# least 3 m room-boundary clearance. The T2 worker still re-certifies the exact
+# four camera positions after structure-only scene loading; this list is not a
+# waiver of any geometric or visual gate.
+scene_models:
+  - school_gym
+  - restaurant_hotel
+  - restaurant_brunch
+  - restaurant_cafeteria
+  - office_bike
+  - school_geography
+  - office_cubicles_left
+  - hotel_gym_spa
+  - school_chemistry
+  - grocery_store_convenience
+  - restaurant_asian
+  - Ihlen_0_int
+  - hall_conference_large
+  - grocery_store_half_stocked
+  - school_biology
+  - office_vendor_machine
+  - office_large
+  - restaurant_urban
+  - school_computer_lab_and_infirmary
+  - grocery_store_cafe
+  - Wainscott_0_int
+
+# Within one scene, each sibling differs from identity along one declared axis.
+# Across scenes, the reference satellite permutation cycles as a Latin square.
+variants:
+  - variant_id: identity
+  - variant_id: rotate90
+    layout_yaw_deg: 90.0
+  - variant_id: mirror
+    mirrored: true
+  - variant_id: permute1
+    permutation_offset: 1
+  - variant_id: radius125
+    layout_radius_m: 1.25

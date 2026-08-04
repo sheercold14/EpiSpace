@@ -1,0 +1,21 @@
+{
+  "schema_version": "epispace.transform_dataset_config.v1",
+  "dataset_id": "epispace-transform-pilot-v1-2026-07-22",
+  "self_rotation_facts": "../data/transform_pilot_v1/preflight/self_rotation.base_facts.jsonl",
+  "among5_sweep_plan": "../../OminiGibson/outputs/sweeps/t2-mindcube-among-counterfactual-v2/sweep_plan.json",
+  "output_dir": "../data/transform_pilot_v1/dataset",
+  "self_rotation_surfaces_per_fact": 2,
+  "among5_questions_per_layout": 4,
+  "among5_task_kinds": [
+    "cross_view_relation"
+  ],
+  "minimum_self_rotation_base_facts": 150,
+  "minimum_complete_among5_families": 15,
+  "among5_required_variants": [
+    "identity",
+    "rotate90",
+    "mirror",
+    "permute1",
+    "radius185"
+  ]
+}

@@ -1,0 +1,59 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Spatial supervision and evaluation.}
+SpatialVLM scales metric supervision from reconstructed 3D cues
+\citep{chen2024spatialvlm}; SenseNova-SI scales to eight million examples and
+studies shortcuts and spatial chain-of-thought recipes
+\citep{cai2025sensenova}.  VSI-Bench tests scene-walkthrough recall
+\citep{yang2024thinking}; MindCube probes sparse-view mental simulation
+\citep{yin2025mindcube}; MMSI-Bench diagnoses multi-image errors
+\citep{yang2025mmsi}; and ViewSpatial-Bench varies the queried frame
+\citep{li2025viewspatial}.  ReVSI audits answerability for the exact frames
+shown \citep{revsi2026}, while ViewDiag shows that cross-view agreement can
+coexist with geometric error \citep{viewdiag2026}.  MultihopSpatial evaluates
+grounded 1--3-hop compositions, releases training data, and reports
+reinforcement-learning transfer \citep{lee2026multihopspatial}.  We therefore
+claim neither the first compositional spatial benchmark nor the first training
+corpus; instead, exact-input certification and evidence-sensitive family
+metrics are required here.
+
+\paragraph{Systematic-composition protocols.}
+CLOSURE tests known linguistic constructs in novel CLEVR contexts and finds
+that even ground-truth programs need not ensure systematicity
+\citep{bahdanau2019closure}.  CFQ formalizes atoms and compounds and controls
+their train--test divergence \citep{keysers2020measuring}.  Our split follows
+this tradition but is not CFQ/MCD: it only enforces seen typed atoms and
+selected unseen program signatures in scene-disjoint multi-view episodes.
+
+\paragraph{Programmatic and episodic data.}
+SPRITE generates simulator-grounded QA with executable, metadata-checked
+programs at scale \citep{sprite2026}.  S3-Bench studies streaming trajectories
+and active exploration \citep{s3bench2026}; SpaMEM studies dynamic belief
+updates \citep{spamem2026}; and EMemBench generates verifiable questions from
+game trajectories \citep{emembench2026}.  Thus we claim no first simulator QA
+generator, executable program, or trajectory benchmark.  MindEdit-Bench also
+already studies physical counterfactuals that translate or rotate an object
+\citep{yu2026mindedit}.  EpiSpace does not edit scene geometry: its
+\emph{intervention sibling families} vary available evidence, the queried
+reference frame, or the proposition being verified.  We use
+\emph{counterfactual} only in this input-intervention sense.
+
+\paragraph{Spatial maps, memories, and tools.}
+Cog3DMap learns explicit 3D memory \citep{cog3dmap2026}; S-Agent accumulates
+memory through spatial tools \citep{sagent2026}; OmniView-Space distills
+query-aligned cognitive maps \citep{li2026omniview}; and Theory of Space probes
+active belief construction \citep{theoryspace2026}.  EpiSpace claims none of
+these mechanisms.  Its student receives RGB and language; simulator state and
+typed programs are hidden construction certificates.  As in Visual Program
+Distillation \citep{hu2023vpd}, executed structure supplies supervision without
+requiring program emission or geometry tools at inference.
+
+\paragraph{Precise scope of the contribution.}
+EpiSpace combines four controls: certified intervention families;
+an atom-seen, signature-unseen split; a fact- and image/pixel-exposure-matched
+comparison of isolated QA with \emph{observe-first, read-many} training; and
+accuracy-conditioned evidence sensitivity.  No component is claimed as a
+first.  Together they test an episode-organization hypothesis under matched
+facts and image/pixel exposure; total-token/FLOP matching remains a required
+ablation.
