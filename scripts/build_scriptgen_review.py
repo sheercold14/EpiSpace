@@ -21,64 +21,25 @@ import json
 import shutil
 from pathlib import Path
 
-import numpy as np
-from PIL import Image
-
 from spatial_episode.scriptgen.behavior import layout_from_scene_ir
 from spatial_episode.scriptgen.library import SCRIPT_LIBRARY
+from spatial_episode.scriptgen.media import export_bundle_channels
 from spatial_episode.scriptgen.standards import STD_V1
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "web" / "scriptgen_review.html"
-CHANNEL_SIZE = 512  # per-channel export resolution
-
-
-def _save(array: np.ndarray, path: Path) -> None:
-    Image.fromarray(array).resize((CHANNEL_SIZE, CHANNEL_SIZE), Image.BILINEAR).save(path)
-
-
-def _depth_to_image(depth_m: np.ndarray) -> np.ndarray:
-    """Near = bright, far = dark; robust upper bound at the 99th percentile."""
-    finite = depth_m[np.isfinite(depth_m) & (depth_m > 0)]
-    far = float(np.percentile(finite, 99)) if finite.size else 1.0
-    normalized = np.clip(depth_m / max(far, 1e-6), 0.0, 1.0)
-    return ((1.0 - normalized) * 255).astype(np.uint8)
-
-
-def _instance_to_image(instance_id: np.ndarray, target_ids: list[int]) -> np.ndarray:
-    """Deterministic color per instance; the target renders bright red."""
-    height, width = instance_id.shape
-    out = np.zeros((height, width, 3), dtype=np.uint8)
-    for uid in np.unique(instance_id):
-        mask = instance_id == uid
-        if uid in target_ids:
-            out[mask] = (230, 40, 40)
-        elif uid in (0, 1):  # background / unlabelled
-            out[mask] = (28, 28, 34)
-        else:
-            rng = np.random.default_rng(int(uid))
-            out[mask] = rng.integers(70, 220, size=3)
-    return out
 
 
 def _export_channels(
     bundle: Path, target_category: str, frame_count: int, media: Path
 ) -> list[int]:
-    """Write rgb/depth/instance PNGs per frame; return target pixel counts."""
+    """Resolve target runtime ids by category name, then export channels."""
     snapshot = json.loads((bundle / "scene_snapshot.json").read_text(encoding="utf-8"))
     runtime_ids = [
         int(rid)
         for rid, name in snapshot["runtime_instance_registry"].items()
         if target_category.lower() in str(name).lower()
     ]
-    pixels: list[int] = []
-    for t in range(frame_count):
-        with np.load(bundle / "views" / f"view-{t:03d}.sensors.npz") as arrays:
-            instance = arrays["instance_id"]
-            pixels.append(int(np.isin(instance, runtime_ids).sum()))
-            _save(arrays["rgb"], media / f"view-{t:03d}.rgb.png")
-            _save(_depth_to_image(arrays["depth_m"]), media / f"view-{t:03d}.depth.png")
-            _save(_instance_to_image(instance, runtime_ids), media / f"view-{t:03d}.inst.png")
-    return pixels
+    return export_bundle_channels(bundle, runtime_ids, frame_count, media)
 
 
 def build(bundle: Path, plan_record: Path, scene_ir: Path, out: Path) -> Path:

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Scriptgen Family 审核</title>
+<style>
+  body { font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+         margin: 0; background: #f5f6f8; color: #1c1e21; }
+  header { background: #fff; border-bottom: 1px solid #e0e2e6; padding: 14px 24px; }
+  header h1 { margin: 0 0 4px; font-size: 17px; }
+  header .meta { color: #5a5e66; font-size: 13px; }
+  .wrap { max-width: 1360px; margin: 0 auto; padding: 18px 24px 60px; }
+  section { background: #fff; border: 1px solid #e0e2e6; border-radius: 8px;
+            margin-top: 18px; padding: 16px 20px; }
+  section h2 { margin: 0 0 10px; font-size: 15px; }
+  .question { font-size: 14px; line-height: 1.8; }
+  .checks span { display: inline-block; margin-right: 14px; font-size: 12px;
+                 padding: 2px 8px; border-radius: 9px; }
+  .ok { background: #d9f0dc; color: #1d7a2c; }
+  .bad { background: #fbdcdc; color: #a12020; }
+  .episode { border: 1px solid #e0e2e6; border-radius: 8px; margin-top: 14px;
+             padding: 12px 14px; background: #fcfcfd; }
+  .episode h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center;
+                gap: 10px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 1px 8px; border-radius: 9px; font-weight: 500; }
+  .chip.kind { background: #e4ecfb; color: #2a56b0; }
+  .chip.status-answerable { background: #d9f0dc; color: #1d7a2c; }
+  .chip.status-abstain { background: #fdeccc; color: #b06000; }
+  .chip.status-invalid { background: #fbdcdc; color: #a12020; }
+  .chip.gold { background: #1d7a2c; color: #fff; font-size: 13px; }
+  .chip.expect { background: #ececf0; color: #555; }
+  .film-scroll { overflow-x: auto; padding-bottom: 4px; }
+  .film-row { display: flex; gap: 8px; align-items: flex-start; }
+  .cell { flex: 0 0 128px; text-align: center; font-size: 11px; }
+  .cell img { width: 128px; height: 128px; object-fit: cover; border-radius: 4px;
+              border: 3px solid transparent; cursor: zoom-in; display: block; }
+  .cell.seen img { border-color: #2266dd; }
+  .cell.query img { border-color: #9933cc; }
+  .cell .idx { color: #5a5e66; }
+  .cell .idx b { color: #1c1e21; }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 8px; margin-top: 2px; }
+  .tag.visible { background: #d9f0dc; color: #1d7a2c; }
+  .tag.invisible { background: #ececf0; color: #666; }
+  .tag.ambiguous { background: #fdeccc; color: #b06000; }
+  .repeat { color: #b06000; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid #eceef1; padding: 5px 10px; text-align: left;
+           vertical-align: top; }
+  th { color: #5a5e66; font-weight: 600; background: #fafbfc; }
+  td.num { font-variant-numeric: tabular-nums; }
+  details summary { cursor: pointer; color: #2266dd; font-size: 13px; }
+  pre { margin: 6px 0 0; background: #f6f8fa; border-radius: 6px; padding: 8px 10px;
+        font-size: 12px; overflow-x: auto; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .note { font-size: 12px; color: #5a5e66; margin-top: 6px; }
+  #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: none;
+              align-items: center; justify-content: center; cursor: zoom-out; }
+  #lightbox img { max-width: 92vw; max-height: 92vh; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <div class="meta" id="meta"></div>
+</header>
+<div class="wrap">
+
+<section>
+  <h2>题目(所有变体逐字共享)与打包审计</h2>
+  <div class="question" id="question"></div>
+  <div class="checks" id="checks" style="margin-top:8px"></div>
+</section>
+
+<section>
+  <h2>家族成员(蓝框 = t_seen,紫框 = 提问帧 t_q;帧下方 <b>原始帧号</b>;金标一律由重跑编译器产生)</h2>
+  <div id="episodes"></div>
+  <div class="note">变体即"原始已渲染帧的索引序列":置换重排 gone 段、删关键帧移除所有目击帧、
+    删无关帧移除逐帧验证过的冗余帧、延迟为原地停顿(重复同一帧)。</div>
+</section>
+
+<div class="two-col">
+<section>
+  <h2>目标物与家族元数据</h2>
+  <table id="fammeta"><tbody></tbody></table>
+</section>
+
+<section>
+  <h2>编译标准(<span id="stdver"></span>,证书内逐条款见证可展开)</h2>
+  <div class="note">阈值以 standards.py 为唯一来源;此处仅显示证书记录的版本号。</div>
+</section>
+</div>
+
+</div>
+<div id="lightbox"><img id="lightbox-img"></div>
+
+<script>
+const ZH_KIND = { canonical: "canonical(原始)", permute: "置换", drop_key: "删关键帧",
+                  drop_filler: "删无关帧", delay: "延迟" };
+const ZH_TRI = { visible: "可见", invisible: "不可见", ambiguous: "模糊" };
+
+async function main() {
+  const d = await (await fetch("family.json")).json();
+  document.getElementById("title").textContent = d.family_id;
+  document.getElementById("meta").textContent =
+    `场景 ${d.scene_id} · 能力 ${d.capability} · 标准 ${d.standard_version}` +
+    ` · 目标物 ${d.target.category} · ${d.frames.length} 原始帧 · ${d.episodes.length} 成员`;
+  document.getElementById("stdver").textContent = d.standard_version;
+
+  drawQuestion(d);
+  drawChecks(d);
+  drawMeta(d);
+  for (const episode of d.episodes) drawEpisode(d, episode);
+
+  document.body.addEventListener("click", event => {
+    const full = event.target.dataset && event.target.dataset.full;
+    if (!full) return;
+    document.getElementById("lightbox-img").src = full;
+    document.getElementById("lightbox").style.display = "flex";
+  });
+  document.getElementById("lightbox").onclick = () =>
+    document.getElementById("lightbox").style.display = "none";
+}
+
+function drawQuestion(d) {
+  document.getElementById("question").innerHTML =
+    `<div>${d.question.text}</div><div>选项:${d.question.options.join(" / ")}</div>`;
+}
+
+function drawChecks(d) {
+  const rows = [
+    ["referent_unique", d.checks.referent_unique, "指称唯一"],
+    ["unfilled_placeholders", !d.checks.unfilled_placeholders, "无未填占位符"],
+    ["frame_number_leak", !d.checks.frame_number_leak, "无帧号泄漏"],
+    ["answer_token_leak", !d.checks.answer_token_leak, "无答案泄漏"],
+  ];
+  document.getElementById("checks").innerHTML = rows.map(([key, ok, label]) =>
+    `<span class="${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} ${label}</span>`).join("");
+}
+
+function drawMeta(d) {
+  const canonical = d.episodes.find(e => e.kind === "canonical");
+  const rows = [
+    ["family_id", d.family_id],
+    ["plan_id", d.plan_id],
+    ["目标 entity", d.target.entity_id],
+    ["目标类别", d.target.category],
+    ["seed", d.seed],
+    ["canonical 帧变量", JSON.stringify(canonical.certificate.frame_vars)],
+    ["canonical 几何对照", canonical.certificate.geometry
+       ? JSON.stringify(canonical.certificate.geometry.frame_vars) : "(无)"],
+    ["essential 帧(逐帧留一验证)", JSON.stringify(canonical.certificate.essential_frames)],
+    ["mismatch", canonical.certificate.mismatch ?? "(无)"],
+  ];
+  const tbody = document.querySelector("#fammeta tbody");
+  for (const [k, v] of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${k}</td><td class="num">${v}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function drawEpisode(d, episode) {
+  const cert = episode.certificate;
+  const container = document.getElementById("episodes");
+  const div = document.createElement("div");
+  div.className = "episode";
+
+  const answer = cert.answer
+    ? `方位角 ${cert.answer.azimuth_deg}° · 裕度 ${cert.answer.margin_deg}°` : "";
+  const reason = cert.reason ? `原因 ${cert.reason}` : "";
+  const knobs = Object.entries(cert.knob_levels || {})
+    .map(([k, v]) => `${k}=${v}`).join(" ");
+
+  div.innerHTML = `<h3>
+      <span class="chip kind">${ZH_KIND[episode.kind] ?? episode.kind}</span>
+      <span class="chip status-${cert.status}">${cert.status}</span>
+      <span class="chip gold">金标:${episode.gold}</span>
+      <span class="chip expect">预期:${episode.expectation}</span>
+      <span style="font-size:12px;color:#5a5e66">${answer} ${reason} ${knobs}
+        · ${episode.frame_sequence.length} 帧</span>
+    </h3>`;
+
+  const film = document.createElement("div");
+  film.className = "film-scroll";
+  const row = document.createElement("div");
+  row.className = "film-row";
+
+  const counts = {};
+  for (const t of episode.frame_sequence) counts[t] = (counts[t] || 0) + 1;
+  const vars = cert.frame_vars || {};
+
+  episode.frame_sequence.forEach((source, position) => {
+    const media = d.frames[source];
+    const visibility = cert.target_visibility[position];
+    const isSeen = position === vars.t_seen, isQ = position === vars.t_q;
+    const cls = "cell" + (isSeen ? " seen" : "") + (isQ ? " query" : "");
+    const mark = isSeen ? " t_seen" : isQ ? " t_q" : "";
+    const repeat = counts[source] > 1 ? ` <span class="repeat">×重复</span>` : "";
+    const cellDiv = document.createElement("div");
+    cellDiv.className = cls;
+    cellDiv.innerHTML =
+      `<img src="${media.rgb}" loading="lazy" data-full="${media.rgb}">
+       <div class="idx">#${position}${mark} → 原帧 <b>${source}</b>${repeat}</div>
+       <span class="tag ${visibility.tristate}">${ZH_TRI[visibility.tristate]}
+         ${visibility.value}px</span>`;
+    row.appendChild(cellDiv);
+  });
+  film.appendChild(row);
+  div.appendChild(film);
+
+  const details = document.createElement("details");
+  details.innerHTML = `<summary>证书:条款判定与见证</summary>
+    <pre>${JSON.stringify(cert.clause_outcomes, null, 1)}</pre>`;
+  div.appendChild(details);
+  container.appendChild(div);
+}
+
+main();
+</script>
+</body>
+</html>

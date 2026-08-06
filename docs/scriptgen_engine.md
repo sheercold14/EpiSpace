@@ -89,11 +89,39 @@ The first render attempt FAILED verification (an 8k-pixel edge sliver at one
 "invisible" frame) — caught by this exact check, fixed by extent-aware
 visibility, re-rendered clean. The two-phase design paid for itself on run one.
 
+## Authoritative compilation and families (Gaps A–C, 2026-08-06)
+
+Downstream of rendering, three modules close the pipeline through packaging:
+
+- `compiler.py` — `CapabilityCompiler` re-resolves frame variables on the
+  render backend (masks override geometry: render_0's t_seen moved 0→3),
+  re-judges every clause with search tightening off, derives the answer from
+  the rendered pose at t_q, and emits `scriptgen_certificate.v1` with
+  geometry estimates demoted to comparison fields and a `mismatch` blocker.
+  Optional leave-one-out analysis marks the essential frame set.
+- `variants.py` — interventions are frame index sequences over the rendered
+  frames (`ReindexedSceneView`): permute (gone-segment shuffle), drop_key
+  (keep only definitely-invisible frames), drop_filler (verified removal of
+  non-essential frames), delay (repeat one mid-gone frame = standstill).
+  Every gold is produced by re-running the same compiler; the spec-declared
+  expectation (`variant_expectations`) only cross-checks it, and
+  disagreement raises `FamilyMismatch`.
+- `family.py`/`family_cli.py` — one command packs canonical + 4 variants +
+  certificates into a single `scriptgen_family.v1` JSON (registered in
+  `contracts/schema.py`), audits referent uniqueness and question-text leaks
+  (no placeholders, no frame numbers, no gold token), exports per-frame
+  rgb/depth/instance PNGs and ships `web/scriptgen_family_review.html`.
+
+Clause semantics under intervention live in the spec (`scriptgen_spec.v2`):
+`on_violation="abstain"` marks evidence clauses (violated → gold becomes the
+abstain option), `"invalid"` marks validity clauses (violated → no gold may
+be asserted). `abstain_on_unresolvable` does the same for frame variables.
+
 ## Remaining integration (next steps)
 
+- Family-level scoring (Gap D): conditional consistency / covariance /
+  abstention calibration from prediction records + family labels only.
 - Referent disambiguation for duplicate-category scenes (halls reject most
   slots via `ambiguous_referent`; region-qualified referents lift this).
 - Answer-balance control: the walk-away motif biases gold answers toward
   "back"; add motifs/turn patterns that distribute final relative bearings.
-- Sibling expansion and family packaging sit downstream of plans and reuse the
-  same predicates for recompilation.
