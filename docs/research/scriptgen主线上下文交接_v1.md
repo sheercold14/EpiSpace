@@ -1,7 +1,7 @@
 # Scriptgen 主线上下文交接 v1
 
 > 用途:新会话/新成员接续开发时的最小充分上下文。截至 2026-08-06,
-> 分支 `feature/scriptgen-engine-v1`(6 个提交)。
+> 分支 `feature/scriptgen-engine-v1`(9 个提交,至 4023a31)。
 
 ## 1. 研究定位(为什么做)
 
@@ -67,24 +67,53 @@
 第一次闭环曾抓出真 bug(质点视锥近似漏掉物体边缘 8k 像素),由此加了
 "部分入画一律模糊"规则——渲后复核的价值已实证。
 
-## 5. 外部依赖(EpiSpace 之外)
+## 5. 三仓库关系与文件契约(流程图)
 
-- 渲染正本:`code/OminiGibson`(独立仓库)。已加 scripted_plan 采集策略
-  (新文件 `omnigibson_episode/scripted.py` + config/acquire 各一处新增
-  + 演示配方 yaml),**未提交**,与用户既有未提交改动并存;
-- 历史数据:`code/episode3D/data`(3.2GB),EpiSpace/data 靠软链接接入;
-  已知问题:部分测试期望 586 条记录、现有数据 466 条,新版数据下落不明,
-  19 个测试常红待处理;
-- 渲染产物:`OminiGibson/outputs/scripted_demo/batch/render_{0,1,2}` 三条
-  已渲染轨迹 + `plan_{i}.record.json`,是后半段开发的现成试验数据。
+EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出的两种真值文件:
+场景几何真值(scene_ir.json,用于免渲染规划)和像素真值(npz 实例掩码,
+用于权威编译)。仓库间只以文件交接,没有代码依赖:
+
+```text
+┌────────── code/OminiGibson ── 采集库,唯一含模拟器代码 ──────────┐
+│ Isaac Sim + CUDA · conda 环境 behavior-spatialep                  │
+│ 职责:照计划渲染(scripted_plan 策略)、自采轨迹(旧 T1–T10)     │
+└───────────────────────────────────────────────────────────────────┘
+      ▲ 契约① 计划文件                  │ 契约② bundle(数据包)
+      │ plan.views.json                  │ views/*.sensors.npz(rgb/深度/掩码)
+      │ (相机逐帧位姿调度,             │ scene_ir.json(场景几何真值)
+      │  由 plan_to_agent_views 导出)   │ trajectory_plan/snapshot/report.json
+      │                                  ▼
+┌────────── code/EpiSpace ── 主库,零模拟器依赖 ────────────────────┐
+│ scriptgen  剧本→槽位→候选→免渲染核验→轨迹计划        [已通]      │
+│ 编译       bundle 掩码→权威答案/证据帧→certificate    [空缺A]    │
+│ family     干预算子→重编译→打包                       [空缺B/C]  │
+│ 评测       预测记录→家族级指标                        [空缺D]    │
+│ web 审核页 · scripts 薄壳 · docs 文档                             │
+└───────────────────────────────────────────────────────────────────┘
+      ▲ 软链接(临时,待数据迁移归档)
+┌────── code/episode3D ── 旧主库,已冻结,只剩 data/ 3.2GB ────────┘
+```
+
+状态注记:
+
+- OminiGibson 的 scripted_plan 改动(`omnigibson_episode/scripted.py` 新文件
+  + config/acquire 各一处新增 + 演示配方 yaml)**未提交**,与用户既有
+  未提交改动并存;演示配方里的 plan_path 是绝对路径,待路径解析器统一;
+- EpiSpace 曾内置的 backends/omnigibson 副本已删除(4023a31),
+  采集代码只此一份;
+- 历史数据经软链接接入,已知 19 个测试因数据版本错位常红
+  (期望 586 条、现有 466 条,新版数据下落不明);
+- 现成试验数据:`OminiGibson/outputs/scripted_demo/batch/render_{0,1,2}`
+  三条已渲染轨迹 + `plan_{i}.record.json`,足够开发整个后半段,无需新渲染。
 
 ## 6. 已拍板的决策
 
 1. certificate 一切以渲染掩码为准,几何估计仅作对照字段;
 2. family 存单个 JSON(canonical+全部变体+certificate),帧图相对路径引用;
 3. 新代码进 spatial_episode,episode3d 冻结只修错;
-4. 采集代码正本是 code/OminiGibson,EpiSpace/backends/omnigibson 副本待废弃;
-5. scripts/ 只做薄壳,逻辑用到第二次即下沉 src 带测试;
+4. 采集代码正本是 code/OminiGibson,EpiSpace 内副本已删除(4023a31);
+5. scripts/ 只做薄壳,逻辑用到第二次即下沉 src 带测试;保留政策与逐脚本
+   判决见 scripts/INDEX.md(16 个活跃,14 个数据来源脚本封存 scripts/pilot/);
 6. 改常量必升 standard_version;干预后答案由重跑同一编译器产生,不许人工指定。
 
 ## 7. 主线与空缺(按序推进)
