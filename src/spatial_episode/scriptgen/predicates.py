@@ -126,6 +126,68 @@ def cum_turn_ge(
     return Verdict(total >= deg, {"cum_turn_deg": round(total, 1), "required_deg": deg})
 
 
+@predicate("cum_turn_between")
+def cum_turn_between(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    frames: Sequence[int],
+    deg_min: float,
+    deg_max: float,
+) -> Verdict:
+    """Cumulative heading change lies in [deg_min, deg_max].
+
+    The lower bound makes the remembered viewpoint stale; the upper bound
+    keeps the transformation inside a range a tracker could accumulate — far
+    beyond it the answer collapses to a guess rather than a mental rotation.
+    """
+    yaws = [view.camera_pose(t).yaw_deg for t in frames]
+    total = cumulative_turn_deg(yaws)
+    return Verdict(
+        deg_min <= total <= deg_max,
+        {"cum_turn_deg": round(total, 1), "deg_min": deg_min, "deg_max": deg_max},
+    )
+
+
+@predicate("step_motion_bounded")
+def step_motion_bounded(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
+    """Every consecutive frame pair keeps yaw and translation within bounds.
+
+    This is the ego-motion trackability contract: bounded per-frame rotation
+    preserves visual overlap between frames, so the model CAN in principle
+    estimate its own motion from the image stream. Snap turns make the
+    self-motion question unanswerable and must reject the candidate.
+    """
+    from itertools import pairwise
+
+    from .geometry import distance_m, wrap_deg
+
+    worst_turn, worst_step = 0.0, 0.0
+    for a, b in pairwise(frames):
+        pa, pb = view.camera_pose(a), view.camera_pose(b)
+        worst_turn = max(worst_turn, abs(wrap_deg(pb.yaw_deg - pa.yaw_deg)))
+        worst_step = max(worst_step, distance_m(pa.xy, pb.xy))
+    holds = worst_turn <= std.max_step_turn_deg and worst_step <= std.max_step_translation_m
+    return Verdict(
+        holds,
+        {
+            "worst_step_turn_deg": round(worst_turn, 1),
+            "max_step_turn_deg": std.max_step_turn_deg,
+            "worst_step_translation_m": round(worst_step, 2),
+            "max_step_translation_m": std.max_step_translation_m,
+        },
+    )
+
+
+@predicate("frame_gap_ge")
+def frame_gap_ge(
+    view: SceneView, std: CompileStandard, *, later: int, earlier: int, gap: int
+) -> Verdict:
+    """At least ``gap`` frames separate two frame variables."""
+    actual = later - earlier
+    return Verdict(actual >= gap, {"later": later, "earlier": earlier, "gap": actual})
+
+
 @predicate("sector_margin_ge")
 def sector_margin_ge(
     view: SceneView,

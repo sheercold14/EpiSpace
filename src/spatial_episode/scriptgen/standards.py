@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v1"
+    standard_version: str = "std.v2"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -43,6 +43,15 @@ class CompileStandard:
     # --- direction discretisation ---
     sector_count: int = 4  # front / left / back / right
     sector_margin_deg: float = 15.0
+
+    # --- ego-motion trackability (std.v2) ---
+    # Self-motion updating is only a fair question when the camera's own
+    # motion can be tracked from the image stream: consecutive frames need
+    # visual overlap. With a 90-degree horizontal FOV, capping per-frame yaw
+    # change at 40 degrees preserves >50% overlap; translation is capped so
+    # the scene does not jump discontinuously between frames.
+    max_step_turn_deg: float = 40.0
+    max_step_translation_m: float = 1.2
 
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates

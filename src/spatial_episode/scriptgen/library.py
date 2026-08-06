@@ -8,36 +8,58 @@ from __future__ import annotations
 
 from .spec import Clause, Knob, ScriptSpec, SlotSpec, Template
 
+# Three-phase structure: SEEN (target clearly visible) -> TRANSITION (target
+# may slide out of frame gradually while the camera turns at a trackable rate)
+# -> GONE (definitely invisible until the question frame). The transition zone
+# is what makes trackable ego-motion and decisive disappearance compatible:
+# partial-visibility frames are permitted there and only there.
 SELF_MOTION = ScriptSpec(
     capability="self_motion_update",
     slots={
         "target": SlotSpec(min_size_m=0.5, unique_referent=True),
     },
     frame_vars={
-        "t_seen": "last_visible($target)",  # last frame the target is visible
+        "t_seen": "last_visible($target)",  # last clearly-visible frame
+        "t_gone": "first_invisible_after($target, $t_seen)",  # transition ends
         "t_q": "last_frame()",  # the question frame
     },
     clauses=(
-        # Target is observed at least once before it leaves the field of view.
+        # Target is clearly observed before it leaves the field of view.
         Clause(
             name="seen_early",
             predicate="visible_somewhere",
             args={"obj": "$target", "frames": "0:$t_seen"},
             phase="compile",
         ),
-        # After t_seen the target stays out of sight up to the question frame,
-        # forcing the answer to come from memory plus self-motion updating.
+        # Ego-motion is visually trackable across the WHOLE trajectory:
+        # bounded per-frame rotation and translation (std.v2 contract).
         Clause(
-            name="out_of_view",
+            name="trackable",
+            predicate="step_motion_bounded",
+            args={"frames": "0:$t_q"},
+            phase="search",
+        ),
+        # After the transition the target stays definitely out of sight.
+        Clause(
+            name="gone",
             predicate="invisible_in_range",
-            args={"obj": "$target", "frames": "$t_seen+1:$t_q"},
+            args={"obj": "$target", "frames": "$t_gone:$t_q"},
             phase="compile",
         ),
-        # Enough self-motion happened that the remembered viewpoint is stale.
+        # The invisible stretch is long enough to force memory, not glimpse.
+        Clause(
+            name="gap",
+            predicate="frame_gap_ge",
+            args={"later": "$t_q", "earlier": "$t_gone", "gap": 3},
+            phase="search",
+        ),
+        # Total turn is large enough to make the remembered viewpoint stale,
+        # but bounded: far beyond a composable rotation the answer stops being
+        # mental rotation and becomes a guess.
         Clause(
             name="turned",
-            predicate="cum_turn_ge",
-            args={"frames": "$t_seen:$t_q", "deg": 90},
+            predicate="cum_turn_between",
+            args={"frames": "$t_seen:$t_q", "deg_min": 80, "deg_max": 200},
             phase="search",
         ),
         # The gold answer clears the sector boundary margin at the question frame.
@@ -48,8 +70,10 @@ SELF_MOTION = ScriptSpec(
             phase="search",
         ),
     ),
-    knobs=(Knob(name="delay", expr="$t_q-$t_seen", levels=(3, 6, 10)),),
-    length=(8, 14),
+    # Turn magnitude is not a knob expression: it is recorded in the "turned"
+    # clause witness (cum_turn_deg) and bucketed at analysis time.
+    knobs=(Knob(name="delay", expr="$t_q-$t_gone", levels=(3, 6, 10)),),
+    length=(10, 16),
     motifs=("walk_and_turn",),
     templates=(
         Template(

@@ -84,8 +84,8 @@ def resolve_frame_vars(
         if match is None:
             raise ScriptError(f"frame var {name}: bad resolver expression {expr!r}")
         fn, raw_arg = match.group("fn"), match.group("arg").strip()
-        arg = _substitute(raw_arg, scope) if raw_arg else ""
-        value = _run_resolver(fn, arg, view, std, expr)
+        args = [_substitute(part.strip(), scope) for part in raw_arg.split(",")] if raw_arg else []
+        value = _run_resolver(fn, args, view, std, expr)
         if value is None:
             raise FrameVarUnresolvable(name, expr)
         resolved[name] = value
@@ -102,15 +102,24 @@ class FrameVarUnresolvable(ScriptError):
 
 
 def _run_resolver(
-    fn: str, arg: str, view: SceneView, std: CompileStandard, expr: str
+    fn: str, args: list[str], view: SceneView, std: CompileStandard, expr: str
 ) -> int | None:
     if fn == "last_frame":
         return view.frame_count - 1
     if fn in {"last_visible", "first_visible"}:
+        (obj,) = args
         frames = range(view.frame_count)
         ordered = reversed(frames) if fn == "last_visible" else frames
         for t in ordered:
-            if view.visibility(arg, t).tristate(std) is True:
+            if view.visibility(obj, t).tristate(std) is True:
+                return t
+        return None
+    if fn == "first_invisible_after":
+        # First definitely-invisible frame after a given frame: the end of the
+        # transition zone in which the target may partially remain in view.
+        obj, after = args[0], int(args[1])
+        for t in range(after + 1, view.frame_count):
+            if view.visibility(obj, t).tristate(std) is False:
                 return t
         return None
     raise ScriptError(f"unknown frame-var resolver in {expr!r}")

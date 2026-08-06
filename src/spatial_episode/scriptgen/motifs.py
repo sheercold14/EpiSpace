@@ -45,27 +45,33 @@ def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
 
+MAX_TURN_PER_FRAME_DEG = 32.0  # below std.v2's 40-degree trackability cap
+
+
 def _walk_polyline(
     waypoints: list[tuple[float, float]], headings: list[float], frame_count: int
 ) -> tuple[Pose2D, ...]:
-    """Distribute frames evenly over polyline segments, yaw following headings.
+    """Distribute frames evenly over polyline segments with rate-limited yaw.
 
-    Heading changes are concentrated in the first quarter of each segment
-    (people turn on the spot, then walk). Decisive turns also keep targets
-    from lingering at the field-of-view edge, where extent-aware visibility
-    is ambiguous and candidates would be rejected.
+    Yaw chases the current segment's desired heading but never changes by
+    more than MAX_TURN_PER_FRAME_DEG between frames: consecutive frames keep
+    visual overlap, so the camera's own motion stays trackable from images
+    (the std.v2 ego-motion contract). Partial-visibility frames during the
+    turn are expected; the script's transition zone accommodates them.
     """
     segments = len(waypoints) - 1
     poses: list[Pose2D] = []
+    yaw = headings[0]
     for i in range(frame_count):
         progress = i / max(frame_count - 1, 1) * segments
         seg = min(int(progress), segments - 1)
         t = progress - seg
-        turn = min(t / 0.25, 1.0)
-        yaw = headings[seg] + wrap_deg(headings[min(seg + 1, segments - 1)] - headings[seg]) * turn
+        desired = headings[min(seg + 1, segments - 1)] if t > 0.05 or seg > 0 else headings[0]
+        delta = wrap_deg(desired - yaw)
+        yaw = wrap_deg(yaw + max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta)))
         x = _lerp(waypoints[seg][0], waypoints[seg + 1][0], t)
         y = _lerp(waypoints[seg][1], waypoints[seg + 1][1], t)
-        poses.append(Pose2D(x, y, wrap_deg(yaw)))
+        poses.append(Pose2D(x, y, yaw))
     return tuple(poses)
 
 
@@ -93,25 +99,42 @@ def walk_and_turn(
         min(max(target.xy[0] + radius * math.cos(angle), min_x + 0.5), max_x - 0.5),
         min(max(target.xy[1] + radius * math.sin(angle), min_y + 0.5), max_y - 0.5),
     )
-    # Leave via a mid waypoint towards the corner farthest from the target.
+    # Leave via a mid waypoint towards a RANDOM far-ish corner: varying the
+    # exit direction varies the final target bearing, so gold answers spread
+    # over left/right/back instead of collapsing onto "back".
     corners = [
         (min_x + 0.5, min_y + 0.5),
         (min_x + 0.5, max_y - 0.5),
         (max_x - 0.5, min_y + 0.5),
         (max_x - 0.5, max_y - 0.5),
     ]
-    far_corner = max(corners, key=lambda c: (c[0] - target.xy[0]) ** 2 + (c[1] - target.xy[1]) ** 2)
+    corners.sort(key=lambda c: (c[0] - start[0]) ** 2 + (c[1] - start[1]) ** 2, reverse=True)
+    exit_corner = corners[rng.randrange(3)]  # any of the three farther corners
     mid = (
-        _lerp(start[0], far_corner[0], jitter(0.35, 0.65)) + jitter(-1.0, 1.0),
-        _lerp(start[1], far_corner[1], jitter(0.35, 0.65)) + jitter(-1.0, 1.0),
+        _lerp(start[0], exit_corner[0], jitter(0.35, 0.65)) + jitter(-1.0, 1.0),
+        _lerp(start[1], exit_corner[1], jitter(0.35, 0.65)) + jitter(-1.0, 1.0),
     )
     mid = (min(max(mid[0], min_x + 0.5), max_x - 0.5), min(max(mid[1], min_y + 0.5), max_y - 0.5))
 
-    waypoints = [start, mid, far_corner]
+    waypoints = [start, mid, exit_corner]
     headings = [
-        bearing_deg(start, target.xy),  # first look at the target
+        bearing_deg(start, target.xy),  # initial gaze at the target
         bearing_deg(start, mid),
-        bearing_deg(mid, far_corner),
+        bearing_deg(mid, exit_corner),
     ]
-    # Polyline has 2 segments; drop the extra heading entry used for the gaze.
-    return _walk_polyline(waypoints, [headings[0], headings[2]], frame_count)
+    look_frames = max(2, frame_count // 4)
+    walk = list(_walk_polyline(waypoints, [headings[0], headings[2]], frame_count - look_frames))
+
+    # Arrive, then look around: rotate in place (rate-limited) towards a
+    # random final gaze so the target's final bearing spreads over
+    # left/right/back instead of collapsing onto "behind the walker".
+    end = walk[-1]
+    offset = rng.choice([90.0, -90.0, 180.0]) + rng.uniform(-20.0, 20.0)
+    final_yaw = wrap_deg(bearing_deg(end.xy, target.xy) + offset)
+    yaw = end.yaw_deg
+    for _ in range(look_frames):
+        delta = wrap_deg(final_yaw - yaw)
+        step = max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta))
+        yaw = wrap_deg(yaw + step)
+        walk.append(Pose2D(end.x, end.y, yaw))
+    return tuple(walk)
