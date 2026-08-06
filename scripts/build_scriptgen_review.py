@@ -22,17 +22,48 @@ import shutil
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 
 from spatial_episode.scriptgen.behavior import layout_from_scene_ir
 from spatial_episode.scriptgen.library import SCRIPT_LIBRARY
 from spatial_episode.scriptgen.standards import STD_V1
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "web" / "scriptgen_review.html"
+CHANNEL_SIZE = 512  # per-channel export resolution
 
 
-def _target_pixels_per_frame(
-    bundle: Path, target_category: str, frame_count: int
+def _save(array: np.ndarray, path: Path) -> None:
+    Image.fromarray(array).resize((CHANNEL_SIZE, CHANNEL_SIZE), Image.BILINEAR).save(path)
+
+
+def _depth_to_image(depth_m: np.ndarray) -> np.ndarray:
+    """Near = bright, far = dark; robust upper bound at the 99th percentile."""
+    finite = depth_m[np.isfinite(depth_m) & (depth_m > 0)]
+    far = float(np.percentile(finite, 99)) if finite.size else 1.0
+    normalized = np.clip(depth_m / max(far, 1e-6), 0.0, 1.0)
+    return ((1.0 - normalized) * 255).astype(np.uint8)
+
+
+def _instance_to_image(instance_id: np.ndarray, target_ids: list[int]) -> np.ndarray:
+    """Deterministic color per instance; the target renders bright red."""
+    height, width = instance_id.shape
+    out = np.zeros((height, width, 3), dtype=np.uint8)
+    for uid in np.unique(instance_id):
+        mask = instance_id == uid
+        if uid in target_ids:
+            out[mask] = (230, 40, 40)
+        elif uid in (0, 1):  # background / unlabelled
+            out[mask] = (28, 28, 34)
+        else:
+            rng = np.random.default_rng(int(uid))
+            out[mask] = rng.integers(70, 220, size=3)
+    return out
+
+
+def _export_channels(
+    bundle: Path, target_category: str, frame_count: int, media: Path
 ) -> list[int]:
+    """Write rgb/depth/instance PNGs per frame; return target pixel counts."""
     snapshot = json.loads((bundle / "scene_snapshot.json").read_text(encoding="utf-8"))
     runtime_ids = [
         int(rid)
@@ -42,7 +73,11 @@ def _target_pixels_per_frame(
     pixels: list[int] = []
     for t in range(frame_count):
         with np.load(bundle / "views" / f"view-{t:03d}.sensors.npz") as arrays:
-            pixels.append(int(np.isin(arrays["instance_id"], runtime_ids).sum()))
+            instance = arrays["instance_id"]
+            pixels.append(int(np.isin(instance, runtime_ids).sum()))
+            _save(arrays["rgb"], media / f"view-{t:03d}.rgb.png")
+            _save(_depth_to_image(arrays["depth_m"]), media / f"view-{t:03d}.depth.png")
+            _save(_instance_to_image(instance, runtime_ids), media / f"view-{t:03d}.inst.png")
     return pixels
 
 
@@ -55,18 +90,15 @@ def build(bundle: Path, plan_record: Path, scene_ir: Path, out: Path) -> Path:
     target_id = plan["binding"]["target"]
     target = layout.object(target_id)
     frame_count = len(plan["poses"])
-    pixels = _target_pixels_per_frame(bundle, target.category, frame_count)
+    media = out / "media"
+    media.mkdir(parents=True, exist_ok=True)
+    pixels = _export_channels(bundle, target.category, frame_count, media)
 
     t_seen = plan["frame_vars"].get("t_seen")
     t_q = plan["frame_vars"].get("t_q")
 
     frames = []
-    media = out / "media"
-    media.mkdir(parents=True, exist_ok=True)
     for t in range(frame_count):
-        png = bundle / "preview" / f"view-{t:03d}.png"
-        if png.exists():
-            shutil.copyfile(png, media / png.name)
         px = pixels[t]
         if px >= std.render_min_visible_pixels:
             tristate = "visible"
@@ -77,7 +109,9 @@ def build(bundle: Path, plan_record: Path, scene_ir: Path, out: Path) -> Path:
         frames.append(
             {
                 "frame": t,
-                "png": f"media/view-{t:03d}.png",
+                "rgb": f"media/view-{t:03d}.rgb.png",
+                "depth": f"media/view-{t:03d}.depth.png",
+                "instance": f"media/view-{t:03d}.inst.png",
                 "target_pixels": px,
                 "tristate": tristate,
                 "is_t_seen": t == t_seen,

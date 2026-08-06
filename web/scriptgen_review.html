@@ -13,7 +13,10 @@
   section { background: #fff; border: 1px solid #e0e2e6; border-radius: 8px;
             margin-top: 18px; padding: 16px 20px; }
   section h2 { margin: 0 0 12px; font-size: 15px; }
-  .film { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .film-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .film-row { display: flex; gap: 10px; margin-bottom: 6px; align-items: center; }
+  .row-label { flex: 0 0 44px; font-size: 12px; color: #5a5e66; text-align: right;
+               padding-right: 4px; }
   .cell { flex: 0 0 168px; text-align: center; font-size: 12px; }
   .cell img { width: 168px; height: 168px; object-fit: cover; border-radius: 4px;
               border: 3px solid transparent; cursor: zoom-in; display: block; }
@@ -65,8 +68,8 @@
 </section>
 
 <section>
-  <h2>帧序(蓝框 = 最后可见帧 t_seen,紫框 = 提问帧 t_q;标签为目标物在渲染掩码中的像素数)</h2>
-  <div class="film" id="film"></div>
+  <h2>帧序(蓝框 = 最后可见帧 t_seen,紫框 = 提问帧 t_q;标签为目标物在渲染掩码中的像素数;实例行中目标物为亮红色)</h2>
+  <div class="film-scroll" id="film"></div>
 </section>
 
 <section>
@@ -159,19 +162,34 @@ function drawMap(d) {
 function drawFilm(d) {
   const film = document.getElementById("film");
   const zhTag = { visible: "可见", invisible: "不可见", ambiguous: "模糊" };
-  for (const f of d.frames) {
-    const cell = document.createElement("div");
-    cell.className = "cell" + (f.is_t_seen ? " seen" : "") + (f.is_t_q ? " query" : "");
+  const rows = [["RGB", "rgb"], ["深度", "depth"], ["实例", "instance"]];
+
+  // 顶部信息行:帧号 + 像素标签
+  const head = document.createElement("div");
+  head.className = "film-row";
+  head.innerHTML = `<div class="row-label"></div>` + d.frames.map(f => {
     const mark = f.is_t_seen ? " · t_seen" : f.is_t_q ? " · t_q" : "";
-    cell.innerHTML = `<img src="${f.png}" loading="lazy">
-      <div>帧 ${f.frame}${mark}</div>
-      <span class="tag ${f.tristate}">${zhTag[f.tristate]} ${f.target_pixels}px</span>`;
-    cell.querySelector("img").onclick = () => {
-      document.getElementById("lightbox-img").src = f.png;
-      document.getElementById("lightbox").style.display = "flex";
-    };
-    film.appendChild(cell);
+    return `<div class="cell"><div>帧 ${f.frame}${mark}</div>
+      <span class="tag ${f.tristate}">${zhTag[f.tristate]} ${f.target_pixels}px</span></div>`;
+  }).join("");
+  film.appendChild(head);
+
+  for (const [label, key] of rows) {
+    const row = document.createElement("div");
+    row.className = "film-row";
+    row.innerHTML = `<div class="row-label">${label}</div>` + d.frames.map(f => {
+      const cls = "cell" + (f.is_t_seen ? " seen" : "") + (f.is_t_q ? " query" : "");
+      return `<div class="${cls}"><img src="${f[key]}" loading="lazy" data-full="${f[key]}"></div>`;
+    }).join("");
+    film.appendChild(row);
   }
+
+  film.addEventListener("click", event => {
+    const full = event.target.dataset && event.target.dataset.full;
+    if (!full) return;
+    document.getElementById("lightbox-img").src = full;
+    document.getElementById("lightbox").style.display = "flex";
+  });
   document.getElementById("lightbox").onclick = () =>
     document.getElementById("lightbox").style.display = "none";
 }
