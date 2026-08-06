@@ -55,13 +55,30 @@ backend; disagreement rejects the bundle instead of trusting either side.
    `predicates.py` with a witness, plus its golden/property tests.
 3. Nothing else changes. Verification: `pytest tests/scriptgen`.
 
-## Integration points (next steps)
+## BEHAVIOR adapters (`behavior.py`)
 
-- Render backend adapter: implement `SceneView` over acquisition bundles
-  (instance masks) in `backends/omnigibson`; reuses `verifiers.py` logic.
-- Plan-to-recipe adapter: convert `TrajectoryPlan.poses` into the acquisition
-  worker's camera schedule so Isaac Sim renders planned trajectories.
-- Layout export: build `SceneLayout` from BEHAVIOR scene snapshots instead of
-  the demo layout (objects, OBBs as occluders, traversable bounds).
+Implemented; all render-free (they read artifacts acquisition already wrote):
+
+- `layout_from_scene_ir(scene_ir.json)` — real BEHAVIOR scenes as planning
+  layouts: non-structural entities as objects, wall/pillar footprints spanning
+  camera height as occluders, floor AABB union as walkable bounds. Verified on
+  hall and residential scenes (0.1-0.3 s for 2-5 plans per scene).
+- `poses_from_trajectory_plan(trajectory_plan.json)` — replay acquired
+  trajectories through the checker (yaw from the agent quaternion; +Y forward).
+- `RenderSceneView.from_bundle(bundle_root)` — the authoritative render
+  backend: pixel counts from `views/*.sensors.npz` ``instance_id`` masks
+  (note: scene_ir's ``runtime_semantic_id_map`` keys on INSTANCE ids despite
+  its name). Verified: 814/814 agreement with render_report on a real bundle.
+- `plan_to_agent_views(plan)` — export a plan as the backend's camera-schedule
+  view records (roundtrip-tested against `poses_from_trajectory_plan`).
+
+## Remaining integration (next steps)
+
+- Acquisition worker mode that renders a supplied camera schedule instead of
+  sampling its own trajectory (Isaac Sim side; consumes `plan_to_agent_views`).
+- Referent disambiguation for duplicate-category scenes (halls reject most
+  slots via `ambiguous_referent`; region-qualified referents lift this).
+- Answer-balance control: the walk-away motif biases gold answers toward
+  "back"; add motifs/turn patterns that distribute final relative bearings.
 - Sibling expansion and family packaging sit downstream of plans and reuse the
   same predicates for recompilation.
