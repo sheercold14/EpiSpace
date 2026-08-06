@@ -43,12 +43,20 @@ class Clause(SpecModel):
     decided render-free; ``compile`` clauses are re-checked authoritatively on
     the rendered bundle (they are still *estimated* during search so hopeless
     candidates are dropped early).
+
+    ``on_violation`` declares what a violation MEANS when the compiler
+    re-judges an intervened frame sequence: ``abstain`` marks an evidence
+    clause (violated -> even an ideal agent cannot know the answer, so the
+    gold becomes the abstain option); ``invalid`` marks a question-validity
+    clause (violated -> the question itself leaves its design envelope and no
+    gold of any kind may be asserted).
     """
 
     name: str = Field(min_length=1)
     predicate: str = Field(min_length=1)
     args: dict[str, str | int | float | bool]
     phase: Literal["search", "compile"] = "compile"
+    on_violation: Literal["abstain", "invalid"] = "invalid"
 
 
 class Knob(SpecModel):
@@ -77,10 +85,21 @@ class Template(SpecModel):
         return self
 
 
-class ScriptSpec(SpecModel):
-    """Complete declarative definition of one capability's trajectory needs."""
+VariantExpectation = Literal["same", "abstain"]
 
-    schema_version: Literal["scriptgen_spec.v1"] = "scriptgen_spec.v1"
+
+class ScriptSpec(SpecModel):
+    """Complete declarative definition of one capability's trajectory needs.
+
+    v2 adds the family contract: ``abstain_on_unresolvable`` names the frame
+    variables whose failure to resolve means the evidence is gone (gold =
+    abstain) rather than the question being malformed, and
+    ``variant_expectations`` declares, per intervention kind, what the
+    recompiled gold MUST come out as — the compiler decides the actual gold;
+    the expectation only cross-checks it, and disagreement blocks packaging.
+    """
+
+    schema_version: Literal["scriptgen_spec.v2"] = "scriptgen_spec.v2"
     capability: str = Field(min_length=1)
     slots: dict[str, SlotSpec]
     frame_vars: dict[str, str]  # name -> resolver expression
@@ -89,6 +108,8 @@ class ScriptSpec(SpecModel):
     length: tuple[int, int]  # inclusive frame-count range
     motifs: tuple[str, ...] = Field(min_length=1)
     templates: tuple[Template, ...] = Field(min_length=1)
+    abstain_on_unresolvable: tuple[str, ...] = ()
+    variant_expectations: dict[str, VariantExpectation] = {}
 
     @model_validator(mode="after")
     def length_ordered(self) -> ScriptSpec:

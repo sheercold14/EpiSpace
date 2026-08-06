@@ -25,21 +25,28 @@ SELF_MOTION = ScriptSpec(
     },
     clauses=(
         # Target is clearly observed before it leaves the field of view.
+        # Evidence clause: without the sighting, even an ideal agent must abstain.
         Clause(
             name="seen_early",
             predicate="visible_somewhere",
             args={"obj": "$target", "frames": "0:$t_seen"},
             phase="compile",
+            on_violation="abstain",
         ),
         # Ego-motion is visually trackable across the WHOLE trajectory:
         # bounded per-frame rotation and translation (std.v2 contract).
+        # Evidence clause: untrackable self-motion means the current pose is
+        # unknowable from the stream, so the only calibrated answer is abstain.
         Clause(
             name="trackable",
             predicate="step_motion_bounded",
             args={"frames": "0:$t_q"},
             phase="search",
+            on_violation="abstain",
         ),
         # After the transition the target stays definitely out of sight.
+        # Validity clause: a still-visible target makes this a perception
+        # question, not a memory question — no gold may be asserted.
         Clause(
             name="gone",
             predicate="invisible_in_range",
@@ -75,15 +82,28 @@ SELF_MOTION = ScriptSpec(
     knobs=(Knob(name="delay", expr="$t_q-$t_gone", levels=(3, 6, 10)),),
     length=(10, 16),
     motifs=("walk_and_turn",),
+    # The question text is shared verbatim by every variant of a family, so it
+    # must not assert the sighting (false under drop_key) nor cite frame
+    # numbers (they renumber under interventions and leak which frames are key).
     templates=(
         Template(
             text=(
-                "你在行走途中(第 {t_seen} 帧)看到过{target}。"
-                "现在你位于第 {t_q} 帧的位置和朝向。{target}在你的哪个方向?"
+                "这段第一人称序列记录了你在房间中的一次行走。"
+                "以最后一帧你的位置和朝向为准:{target}现在在你的哪个方向?"
+                "如果序列提供的证据不足以判断,选\"无法判断\"。"
             ),
             options=("front", "left", "back", "right", "无法判断"),
         ),
     ),
+    # Family contract: how the recompiled gold must respond to each
+    # intervention. t_seen unresolvable = the sighting frames are gone.
+    abstain_on_unresolvable=("t_seen",),
+    variant_expectations={
+        "permute": "abstain",  # shuffled frames destroy ego-motion tracking
+        "drop_key": "abstain",  # sighting removed: target direction unknowable
+        "drop_filler": "same",  # redundant frames removed: answer invariant
+        "delay": "same",  # a pause lengthens the delay knob, not the answer
+    },
 )
 
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {

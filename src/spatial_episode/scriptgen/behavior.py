@@ -209,9 +209,22 @@ class RenderSceneView:
     _mask_cache: dict[int, np.ndarray] = field(default_factory=dict, compare=False)
 
     @classmethod
-    def from_bundle(cls, bundle_root: str | Path, std: CompileStandard) -> RenderSceneView:
+    def from_bundle(
+        cls,
+        bundle_root: str | Path,
+        std: CompileStandard,
+        *,
+        scene_ir: str | Path | None = None,
+    ) -> RenderSceneView:
+        """Build the render backend for a bundle.
+
+        ``scene_ir`` overrides the geometry-truth file location for bundles
+        that do not embed their own copy (scripted_plan batch renders reuse
+        the scene_ir of the scene they were planned on).
+        """
         root = Path(bundle_root)
-        ir = json.loads((root / "scene_ir.json").read_text(encoding="utf-8"))
+        ir_path = Path(scene_ir) if scene_ir is not None else root / "scene_ir.json"
+        ir = json.loads(ir_path.read_text(encoding="utf-8"))
         layout = layout_from_scene_ir(ir)
         poses = poses_from_trajectory_plan(root / "trajectory_plan.json")
         runtime_map: dict[str, list[int]] = {}

@@ -112,6 +112,44 @@ class SceneLayout:
 
 
 @dataclass(frozen=True)
+class ReindexedSceneView:
+    """SceneView over a reordering / subset / repetition of another view's frames.
+
+    ``frames[i]`` is the base frame presented at new index ``i``. This is the
+    substrate for interventions: a variant is nothing but an index sequence
+    over already-rendered frames (permute reorders, drop omits, delay repeats),
+    so every variant is judged by the same predicates on the same rendered
+    evidence — never on synthetic or re-rendered imagery.
+    """
+
+    base: SceneView
+    frames: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if not self.frames:
+            raise ValueError("frame sequence must not be empty")
+        bad = [t for t in self.frames if not 0 <= t < self.base.frame_count]
+        if bad:
+            raise ValueError(f"frame indices out of range: {bad}")
+
+    @property
+    def frame_count(self) -> int:
+        return len(self.frames)
+
+    def camera_pose(self, t: int) -> Pose2D:
+        return self.base.camera_pose(self.frames[t])
+
+    def object(self, name: str) -> SceneObject:
+        return self.base.object(name)
+
+    def objects(self) -> list[SceneObject]:
+        return self.base.objects()
+
+    def visibility(self, name: str, t: int) -> VisibilityObservation:
+        return self.base.visibility(name, self.frames[t])
+
+
+@dataclass(frozen=True)
 class GeometrySceneView:
     """Render-free SceneView over a layout and a candidate pose sequence."""
 

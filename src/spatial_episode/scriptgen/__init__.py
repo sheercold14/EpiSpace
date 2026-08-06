@@ -9,6 +9,7 @@ Layers (see docs/scriptgen_engine.md):
 * plan — the output contract consumed by acquisition backends.
 """
 
+from .compiler import CapabilityCompiler, Certificate
 from .generate import generate_plans
 from .library import SCRIPT_LIBRARY, SELF_MOTION
 from .plan import GenerationReport, TrajectoryPlan
@@ -19,6 +20,8 @@ __all__ = [
     "SCRIPT_LIBRARY",
     "SELF_MOTION",
     "STD_V1",
+    "CapabilityCompiler",
+    "Certificate",
     "Clause",
     "CompileStandard",
     "GenerationReport",
