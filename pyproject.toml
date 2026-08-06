@@ -40,13 +40,13 @@ where = ["src"]
 include = ["episode3d*", "spatial_episode*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "backends/omnigibson/tests"]
-pythonpath = ["src", "backends/omnigibson/src"]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["src", "backends/omnigibson/src", "scripts", "tests", "backends/omnigibson/tests"]
+src = ["src", "scripts", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

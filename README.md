@@ -39,8 +39,9 @@ make quickstart
 make status
 ```
 
-The quickstart is simulator-free. Full trajectory rendering requires a separately installed
-OmniGibson/Isaac Sim environment and scene assets.
+The quickstart is simulator-free. Full trajectory rendering lives in the separate
+OminiGibson acquisition repository (single source of truth for simulator code);
+EpiSpace only reads the bundles it produces.
 
 ## Repository map
 
@@ -48,13 +49,12 @@ OmniGibson/Isaac Sim environment and scene assets.
 |---|---|
 | `src/episode3d/` | Episode compiler, typed programs, audits, exporters and evaluation |
 | `src/spatial_episode/` | Simulator-independent schemas and typed operation contracts |
-| `backends/omnigibson/` | Standalone acquisition backend and simulator recipes |
+| `scripts/pilot/` | Frozen generators of pilot datasets (provenance; see scripts/INDEX.md) |
 | `configs/` | Frozen dataset and experiment configurations |
 | `manifests/` | Dataset and experiment provenance snapshots |
 | `examples/transform_pilot/` | Compact showcase records with real model responses |
 | `tests/` | Core unit tests and external-artifact replay tests |
-| `backends/omnigibson/tests/` | Acquisition-backend tests |
-| `docs/research/` | High-density Chinese research plans and context |
+| `docs/research/` | INTERNAL working notes (plans, competitor analysis); excluded from any public release. `docs/` outside this folder is the public documentation surface |
 | `paper/` | Paper source and generated-table interfaces |
 | `web/` | Review UI source; generated media are not committed |
 

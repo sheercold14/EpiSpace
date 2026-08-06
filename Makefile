@@ -17,21 +17,19 @@ quickstart: doctor
 	$(PYTEST) -q \
 		tests/test_transform_pilot_geometry.py \
 		tests/test_transform_evaluation.py \
-		backends/omnigibson/tests/test_geometry.py
+		tests/scriptgen
 
 check:
-	$(RUFF) check src backends/omnigibson/src scripts tests backends/omnigibson/tests
+	$(RUFF) check src scripts tests
 
 # Portable tests that do not require private trajectory bundles or simulator assets.
 test-core:
 	$(PYTEST) -q \
 		tests/test_transform_pilot_geometry.py \
-		tests/test_transform_evaluation.py
+		tests/test_transform_evaluation.py \
+		tests/scriptgen
 
-test-backend:
-	cd backends/omnigibson && $(abspath $(PYTHON)) -m pytest -q tests
-
-test: test-core test-backend
+test: test-core
 
 # Full replay suite. Connect the external data workspace before invoking it.
 test-artifact:

@@ -18,6 +18,17 @@ The acquisition backend writes backend-neutral bundles. The core compiler is rea
 respect to those bundles. Shared contracts are stable IDs, canonical frame conventions, sensor
 channel declarations and versioned schemas.
 
+## Ownership adjudication (2026-08-06)
+
+1. New functionality goes to `src/spatial_episode/` (contracts, scriptgen and
+   future compile/family/metrics layers). `src/episode3d/` is FROZEN legacy:
+   bug fixes only, no new features.
+2. Simulator/acquisition code has a single source of truth in the separate
+   OminiGibson repository. The former in-repo copy under `backends/` was
+   removed; EpiSpace consumes acquisition bundles read-only.
+3. `scripts/` are thin entry points under the retention policy in
+   `scripts/INDEX.md`; frozen dataset generators live in `scripts/pilot/`.
+
 ## Code ownership domains
 
 - `src/episode3d/schemas and models`: serialized interfaces.
