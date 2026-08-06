@@ -65,3 +65,19 @@ def test_cum_turn_ge() -> None:
     verdict = get_predicate("cum_turn_ge")(view, STD_V1, frames=[0, 1, 2], deg=90)
     assert verdict.holds is True
     assert verdict.witness["cum_turn_deg"] == 100.0
+
+
+def test_partially_in_fov_is_ambiguous() -> None:
+    """An object straddling the FOV edge must be ambiguous, never invisible.
+
+    Regression for the first closed-loop render: the geometry backend claimed
+    invisible while the render showed an 8k-pixel edge sliver.
+    """
+    # Sofa (1.5 m wide) at 3 m, center azimuth ~50 deg: outside the 45 deg
+    # half-FOV, but its ~14 deg angular half-width keeps an edge inside.
+    pose = Pose2D(0.0, 0.0, 40.0)  # sofa bearing 90 -> azimuth 50
+    view = _view([pose])
+    assert view.visibility("sofa", 0).tristate(STD_V1) is None
+    # Fully outside (azimuth 90) stays definitely invisible.
+    far_out = Pose2D(0.0, 0.0, 0.0)
+    assert _view([far_out]).visibility("sofa", 0).tristate(STD_V1) is False

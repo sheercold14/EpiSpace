@@ -18,6 +18,7 @@ top:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
@@ -133,13 +134,30 @@ class GeometrySceneView:
         return list(self.layout.objects)
 
     def visibility(self, name: str, t: int) -> VisibilityObservation:
+        """Extent-aware frustum estimate, conservative in BOTH claim directions.
+
+        The object is an arc of angular half-width ``atan(size/2 / dist)``, not
+        a point. Fully outside the field of view means definitely invisible;
+        fully inside falls back to the size/distance ratio; PARTIALLY inside is
+        reported in the ambiguous band on purpose — a rendered image may show
+        an edge sliver (verified against real renders), so neither a visible
+        nor an invisible claim is safe and the candidate must be rejected.
+        Distance imposes no hard cutoff: the ratio itself decays with range,
+        and a large object far away can still render above threshold.
+        """
         obj = self.layout.object(name)
         pose = self.poses[t]
         dist = distance_m(pose.xy, obj.xy)
-        if dist < 1e-6 or dist > self.std.max_view_distance_m:
+        if dist < 1e-6:
             return VisibilityObservation("geom_ratio", 0.0, 0.0)
-        if abs(azimuth_deg(pose.xy, pose.yaw_deg, obj.xy)) > self.std.fov_half_angle_deg:
+        azimuth = abs(azimuth_deg(pose.xy, pose.yaw_deg, obj.xy))
+        half_width_deg = math.degrees(math.atan2(obj.size_m / 2.0, dist))
+        fov = self.std.fov_half_angle_deg
+        if azimuth >= fov + half_width_deg:
             return VisibilityObservation("geom_ratio", 0.0, 0.0)
+        if azimuth > fov - half_width_deg:
+            ambiguous = (self.std.geom_max_invisible_ratio + self.std.geom_min_visible_ratio) / 2.0
+            return VisibilityObservation("geom_ratio", ambiguous, 1.0)
         unoccluded = self._unoccluded_ratio(pose.xy, obj)
         return VisibilityObservation("geom_ratio", obj.size_m / dist, unoccluded)
 

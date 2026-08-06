@@ -48,16 +48,23 @@ def _lerp(a: float, b: float, t: float) -> float:
 def _walk_polyline(
     waypoints: list[tuple[float, float]], headings: list[float], frame_count: int
 ) -> tuple[Pose2D, ...]:
-    """Distribute frames evenly over polyline segments, yaw following headings."""
+    """Distribute frames evenly over polyline segments, yaw following headings.
+
+    Heading changes are concentrated in the first quarter of each segment
+    (people turn on the spot, then walk). Decisive turns also keep targets
+    from lingering at the field-of-view edge, where extent-aware visibility
+    is ambiguous and candidates would be rejected.
+    """
     segments = len(waypoints) - 1
     poses: list[Pose2D] = []
     for i in range(frame_count):
         progress = i / max(frame_count - 1, 1) * segments
         seg = min(int(progress), segments - 1)
         t = progress - seg
+        turn = min(t / 0.25, 1.0)
+        yaw = headings[seg] + wrap_deg(headings[min(seg + 1, segments - 1)] - headings[seg]) * turn
         x = _lerp(waypoints[seg][0], waypoints[seg + 1][0], t)
         y = _lerp(waypoints[seg][1], waypoints[seg + 1][1], t)
-        yaw = headings[seg] + wrap_deg(headings[min(seg + 1, segments - 1)] - headings[seg]) * t
         poses.append(Pose2D(x, y, wrap_deg(yaw)))
     return tuple(poses)
 

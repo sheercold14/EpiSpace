@@ -32,7 +32,7 @@ def generate_plans(
     std: CompileStandard,
     *,
     seed: int,
-    attempts_per_binding: int = 40,
+    attempts_per_binding: int = 150,
     max_plans: int | None = None,
 ) -> GenerationReport:
     rng = random.Random(seed)
