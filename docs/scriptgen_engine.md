@@ -72,10 +72,25 @@ Implemented; all render-free (they read artifacts acquisition already wrote):
 - `plan_to_agent_views(plan)` — export a plan as the backend's camera-schedule
   view records (roundtrip-tested against `poses_from_trajectory_plan`).
 
+## Closed loop (verified 2026-08-06)
+
+The OminiGibson production repo gained a `scripted_plan` sampling strategy
+(new module `omnigibson_episode/scripted.py` + additive edits to `config.py`
+and `acquire.py`): the acquisition worker renders a supplied plan file instead
+of sampling its own trajectory. First end-to-end run (gates_bedroom, 12-frame
+self-motion plan, GPU render ~63 s):
+
+- post-render mask verification: 12/12 frames match the plan's visibility
+  claims (target visible at t_seen, zero pixels afterwards);
+- authoritative answer recomputed from the rendered bundle's poses equals the
+  plan's provisional answer (back, -153.9 deg).
+
+The first render attempt FAILED verification (an 8k-pixel edge sliver at one
+"invisible" frame) — caught by this exact check, fixed by extent-aware
+visibility, re-rendered clean. The two-phase design paid for itself on run one.
+
 ## Remaining integration (next steps)
 
-- Acquisition worker mode that renders a supplied camera schedule instead of
-  sampling its own trajectory (Isaac Sim side; consumes `plan_to_agent_views`).
 - Referent disambiguation for duplicate-category scenes (halls reject most
   slots via `ambiguous_referent`; region-qualified referents lift this).
 - Answer-balance control: the walk-away motif biases gold answers toward
