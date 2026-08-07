@@ -47,7 +47,7 @@
 
 ## 4. 引擎现状(已验证)
 
-代码在 `src/spatial_episode/scriptgen/`,66 个测试全绿(集成测试吃三条
+代码在 `src/spatial_episode/scriptgen/`,67 个测试全绿(集成测试吃三条
 已渲染轨迹,机器上没有数据时干净 skip;全程不需要 Isaac Sim)。
 
 - `standards.py`:全部阈值,冻结版本 std.v3(双阈值可见性、15° 扇区裕度、
@@ -55,6 +55,7 @@
   0.10–1.70m 的通行约束);改阈值必须再升版;
 - `predicates.py`:谓词单点,返回判定+见证;模糊帧不许出题;
   `poses_clear/path_clear` 分别硬验每帧站位和相邻帧线段不进入旋转障碍足印;
+  障碍同时包含家具和结构墙,见证显式记录检查的墙数;
 - `spec.py`/`library.py`:声明式剧本,schema 为 scriptgen_spec.v3——
   新增三个家族契约字段:`Clause.on_violation`(abstain=证据被毁 /
   invalid=题目出包线)、`abstain_on_unresolvable`(帧变量解析失败的归类)、
@@ -64,14 +65,16 @@
 - `checker.py`:$变量/加减法/闭区间帧范围/帧变量解析器(last_visible、
   first_invisible_after 等);对着 SceneView 协议写,换后端即换判定依据;
 - `motifs.py`:walk_and_turn 先以 5cm 占据栅格、0.35m 提议净空和 8 邻域
-  A* 绕家具,再限速到 32°/帧,终点随机环顾以平衡答案分布;motif 只提议,
+  A* 绕家具/墙,并把自由格预分连通域以避免跨房间搜索不可达终点;
+  再限速到 32°/帧,终点随机环顾以平衡答案分布;motif 只提议,
   std.v3 谓词才是最终裁判;
-- `generate.py`:主循环,拒绝按条款计数;gates_bedroom 手测 1045 候选/秒;
+- `generate.py`:主循环,拒绝按条款计数;wall-aware gates_bedroom 手测
+  1063 候选/秒(400次生成、2259候选);
 - `behavior.py`:三适配器——scene_ir→SceneLayout、trajectory_plan→位姿、
   RenderSceneView(掩码像素权威可见性,与渲染报告 814/814 一致,
   `from_bundle(scene_ir=...)` 支持外置几何真值)、plan_to_agent_views;
-  SceneLayout 另存每件非结构物的旋转 OBB 和 z 跨度为 obstacles
-  (gates_bedroom 为 22 件),与遮挡列表彼此独立;
+  SceneLayout 另存每件非结构物及结构墙的旋转 OBB 和 z 跨度为 obstacles
+  (gates_bedroom 为 22 件物体+4 段墙=26),墙不进入可提问 objects;
 - `compiler.py`(空缺A):CapabilityCompiler,渲后重解析帧变量、足额裕度
   重判 search/compile 条款(不重判 search_only 通行条款)、渲后位姿推权威答案,
   产出 scriptgen_certificate.v1
@@ -88,11 +91,12 @@
   条款见证、审计灯)。family 页尚未在真浏览器目验(仅 JS 语法检查
   + 数据访问仿真)。
 
-闭环已验证:gates_bedroom 三条 std.v3 轨迹,规划 → Isaac 高质量渲染
+闭环已验证:gates_bedroom 三条 wall-aware std.v3 轨迹,规划 → Isaac 高质量渲染
 (1024² RGB/depth/实例标签,约 65–70s/条)→ 掩码复核 → 权威编译 → family。
-三条实际路径均以 0.30m 人体圆盘通过位姿与线段硬验证,答案为
-left/left/right。render_0 的几何 `t_seen=0` 被掩码重解析为 1,
-turned 见证 155.0°→123.0°,扇区仍为 left(107.7°,裕度 27.3°)。
+三条实际路径均以 0.30m 人体圆盘通过 26 个障碍(含4墙)的位姿与线段
+硬验证,答案为 left/left/right。render_0 的几何 `t_seen=0` 被掩码
+重解析为 1,turned 见证 135.1°→103.1°,扇区仍为 left
+(97.1°,裕度 37.9°)。
 第一次闭环曾抓出真 bug(质点视锥近似漏掉物体边缘 8k 像素),由此加了
 "部分入画一律模糊"规则——渲后复核的价值已实证。
 
@@ -154,9 +158,10 @@ EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出�
   采集代码只此一份;
 - 历史数据经软链接接入,已知 19 个测试因数据版本错位常红
   (期望 586 条、现有 466 条,新版数据下落不明);
-- 当前合格数据:`OminiGibson/outputs/scripted_demo/batch_navfix/` 下
-  `render_{0,1,2}` + `plan_{i}.record.json`;seed 为 17/23/13(原定 41
-  与前两条同为 left,故换 13 保证至少两种方向)。旧 `batch/` 三条均会
+- 当前合格数据:`OminiGibson/outputs/scripted_demo/batch_wallfix/` 下
+  `render_{0,1,2}` + `plan_{i}.record.json`;seed 为 17/23/4(seed 13
+  在 wall-aware 采样后与前两条同为 left,故换 4 保证至少两种方向)。
+  `batch_navfix/` 是家具通行已修、墙尚未进采样器的中间批次。旧 `batch/` 三条均会
   穿家具,保持原样且只用于 `test_traversability_regression.py` 病历回归;
   已打包审核站点在同目录 `family_{0,1,2}/index.html`;
 - batch bundle 不含 scene_ir.json,编译/打包时用
@@ -183,8 +188,8 @@ EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出�
 ```
 
 - A 权威编译(任务#16,已完成):CapabilityCompiler,渲染后端重解析帧变量
-  (navfix render_0 实测 t_seen 由几何 0 重解析为 1,连带 turned 见证
-  155.0°→123.0°)、重跑证据/有效性条款、出权威答案与留一法 essential 帧集;
+  (wallfix render_0 实测 t_seen 由几何 0 重解析为 1,连带 turned 见证
+  135.1°→103.1°)、重跑证据/有效性条款、出权威答案与留一法 essential 帧集;
 - B 变体家族(#17,已完成):干预算子只产帧索引序列,金标由重跑同一
   编译器产生,预期不符即 FamilyMismatch 阻断;预期效应按能力声明在 spec
   (自运动:置换/删关键帧→弃答,删无关帧/延迟→不变);
@@ -197,11 +202,11 @@ navfix 后的固定金标如下(全部来自实际掩码重编译,不是手填):
 
 | index | seed/帧数 | render 帧变量 `seen,gone,q` | 权威答案(方位/裕度) | essential | delay 干预 |
 |---|---|---|---|---|---|
-| 0 | 17 / 16 | 1,2,15 | left (107.7°/27.3°) | 1,2,3,12 | 13→17 |
-| 1 | 23 / 13 | 1,2,12 | left (107.2°/27.8°) | 1,2,3,4,10 | 10→14 |
-| 2 | 13 / 10 | 1,2,9 | right (-83.7°/38.7°) | 1,8 | 7→11 |
+| 0 | 17 / 12 | 1,2,11 | left (97.1°/37.9°) | 1,2,8 | 9→13 |
+| 1 | 23 / 14 | 1,2,13 | left (77.4°/32.4°) | 1,2,3 | 11→15 |
+| 2 | 4 / 11 | 1,2,10 | right (-84.5°/39.5°) | 1,6,9 | 8→12 |
 
-一条命令(见 §9)从 `batch_navfix/render_{0,1,2}` 各产出完整 family
+一条命令(见 §9)从 `batch_wallfix/render_{0,1,2}` 各产出完整 family
 JSON + 审核页,三条家族金标为
 canonical/置换/删关/删无关/延迟 = left/弃答/弃答/left/left、
 left/弃答/弃答/left/left、right/弃答/弃答/right/right,
@@ -217,6 +222,10 @@ left/弃答/弃答/left/left、right/弃答/弃答/right/right,
 - family 审核页未在真浏览器目验(仅 node 语法检查 + 数据访问仿真);
 - 目前通行权威来自 scene_ir 的静态旋转 OBB;OminiGibson 胶囊碰撞复核与
   navmesh 导出尚未做,属于批量扩容前的下一道安全门;
+- 墙 OBB 是保守近似:抽查 46 个既有场景的旧采集轨迹,37 个会触发
+  0.30m 墙净空(多数是贴墙,少数大 OBB 可能覆盖门洞/不规则墙内部)。
+  `batch_wallfix` 当前场景已零碰撞闭环,但跨场景扩量前必须用 navmesh/
+  胶囊碰撞区分"旧采样确实贴墙"与"复合墙 OBB 误杀";
 - 两处待复核的自主裁决:①"置换→弃答"的预期是按自运动语义推的,
   改 spec 一行即可换语义,MISMATCH 兜底;② drop_count/delay_extra
   归类为生成参数而不进 standards.py;若改成判定阈值则必须升 std.v4。
@@ -236,8 +245,8 @@ bash scripts/run_in_omnigibson.sh --accept-eula python -m omnigibson_episode.cli
   --plan-record <record.json> --scene-ir <scene_ir.json> --out <out_dir>
 # family:一条命令,bundle → family.json + media/ + 审核页(交接点命令)
 .venv/bin/python -m spatial_episode.scriptgen.family_cli \
-  --bundle  <OminiGibson>/outputs/scripted_demo/batch_navfix/render_0 \
-  --plan-record <OminiGibson>/outputs/scripted_demo/batch_navfix/plan_0.record.json \
+  --bundle  <OminiGibson>/outputs/scripted_demo/batch_wallfix/render_0 \
+  --plan-record <OminiGibson>/outputs/scripted_demo/batch_wallfix/plan_0.record.json \
   --scene-ir <OminiGibson>/outputs/sweeps/t10-target-view-seed17-v1/bundles/gates_bedroom_t10_seed17/scene_ir.json \
   --out /tmp/family/f0        # 可选 --seed/--drop-count/--delay-extra
 # 看审核页

@@ -34,7 +34,7 @@ ScriptSpec (30 lines)  ──►  slotting → motifs → checker   ──►  T
 | `predicates.py` | Named pure checks returning `Verdict(holds, witness)` | the ONLY place constraint logic lives; shared by search and compile |
 | `spec.py` / `library.py` | Declarative `ScriptSpec` per capability | adding a capability touches only `library.py` (plus, rarely, one new predicate) |
 | `slotting.py` | Scene objects → slot bindings, with per-object rejection reasons | |
-| `motifs.py` | Candidate pose generators; 5 cm occupancy grid + conservative free-space A* | propose only, never judge; exact predicates remain authoritative |
+| `motifs.py` | Candidate pose generators; 5 cm occupancy grid + connected-component-aware free-space A* | propose only, never judge; exact predicates remain authoritative |
 | `checker.py` | Frame-var resolvers + tiny `$var`/`+`/`-`/`a:b` expression language; clause evaluation | inclusive frame ranges; ambiguous evidence frames are rejects, not coercions |
 | `generate.py` | Search loop; emits plans and a rejection histogram | silence is forbidden: every failure is counted by failing clause |
 | `plan.py` | `TrajectoryPlan` contract consumed by acquisition backends | records standard version, witnesses and a PROVISIONAL geometry answer |
@@ -63,8 +63,10 @@ Implemented; all render-free (they read artifacts acquisition already wrote):
 - `layout_from_scene_ir(scene_ir.json)` — real BEHAVIOR scenes as planning
   layouts: non-structural entities as objects, wall/pillar footprints spanning
   camera height as occluders, every non-structural rotated OBB + z span as an
-  obstacle, and floor AABB union as walkable bounds. Obstacle extraction has
-  no thresholds; std.v3 predicates decide whether its height blocks a body.
+  obstacle, structural wall OBBs as collision-only obstacles, and floor AABB
+  union as walkable bounds. Walls never enter question-target objects.
+  Obstacle extraction has no thresholds; std.v3 predicates decide whether
+  its height blocks a body.
 - `poses_from_trajectory_plan(trajectory_plan.json)` — replay acquired
   trajectories through the checker (yaw from the agent quaternion; +Y forward).
 - `RenderSceneView.from_bundle(bundle_root)` — the authoritative render
@@ -76,8 +78,9 @@ Implemented; all render-free (they read artifacts acquisition already wrote):
 
 ## Traversable closed loop (verified 2026-08-07)
 
-`walk_and_turn` rasterises rotated obstacles at 5 cm with a 0.35 m proposal
-clearance, samples start/end free cells, and uses eight-connected A* (without
+`walk_and_turn` rasterises furniture and wall OBBs at 5 cm with a 0.35 m
+proposal clearance, partitions free space into connected components, samples
+start/end cells in one component, and uses eight-connected A* (without
 diagonal corner cutting) whenever a straight segment is blocked. Generation
 then runs two std.v3 `search_only` hard clauses before any semantic clause:
 
@@ -86,10 +89,11 @@ then runs two std.v3 `search_only` hard clauses before any semantic clause:
 - `path_clear`: every consecutive movement segment avoids those footprints.
 
 On gates_bedroom, the three pre-navfix plans are permanently retained as
-negative regression cases (coffee-table/sofa, bed/armchair collisions). Three
-replacement trajectories (seeds 17/23/13; 16/13/10 frames) pass both clauses,
-were rendered at 1024² with RGB/depth/instance labels, and compile to
-left/left/right. Manual warm throughput was 1045 candidates/s.
+negative regression cases (coffee-table/sofa, bed/armchair collisions). The
+current `batch_wallfix` trajectories (seeds 17/23/4; 12/14/11 frames) check
+22 object OBBs plus 4 wall OBBs, pass both clauses with zero collisions, were
+rendered at 1024² with RGB/depth/instance labels, and compile to
+left/left/right.
 
 ## Authoritative compilation and families (Gaps A–C, 2026-08-06)
 
@@ -133,3 +137,6 @@ teleport path and fail for the wrong reason.
   "back"; add motifs/turn patterns that distribute final relative bearings.
 - Simulator-side capsule collision / navmesh validation before large-scale
   acquisition; current hard validity is based on scene_ir static rotated OBBs.
+  Wall OBBs are deliberately conservative and can fill openings or irregular
+  wall interiors, so their cross-scene false-positive rate must be calibrated
+  against simulator collision geometry rather than assumed correct.

@@ -17,7 +17,7 @@ from spatial_episode.scriptgen.behavior import RenderSceneView
 from spatial_episode.scriptgen.standards import STD_V1
 
 BATCH_ROOT = Path(
-    "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch_navfix"
+    "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch_wallfix"
 )
 SCENE_IR_PATH = Path(
     "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/"

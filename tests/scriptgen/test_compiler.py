@@ -178,9 +178,9 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
 # --- integration: the three rendered gates_bedroom trajectories ---
 
 EXPECTED = {
-    0: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 15},
-    1: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 12},
-    2: {"sector": "right", "t_seen": 1, "t_gone": 2, "t_q": 9},
+    0: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 11},
+    1: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 13},
+    2: {"sector": "right", "t_seen": 1, "t_gone": 2, "t_q": 10},
 }
 
 
