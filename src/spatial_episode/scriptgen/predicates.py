@@ -15,18 +15,17 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from .geometry import (
     azimuth_deg,
     cumulative_turn_deg,
-    point_in_rotated_rect,
-    rotated_rect_penetration_depth,
     sector_margin_deg,
     sector_of,
-    segment_intersects_rotated_rect,
+    segment_intersects_rect,
 )
-from .sceneview import SceneView
+from .sceneview import SceneLayout, SceneView
 from .standards import CompileStandard
 
 
@@ -79,39 +78,114 @@ def _tristates(
     return rows
 
 
-def _body_band_obstacles(view: SceneView, std: CompileStandard):
-    return (
-        obstacle
-        for obstacle in view.layout.obstacles
-        if obstacle.z_low <= std.clearance_z_high_m
-        and obstacle.z_high >= std.clearance_z_low_m
+@lru_cache(maxsize=64)
+def _expanded_body_obstacles(
+    layout: SceneLayout, body_radius_m: float, z_low_m: float, z_high_m: float
+) -> tuple[tuple[str, float, float, float, float, float, float, float, float], ...]:
+    """Precompute expanded local frames shared by both clearance predicates."""
+    import math
+
+    rows = []
+    for obstacle in layout.obstacles:
+        if obstacle.z_low > z_high_m or obstacle.z_high < z_low_m:
+            continue
+        angle = math.radians(obstacle.yaw_deg)
+        cos_yaw, sin_yaw = math.cos(angle), math.sin(angle)
+        hx = obstacle.half_extents_xy[0] + body_radius_m
+        hy = obstacle.half_extents_xy[1] + body_radius_m
+        rows.append(
+            (
+                obstacle.label,
+                obstacle.center_xy[0],
+                obstacle.center_xy[1],
+                hx,
+                hy,
+                cos_yaw,
+                sin_yaw,
+                abs(cos_yaw) * hx + abs(sin_yaw) * hy,
+                abs(sin_yaw) * hx + abs(cos_yaw) * hy,
+            )
+        )
+    return tuple(rows)
+
+
+@lru_cache(maxsize=256)
+def _clearance_audit(
+    layout: SceneLayout,
+    samples: tuple[tuple[int, float, float], ...],
+    body_radius_m: float,
+    z_low_m: float,
+    z_high_m: float,
+) -> tuple[int, dict[str, Any] | None, int, dict[str, Any] | None]:
+    obstacles = _expanded_body_obstacles(layout, body_radius_m, z_low_m, z_high_m)
+    pose_count = 0
+    pose_worst: dict[str, Any] | None = None
+    pose_worst_depth = -1.0
+    for frame, x, y in samples:
+        for label, cx, cy, hx, hy, cos_yaw, sin_yaw, extent_x, extent_y in obstacles:
+            dx, dy = x - cx, y - cy
+            if abs(dx) > extent_x or abs(dy) > extent_y:
+                continue
+            local_x = cos_yaw * dx + sin_yaw * dy
+            local_y = -sin_yaw * dx + cos_yaw * dy
+            if abs(local_x) > hx or abs(local_y) > hy:
+                continue
+            pose_count += 1
+            depth = max(0.0, min(hx - abs(local_x), hy - abs(local_y)))
+            if depth > pose_worst_depth:
+                pose_worst_depth = depth
+                pose_worst = {
+                    "frame": frame,
+                    "obstacle": label,
+                    "penetration_depth_m": round(depth, 4),
+                }
+
+    path_count = 0
+    path_worst: dict[str, Any] | None = None
+    from itertools import pairwise
+
+    for (frame_a, x0, y0), (frame_b, x1, y1) in pairwise(samples):
+        for label, cx, cy, hx, hy, cos_yaw, sin_yaw, extent_x, extent_y in obstacles:
+            if (
+                max(x0, x1) < cx - extent_x
+                or min(x0, x1) > cx + extent_x
+                or max(y0, y1) < cy - extent_y
+                or min(y0, y1) > cy + extent_y
+            ):
+                continue
+            dx0, dy0 = x0 - cx, y0 - cy
+            dx1, dy1 = x1 - cx, y1 - cy
+            local_start = (
+                cos_yaw * dx0 + sin_yaw * dy0,
+                -sin_yaw * dx0 + cos_yaw * dy0,
+            )
+            local_end = (
+                cos_yaw * dx1 + sin_yaw * dy1,
+                -sin_yaw * dx1 + cos_yaw * dy1,
+            )
+            if not segment_intersects_rect(local_start, local_end, (-hx, -hy), (hx, hy)):
+                continue
+            path_count += 1
+            if path_worst is None:
+                path_worst = {"frames": [frame_a, frame_b], "obstacle": label}
+    return pose_count, pose_worst, path_count, path_worst
+
+
+def _clearance_results(view: SceneView, std: CompileStandard, frames: Sequence[int]):
+    samples = tuple((t, *view.camera_pose(t).xy) for t in frames)
+    return _clearance_audit(
+        view.layout,
+        samples,
+        std.body_radius_m,
+        std.clearance_z_low_m,
+        std.clearance_z_high_m,
     )
 
 
 @predicate("poses_clear")
 def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Every sampled body centre clears all body-height obstacle footprints."""
-    worst: dict[str, Any] | None = None
-    collisions = 0
-    for t in frames:
-        position = view.camera_pose(t).xy
-        for obstacle in _body_band_obstacles(view, std):
-            expanded = tuple(value + std.body_radius_m for value in obstacle.half_extents_xy)
-            if not point_in_rotated_rect(
-                position, obstacle.center_xy, expanded, obstacle.yaw_deg
-            ):
-                continue
-            collisions += 1
-            depth = rotated_rect_penetration_depth(
-                position, obstacle.center_xy, expanded, obstacle.yaw_deg
-            )
-            candidate = {
-                "frame": t,
-                "obstacle": obstacle.label,
-                "penetration_depth_m": round(depth, 4),
-            }
-            if worst is None or depth > float(worst["penetration_depth_m"]):
-                worst = candidate
+    collisions, worst, _, _ = _clearance_results(view, std, frames)
     return Verdict(
         worst is None,
         {
@@ -125,23 +199,13 @@ def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int])
 @predicate("path_clear")
 def path_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Every consecutive pose segment clears body-height obstacle footprints."""
-    from itertools import pairwise
-
-    collisions: list[dict[str, Any]] = []
-    for a, b in pairwise(frames):
-        start, end = view.camera_pose(a).xy, view.camera_pose(b).xy
-        for obstacle in _body_band_obstacles(view, std):
-            expanded = tuple(value + std.body_radius_m for value in obstacle.half_extents_xy)
-            if segment_intersects_rotated_rect(
-                start, end, obstacle.center_xy, expanded, obstacle.yaw_deg
-            ):
-                collisions.append({"frames": [a, b], "obstacle": obstacle.label})
+    _, _, collisions, worst = _clearance_results(view, std, frames)
     return Verdict(
-        not collisions,
+        collisions == 0,
         {
             "body_radius_m": std.body_radius_m,
-            "collision_count": len(collisions),
-            "worst_collision": collisions[0] if collisions else None,
+            "collision_count": collisions,
+            "worst_collision": worst,
         },
     )
 
