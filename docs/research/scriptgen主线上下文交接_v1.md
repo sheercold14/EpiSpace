@@ -1,7 +1,10 @@
 # Scriptgen 主线上下文交接 v1
 
-> 用途:新会话/新成员接续开发时的最小充分上下文。截至 2026-08-06,
-> 分支 `feature/scriptgen-engine-v1`(9 个提交,至 4023a31)。
+> 用途:新会话/新成员接续开发时的最小充分上下文。截至 2026-08-07,
+> 分支 `feature/scriptgen-engine-v1`(14 个提交,至 a98d055)。
+> 空缺 A/B/C 已完成(cceb13d / 9beee33 / 5a67ecd),主线停在交接点,
+> 空缺 D(评测指标)未动。单步核对流程见
+> `docs/research/scriptgen调试路线图_v1.md`。
 
 ## 1. 研究定位(为什么做)
 
@@ -45,25 +48,44 @@
 
 ## 4. 引擎现状(已验证)
 
-代码在 `src/spatial_episode/scriptgen/`,33 个测试全绿。
+代码在 `src/spatial_episode/scriptgen/`,57 个测试全绿(集成测试吃三条
+已渲染轨迹,机器上没有数据时干净 skip;全程不需要 Isaac Sim)。
 
 - `standards.py`:全部阈值,冻结版本 std.v2(双阈值可见性、15° 扇区裕度、
-  每帧转向≤40°/位移≤1.2m 的可追踪约束、搜索期收紧 1.2×);
+  每帧转向≤40°/位移≤1.2m 的可追踪约束、搜索期收紧 1.2×);A/B/C 期间
+  一个数字未动,故版本号未升;
 - `predicates.py`:谓词单点,返回 判定+见证;模糊帧不许出题;
-- `spec.py`/`library.py`:声明式剧本;已实现自运动更新(三段式:
-  看到→过渡[允许部分可见]→彻底消失→提问);
+- `spec.py`/`library.py`:声明式剧本,schema 升至 scriptgen_spec.v2——
+  新增三个家族契约字段:`Clause.on_violation`(abstain=证据被毁 /
+  invalid=题目出包线)、`abstain_on_unresolvable`(帧变量解析失败的归类)、
+  `variant_expectations`(各干预的预期效应,按能力声明);题面模板已重写为
+  家族安全版(无帧号、不断言目击、全家族逐字共享);
 - `checker.py`:$变量/加减法/闭区间帧范围/帧变量解析器(last_visible、
-  first_invisible_after 等);
+  first_invisible_after 等);对着 SceneView 协议写,换后端即换判定依据;
 - `motifs.py`:walk_and_turn(限速 32°/帧,终点随机环顾以平衡答案分布);
 - `generate.py`:主循环,拒绝按条款计数;真实场景每秒数千候选;
 - `behavior.py`:三适配器——scene_ir→SceneLayout、trajectory_plan→位姿、
-  RenderSceneView(掩码像素权威可见性,与渲染报告 814/814 一致)、
-  plan_to_agent_views(计划→采集相机调度,往返测试);
-- `web/scriptgen_review.html` + `scripts/build_scriptgen_review.py`:
-  单轨迹审核页(俯视图/三通道胶片/条款见证/标准表)。
+  RenderSceneView(掩码像素权威可见性,与渲染报告 814/814 一致,
+  `from_bundle(scene_ir=...)` 支持外置几何真值)、plan_to_agent_views;
+- `compiler.py`(空缺A):CapabilityCompiler,渲后重解析帧变量、足额裕度
+  重判全部条款、渲后位姿推权威答案,产出 scriptgen_certificate.v1
+  (几何估计降级为对照字段,mismatch 非空即阻断);附留一法 essential 帧集;
+- `sceneview.py` 新增 ReindexedSceneView:变体=原始帧的索引序列,
+  是干预算子与留一法共用的基座;
+- `variants.py`(空缺B):置换/删关键帧/删无关帧/延迟 四算子只产索引序列,
+  金标一律由重跑同一编译器产生,与 spec 预期不符抛 FamilyMismatch;
+- `family.py`/`family_cli.py`(空缺C):scriptgen_family.v1 单 JSON
+  (已注册 contracts/schema.py),打包前审计指称唯一+题面三项泄漏检查,
+  任一不过抛 FamilyBlocked;`media.py`:三通道 PNG 导出(自脚本下沉);
+- `web/scriptgen_review.html`(单轨迹)+ `web/scriptgen_family_review.html`
+  (家族:五条变体序胶片、原始帧号徽标、重复帧标记、金标/状态/预期、
+  条款见证、审计灯)。family 页尚未在真浏览器目验(仅 JS 语法检查
+  + 数据访问仿真)。
 
 闭环已验证:gates_bedroom 三条轨迹,规划 0.1s → Isaac 渲染约 70s/条 →
-掩码复核全过 → 答案重算一致(left/left/right,转向 141–146°)。
+掩码复核全过 → 答案重算一致(left/left/right,转向 141–146° 为计划期
+从几何 t_seen 起算的值;权威编译从渲后重解析的 t_seen 起算,render_0
+的 turned 见证相应为 102.5°,扇区结论不变)。
 第一次闭环曾抓出真 bug(质点视锥近似漏掉物体边缘 8k 像素),由此加了
 "部分入画一律模糊"规则——渲后复核的价值已实证。
 
@@ -80,14 +102,35 @@ EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出�
 └───────────────────────────────────────────────────────────────────┘
       ▲ 契约① 计划文件                  │ 契约② bundle(数据包)
       │ plan.views.json                  │ views/*.sensors.npz(rgb/深度/掩码)
-      │ (相机逐帧位姿调度,             │ scene_ir.json(场景几何真值)
-      │  由 plan_to_agent_views 导出)   │ trajectory_plan/snapshot/report.json
+      │ (相机逐帧位姿调度,             │ trajectory_plan/snapshot/report.json
+      │  由 plan_to_agent_views 导出)   │ (batch bundle 不含 scene_ir.json,
+      │                                  │  需外部指定同场景的一份)
       │                                  ▼
 ┌────────── code/EpiSpace ── 主库,零模拟器依赖 ────────────────────┐
-│ scriptgen  剧本→槽位→候选→免渲染核验→轨迹计划        [已通]      │
-│ 编译       bundle 掩码→权威答案/证据帧→certificate    [空缺A]    │
-│ family     干预算子→重编译→打包                       [空缺B/C]  │
-│ 评测       预测记录→家族级指标                        [空缺D]    │
+│                                                                   │
+│ scene_ir.json ──► layout ──► 剧本→槽位→候选→免渲染核验            │
+│                              └► plan.record.json(几何临时答案)  │
+│                                        [已通,渲染在外部发生]     │
+│                                                                   │
+│ bundle+scene_ir ──► RenderSceneView(掩码=权威可见性)            │
+│        │                                                          │
+│        ▼ compiler.py                                   [A 已通]   │
+│ 渲后重解析帧变量 → 足额重判全部条款 → 权威答案                    │
+│        └► certificate(几何only对照;mismatch非空即阻断;         │
+│           留一法 essential 帧集)                                  │
+│        │                                                          │
+│        ▼ variants.py                                   [B 已通]   │
+│ 四算子产帧索引序列(置换/删关键帧/删无关帧/延迟)                 │
+│   → ReindexedSceneView → 重跑同一编译器 → 各变体金标              │
+│        └► 与 spec 声明预期不符 = FamilyMismatch 阻断              │
+│        │                                                          │
+│        ▼ family.py + family_cli.py(一条命令)         [C 已通]   │
+│ 审计(指称唯一/无占位符/无帧号/无答案token)→ 打包                │
+│        └► family.json(canonical+4变体+certificates,单文档)     │
+│           + media/(相对路径 PNG)+ index.html(family 审核页)   │
+│        │                                                          │
+│        ▼ 评测:预测记录 + family 标签 → 家族级指标     [空缺D]    │
+│                                                                   │
 │ web 审核页 · scripts 薄壳 · docs 文档                             │
 └───────────────────────────────────────────────────────────────────┘
       ▲ 软链接(临时,待数据迁移归档)
@@ -104,7 +147,11 @@ EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出�
 - 历史数据经软链接接入,已知 19 个测试因数据版本错位常红
   (期望 586 条、现有 466 条,新版数据下落不明);
 - 现成试验数据:`OminiGibson/outputs/scripted_demo/batch/render_{0,1,2}`
-  三条已渲染轨迹 + `plan_{i}.record.json`,足够开发整个后半段,无需新渲染。
+  三条已渲染轨迹 + `plan_{i}.record.json`,足够开发整个后半段,无需新渲染;
+- batch bundle 不含 scene_ir.json,编译/打包时用
+  `sweeps/t10-target-view-seed17-v1/bundles/gates_bedroom_t10_seed17/scene_ir.json`
+  (同场景 63b1adc6,runtime id 与 bundle snapshot 逐一核对一致,
+  目标 armchair 72faab69…→988247081)。
 
 ## 6. 已拍板的决策
 
@@ -120,29 +167,39 @@ EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出�
 
 ```
 剧本 → 轨迹计划 → [渲染,外部] → 权威编译 → 变体家族 → 打包 → 打分
-  ✅        ✅          ✅          空缺A      空缺B     空缺C   空缺D
+  ✅        ✅          ✅          ✅A        ✅B       ✅C    空缺D
+                                 cceb13d    9beee33   5a67ecd
 ```
 
-- A 权威编译(任务#16):CapabilityCompiler 插件,渲染后端重解析帧变量
-  (已知 p0 几何 t_seen=0 而渲染第 1 帧也清晰,以渲染为准)、重跑条款、
-  出权威答案与最小证据帧集;
-- B 变体家族(#17):干预算子作用于已渲染帧序列,重跑编译器,预期不符
-  即 MISMATCH 阻断;
-- C 打包(#18):family schema 进 contracts 版本化;题面填空/指称唯一/
-  泄漏抽查;
-- D 打分(#2):家族级指标(条件一致率/协变率/弃答校准/置换一致),
+- A 权威编译(任务#16,已完成):CapabilityCompiler,渲染后端重解析帧变量
+  (render_0 实测 t_seen 由几何 0 重解析为 3,连带 turned 见证
+  145.8°→102.5°)、重跑全部条款、出权威答案与留一法 essential 帧集;
+- B 变体家族(#17,已完成):干预算子只产帧索引序列,金标由重跑同一
+  编译器产生,预期不符即 FamilyMismatch 阻断;预期效应按能力声明在 spec
+  (自运动:置换/删关键帧→弃答,删无关帧/延迟→不变);
+- C 打包(#18,已完成):scriptgen_family.v1 进 contracts 版本化;
+  指称唯一/占位符/帧号/答案token 四项审计,不过即 FamilyBlocked;
+- D 打分(#2,未动):家族级指标(条件一致率/协变率/弃答校准/置换一致),
   输入只有预测记录+family 标签,与模型和生成端解耦。
 
-交接点(用户上调试器的时机):一条命令从 render_0 产出
-"canonical + 4 变体"的完整 family JSON + family 审核页。
+交接点已到达:一条命令(见 §9)从 render_{0,1,2} 各产出完整 family
+JSON + 审核页,三条家族金标为
+canonical/置换/删关/删无关/延迟 = left/弃答/弃答/left/left、
+left/弃答/弃答/left/left、right/弃答/弃答/right/right,
+延迟旋钮分别 11→15、10→14、8→12。
 
 ## 8. 遗留已知问题(不阻塞,勿丢)
 
 - "back"答案过稀(终点环顾背向目标时转身量小,被 80° 下限拒),需权重校准;
 - 大厅类场景 ambiguous_referent 拒绝率高,需带定语指称(区域限定)解;
 - 对应锚定剧本需要同资产双实例的场景编辑管线;
-- t_seen 等帧变量的渲后重解析(归属空缺A);
-- 19 个数据版本错位的常红测试;路径硬编码待 workspace resolver。
+- 19 个数据版本错位的常红测试;路径硬编码待 workspace resolver
+  (scene_ir 需在命令行显式传路径也属此类);
+- family 审核页未在真浏览器目验(仅 node 语法检查 + 数据访问仿真);
+- 两处待复核的自主裁决:①"置换→弃答"的预期是按自运动语义推的,
+  改 spec 一行即可换语义,MISMATCH 兜底;② drop_count/delay_extra
+  归类为生成参数未进 standards.py(判定阈值一个未动,std.v2 未升),
+  若不认同此归类则需挪入并升 std.v3。
 
 ## 9. 常用命令
 
@@ -154,7 +211,15 @@ EpiSpace 零模拟器依赖。它需要的不是模拟器,而是模拟器导出�
 # 渲染(OminiGibson 目录下)
 bash scripts/run_in_omnigibson.sh --accept-eula python -m omnigibson_episode.cli acquire \
   --recipe configs/omnigibson_scripted_selfmotion_demo.yaml --output <dir> --gpu-id 3 --headless --overwrite
-# 审核页
+# 单轨迹审核页
 .venv/bin/python scripts/build_scriptgen_review.py --bundle <render_dir> \
   --plan-record <record.json> --scene-ir <scene_ir.json> --out <out_dir>
+# family:一条命令,bundle → family.json + media/ + 审核页(交接点命令)
+.venv/bin/python -m spatial_episode.scriptgen.family_cli \
+  --bundle  <OminiGibson>/outputs/scripted_demo/batch/render_0 \
+  --plan-record <OminiGibson>/outputs/scripted_demo/batch/plan_0.record.json \
+  --scene-ir <OminiGibson>/outputs/sweeps/t10-target-view-seed17-v1/bundles/gates_bedroom_t10_seed17/scene_ir.json \
+  --out /tmp/family/f0        # 可选 --seed/--drop-count/--delay-extra
+# 看审核页
+cd /tmp/family/f0 && python -m http.server 8000   # 浏览器开 localhost:8000
 ```
