@@ -24,6 +24,21 @@ SELF_MOTION = ScriptSpec(
         "t_q": "last_frame()",  # the question frame
     },
     clauses=(
+        # Physical validity belongs to the acquired path only. Interventions
+        # reindex already-rendered frames, so the compiler must not re-judge
+        # these two search-only clauses on a shuffled or shortened sequence.
+        Clause(
+            name="poses_clear",
+            predicate="poses_clear",
+            args={"frames": "0:$t_q"},
+            phase="search_only",
+        ),
+        Clause(
+            name="path_clear",
+            predicate="path_clear",
+            args={"frames": "0:$t_q"},
+            phase="search_only",
+        ),
         # Target is clearly observed before it leaves the field of view.
         # Evidence clause: without the sighting, even an ideal agent must abstain.
         Clause(

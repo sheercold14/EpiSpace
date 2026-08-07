@@ -55,7 +55,7 @@ class Clause(SpecModel):
     name: str = Field(min_length=1)
     predicate: str = Field(min_length=1)
     args: dict[str, str | int | float | bool]
-    phase: Literal["search", "compile"] = "compile"
+    phase: Literal["search", "compile", "search_only"] = "compile"
     on_violation: Literal["abstain", "invalid"] = "invalid"
 
 
@@ -99,7 +99,7 @@ class ScriptSpec(SpecModel):
     the expectation only cross-checks it, and disagreement blocks packaging.
     """
 
-    schema_version: Literal["scriptgen_spec.v2"] = "scriptgen_spec.v2"
+    schema_version: Literal["scriptgen_spec.v3"] = "scriptgen_spec.v3"
     capability: str = Field(min_length=1)
     slots: dict[str, SlotSpec]
     frame_vars: dict[str, str]  # name -> resolver expression

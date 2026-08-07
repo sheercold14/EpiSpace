@@ -86,7 +86,13 @@ def _search_binding(
         poses = get_motif(motif_name)(layout, binding, frame_count, rng)
         view = GeometrySceneView(layout=layout, poses=poses, std=std)
 
-        report = check_clauses(view, script, binding, std)
+        report = check_clauses(
+            view,
+            script,
+            binding,
+            std,
+            phases=("search", "search_only", "compile"),
+        )
         if not report.passed:
             rejection_counts[f"clause:{report.failed_clause}"] += 1
             continue

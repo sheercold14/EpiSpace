@@ -52,6 +52,8 @@ def test_plan_invariants_replay() -> None:
 
         # Witnesses cite the script's clauses.
         assert set(plan.clause_witnesses) == {
+            "poses_clear",
+            "path_clear",
             "seen_early",
             "trackable",
             "gone",

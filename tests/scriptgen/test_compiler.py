@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import pytest
+from _batchdata import load_plan_record, load_render_view, needs_batch
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler, Certificate
 from spatial_episode.scriptgen.library import SELF_MOTION
@@ -21,8 +22,6 @@ from spatial_episode.scriptgen.sceneview import (
     VisibilityObservation,
 )
 from spatial_episode.scriptgen.standards import STD_V1
-
-from _batchdata import load_plan_record, load_render_view, needs_batch
 
 TARGET = SceneObject(name="tgt", category="armchair", xy=(0.0, 2.0), size_m=0.8, uid="tgt")
 
@@ -85,8 +84,10 @@ def test_answerable_certificate(compiler: CapabilityCompiler) -> None:
     assert cert.backend == "render_pixels"
     assert cert.knob_levels == {"delay": 10.0}
     assert [v.tristate for v in cert.target_visibility[:3]] == ["visible", "visible", "invisible"]
-    # Every clause was judged and every judgment holds.
-    assert {o.name for o in cert.clause_outcomes} == {c.name for c in SELF_MOTION.clauses}
+    # Search-only path validity belongs to acquisition, not reindexed evidence.
+    assert {o.name for o in cert.clause_outcomes} == {
+        c.name for c in SELF_MOTION.clauses if c.phase != "search_only"
+    }
     assert all(o.holds is True for o in cert.clause_outcomes)
 
 
