@@ -116,7 +116,7 @@ def _clearance_audit(
     body_radius_m: float,
     z_low_m: float,
     z_high_m: float,
-) -> tuple[int, dict[str, Any] | None, int, dict[str, Any] | None]:
+) -> tuple[int, int, int, dict[str, Any] | None, int, dict[str, Any] | None]:
     obstacles = _expanded_body_obstacles(layout, body_radius_m, z_low_m, z_high_m)
     pose_count = 0
     pose_worst: dict[str, Any] | None = None
@@ -168,7 +168,14 @@ def _clearance_audit(
             path_count += 1
             if path_worst is None:
                 path_worst = {"frames": [frame_a, frame_b], "obstacle": label}
-    return pose_count, pose_worst, path_count, path_worst
+    return (
+        len(obstacles),
+        sum(row[0] == "walls" for row in obstacles),
+        pose_count,
+        pose_worst,
+        path_count,
+        path_worst,
+    )
 
 
 def _clearance_results(view: SceneView, std: CompileStandard, frames: Sequence[int]):
@@ -185,11 +192,15 @@ def _clearance_results(view: SceneView, std: CompileStandard, frames: Sequence[i
 @predicate("poses_clear")
 def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Every sampled body centre clears all body-height obstacle footprints."""
-    collisions, worst, _, _ = _clearance_results(view, std, frames)
+    obstacle_count, wall_count, collisions, worst, _, _ = _clearance_results(
+        view, std, frames
+    )
     return Verdict(
         worst is None,
         {
             "body_radius_m": std.body_radius_m,
+            "checked_obstacle_count": obstacle_count,
+            "checked_wall_count": wall_count,
             "collision_count": collisions,
             "worst_collision": worst,
         },
@@ -199,11 +210,15 @@ def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int])
 @predicate("path_clear")
 def path_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Every consecutive pose segment clears body-height obstacle footprints."""
-    _, _, collisions, worst = _clearance_results(view, std, frames)
+    obstacle_count, wall_count, _, _, collisions, worst = _clearance_results(
+        view, std, frames
+    )
     return Verdict(
         collisions == 0,
         {
             "body_radius_m": std.body_radius_m,
+            "checked_obstacle_count": obstacle_count,
+            "checked_wall_count": wall_count,
             "collision_count": collisions,
             "worst_collision": worst,
         },

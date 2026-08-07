@@ -21,6 +21,8 @@ from spatial_episode.scriptgen.behavior import (
     yaw_deg_from_quaternion_xyzw,
 )
 from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.predicates import get_predicate
+from spatial_episode.scriptgen.sceneview import GeometrySceneView, Pose2D
 
 SWEEP_ROOT = Path(
     "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/"
@@ -57,14 +59,60 @@ def test_plan_to_agent_views_roundtrip() -> None:
         assert abs(((planned.yaw_deg - back.yaw_deg + 180.0) % 360.0) - 180.0) < 1e-6
 
 
+def _scene_ir_entity(
+    label: str,
+    entity_id: str,
+    center: tuple[float, float, float],
+    half_extents: tuple[float, float, float],
+) -> dict[str, object]:
+    return {
+        "entity_id": entity_id,
+        "raw_label": label,
+        "obb": {
+            "center_m": list(center),
+            "half_extents_m": list(half_extents),
+            "world_from_obb": {"rotation_xyzw": [0.0, 0.0, 0.0, 1.0]},
+        },
+    }
+
+
+def test_walls_are_collision_obstacles_but_not_question_objects() -> None:
+    scene_ir = {
+        "scene_id": "wall-regression",
+        "entities": [
+            _scene_ir_entity("floors", "floor", (0.0, 0.0, 0.0), (3.0, 3.0, 0.05)),
+            _scene_ir_entity("ceilings", "ceiling", (0.0, 0.0, 3.0), (3.0, 3.0, 0.05)),
+            _scene_ir_entity("walls", "wall", (0.0, 0.0, 1.5), (0.1, 2.0, 1.5)),
+            _scene_ir_entity("armchair", "chair", (2.0, 2.0, 0.5), (0.4, 0.4, 0.5)),
+        ],
+    }
+    layout = layout_from_scene_ir(scene_ir)
+
+    assert [obj.category for obj in layout.objects] == ["armchair"]
+    assert [obstacle.label for obstacle in layout.obstacles] == ["walls", "armchair"]
+
+    view = GeometrySceneView(
+        layout=layout,
+        poses=(Pose2D(-1.0, 0.0, 0.0), Pose2D(1.0, 0.0, 0.0)),
+        std=STD_V1,
+    )
+    assert get_predicate("poses_clear")(view, STD_V1, frames=[0, 1]).holds is True
+    crossing = get_predicate("path_clear")(view, STD_V1, frames=[0, 1])
+    assert crossing.holds is False
+    assert crossing.witness["checked_wall_count"] == 1
+    assert crossing.witness["worst_collision"]["obstacle"] == "walls"
+
+
 @needs_bundles
 def test_layout_from_real_scene_ir() -> None:
     layout = layout_from_scene_ir(HALL_BUNDLE / "scene_ir.json")
     assert layout.objects, "expected question-able objects"
-    assert len(layout.obstacles) == len(layout.objects)
+    assert len(layout.obstacles) > len(layout.objects)
     assert layout.occluders, "expected wall occluders"
     labels = {obj.category for obj in layout.objects}
     assert "walls" not in labels and "floors" not in labels
+    obstacle_labels = {obstacle.label for obstacle in layout.obstacles}
+    assert "walls" in obstacle_labels and "floors" not in obstacle_labels
     (min_x, min_y), (max_x, max_y) = layout.walkable_min, layout.walkable_max
     assert min_x < max_x and min_y < max_y
 

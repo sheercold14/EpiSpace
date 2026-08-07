@@ -37,6 +37,8 @@ from .standards import CompileStandard
 STRUCTURAL_LABELS = frozenset(
     {"ceilings", "floors", "walls", "background", "roof", "lawn", "driveway"}
 )
+# Structural geometry that blocks locomotion even though it is never a target.
+STRUCTURAL_OBSTACLE_LABELS = frozenset({"walls"})
 # Categories whose OBB blocks line of sight at eye level.
 OCCLUDER_LABELS = frozenset({"walls", "pillar"})
 
@@ -127,10 +129,12 @@ def layout_from_scene_ir(
 ) -> SceneLayout:
     """Build a planning layout from a bundle's ``scene_ir.json``.
 
-    Objects are non-structural entities; occluders are wall/pillar footprints
-    that span the camera height; walkable bounds are the union of floor
-    footprints. The raw label is used as the category, and entity UUIDs carry
-    through so the render backend and certificates reference the same ids.
+    Objects are non-structural entities; obstacles contain those objects plus
+    structural walls; occluders are wall/pillar footprints that span the
+    camera height; walkable bounds are the union of floor footprints. Walls
+    are deliberately collision-only, never question targets. The raw label is
+    used as the category, and entity UUIDs carry through so the render backend
+    and certificates reference the same ids.
     """
     ir = scene_ir
     if not isinstance(ir, dict):
@@ -150,20 +154,22 @@ def layout_from_scene_ir(
             z_low, z_high = _z_span(obb)
             if z_low <= camera_height_m <= z_high:
                 occluders.append(_footprint_aabb(obb))
+        if label not in STRUCTURAL_LABELS or label in STRUCTURAL_OBSTACLE_LABELS:
+            hx, hy, _ = obb["half_extents_m"]
+            z_low, z_high = _z_span(obb)
+            obstacles.append(
+                Obstacle(
+                    label=label,
+                    center_xy=(obb["center_m"][0], obb["center_m"][1]),
+                    half_extents_xy=(hx, hy),
+                    yaw_deg=_yaw_deg(obb),
+                    z_low=z_low,
+                    z_high=z_high,
+                )
+            )
         if label in STRUCTURAL_LABELS:
             continue
         hx, hy, _ = obb["half_extents_m"]
-        z_low, z_high = _z_span(obb)
-        obstacles.append(
-            Obstacle(
-                label=label,
-                center_xy=(obb["center_m"][0], obb["center_m"][1]),
-                half_extents_xy=(hx, hy),
-                yaw_deg=_yaw_deg(obb),
-                z_low=z_low,
-                z_high=z_high,
-            )
-        )
         objects.append(
             SceneObject(
                 name=entity["entity_id"],

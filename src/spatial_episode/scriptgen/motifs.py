@@ -69,6 +69,8 @@ class _OccupancyGrid:
     blocked: bytes
     free_cells: tuple[int, ...]
     neighbours: tuple[tuple[tuple[int, float], ...], ...]
+    component_ids: tuple[int, ...]
+    component_cells: tuple[tuple[int, ...], ...]
 
     def index(self, ix: int, iy: int) -> int:
         return iy * self.width + ix
@@ -179,6 +181,28 @@ def _occupancy_grid(layout: SceneLayout) -> _OccupancyGrid:
                 continue
             row.append((neighbour, cost))
         neighbours.append(tuple(row))
+
+    # Walls split multi-room scenes into disconnected regions. Record the
+    # components once so candidate endpoints are never sampled in an
+    # unreachable room (which would otherwise trigger repeated failed A*).
+    component_ids = [-1] * len(blocked)
+    component_cells: list[tuple[int, ...]] = []
+    for root in free_cells:
+        if component_ids[root] >= 0:
+            continue
+        component_id = len(component_cells)
+        component_ids[root] = component_id
+        stack = [root]
+        cells: list[int] = []
+        while stack:
+            current = stack.pop()
+            cells.append(current)
+            for neighbour, _ in neighbours[current]:
+                if component_ids[neighbour] >= 0:
+                    continue
+                component_ids[neighbour] = component_id
+                stack.append(neighbour)
+        component_cells.append(tuple(cells))
     return _OccupancyGrid(
         origin_xy=(min_x, min_y),
         width=width,
@@ -186,6 +210,8 @@ def _occupancy_grid(layout: SceneLayout) -> _OccupancyGrid:
         blocked=bytes(blocked),
         free_cells=free_cells,
         neighbours=tuple(neighbours),
+        component_ids=tuple(component_ids),
+        component_cells=tuple(component_cells),
     )
 
 
@@ -309,11 +335,12 @@ def _sample_start(
 
 def _sample_end(grid: _OccupancyGrid, start: int, rng: random.Random) -> int:
     start_xy = grid.world_xy(start)
+    component = grid.component_cells[grid.component_ids[start]]
     diagonal = math.hypot(grid.width, grid.height) * GRID_RESOLUTION_M
     desired = max(2.0, diagonal * 0.35)
     best, best_distance = start, -1.0
     for _ in range(64):
-        candidate = grid.free_cells[rng.randrange(len(grid.free_cells))]
+        candidate = component[rng.randrange(len(component))]
         distance = distance_m(start_xy, grid.world_xy(candidate))
         if distance >= desired:
             return candidate
