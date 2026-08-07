@@ -54,7 +54,7 @@ def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
 
-MAX_TURN_PER_FRAME_DEG = 32.0  # below std.v2's 40-degree trackability cap
+MAX_TURN_PER_FRAME_DEG = 32.0  # below the standard's 40-degree trackability cap
 GRID_RESOLUTION_M = 0.05
 PROPOSAL_CLEARANCE_M = 0.35
 PROPOSAL_Z_LOW_M = 0.10
@@ -376,7 +376,7 @@ def _walk_polyline(
     Yaw chases the current segment's desired heading but never changes by
     more than MAX_TURN_PER_FRAME_DEG between frames: consecutive frames keep
     visual overlap, so the camera's own motion stays trackable from images
-    (the std.v2 ego-motion contract). Partial-visibility frames during the
+    (the ego-motion contract introduced in std.v2). Partial-visibility frames during the
     turn are expected; the script's transition zone accommodates them.
     """
     if frame_count < 2:

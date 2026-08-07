@@ -1,8 +1,9 @@
 # Scriptgen Engine
 
 Script-driven trajectory generation for capability-basis episodes.
-Package: `src/spatial_episode/scriptgen/`. Status: v1, self-motion capability
-implemented end-to-end on the render-free path.
+Package: `src/spatial_episode/scriptgen/`. Status: self-motion capability
+implemented end-to-end through free-space planning, rendering, authoritative
+compilation, interventions and family packaging.
 
 ## Why
 
@@ -27,13 +28,13 @@ ScriptSpec (30 lines)  ──►  slotting → motifs → checker   ──►  T
 
 | Module | Role | Rule |
 |---|---|---|
-| `standards.py` | Every numeric threshold, frozen + versioned (`std.v1`) | predicates never hard-code numbers; changing a value bumps the version |
-| `geometry.py` | Frozen conventions: yaw/azimuth signs, 4-sector map, margins | property-tested (rotation equivariance, left/right antisymmetry) |
-| `sceneview.py` | `SceneView` protocol + geometry backend; double-threshold tri-state visibility | render backend implements the same protocol over bundle masks (next step) |
+| `standards.py` | Every judgement threshold, frozen + versioned (current: `std.v3`) | predicates never hard-code thresholds; changing one bumps the version |
+| `geometry.py` | Yaw/azimuth conventions, sector margins, rotated-rectangle point/segment tests | property-tested (rotation equivariance, left/right antisymmetry) |
+| `sceneview.py` | `SceneView` protocol + geometry backend; layout objects, occluders and rotated obstacles | render backend implements the same protocol over bundle masks |
 | `predicates.py` | Named pure checks returning `Verdict(holds, witness)` | the ONLY place constraint logic lives; shared by search and compile |
 | `spec.py` / `library.py` | Declarative `ScriptSpec` per capability | adding a capability touches only `library.py` (plus, rarely, one new predicate) |
 | `slotting.py` | Scene objects → slot bindings, with per-object rejection reasons | |
-| `motifs.py` | Candidate pose generators; propose only, never judge | legacy T-samplers become motifs after stripping their inline checks |
+| `motifs.py` | Candidate pose generators; 5 cm occupancy grid + conservative free-space A* | propose only, never judge; exact predicates remain authoritative |
 | `checker.py` | Frame-var resolvers + tiny `$var`/`+`/`-`/`a:b` expression language; clause evaluation | inclusive frame ranges; ambiguous evidence frames are rejects, not coercions |
 | `generate.py` | Search loop; emits plans and a rejection histogram | silence is forbidden: every failure is counted by failing clause |
 | `plan.py` | `TrajectoryPlan` contract consumed by acquisition backends | records standard version, witnesses and a PROVISIONAL geometry answer |
@@ -61,8 +62,9 @@ Implemented; all render-free (they read artifacts acquisition already wrote):
 
 - `layout_from_scene_ir(scene_ir.json)` — real BEHAVIOR scenes as planning
   layouts: non-structural entities as objects, wall/pillar footprints spanning
-  camera height as occluders, floor AABB union as walkable bounds. Verified on
-  hall and residential scenes (0.1-0.3 s for 2-5 plans per scene).
+  camera height as occluders, every non-structural rotated OBB + z span as an
+  obstacle, and floor AABB union as walkable bounds. Obstacle extraction has
+  no thresholds; std.v3 predicates decide whether its height blocks a body.
 - `poses_from_trajectory_plan(trajectory_plan.json)` — replay acquired
   trajectories through the checker (yaw from the agent quaternion; +Y forward).
 - `RenderSceneView.from_bundle(bundle_root)` — the authoritative render
@@ -72,29 +74,29 @@ Implemented; all render-free (they read artifacts acquisition already wrote):
 - `plan_to_agent_views(plan)` — export a plan as the backend's camera-schedule
   view records (roundtrip-tested against `poses_from_trajectory_plan`).
 
-## Closed loop (verified 2026-08-06)
+## Traversable closed loop (verified 2026-08-07)
 
-The OminiGibson production repo gained a `scripted_plan` sampling strategy
-(new module `omnigibson_episode/scripted.py` + additive edits to `config.py`
-and `acquire.py`): the acquisition worker renders a supplied plan file instead
-of sampling its own trajectory. First end-to-end run (gates_bedroom, 12-frame
-self-motion plan, GPU render ~63 s):
+`walk_and_turn` rasterises rotated obstacles at 5 cm with a 0.35 m proposal
+clearance, samples start/end free cells, and uses eight-connected A* (without
+diagonal corner cutting) whenever a straight segment is blocked. Generation
+then runs two std.v3 `search_only` hard clauses before any semantic clause:
 
-- post-render mask verification: 12/12 frames match the plan's visibility
-  claims (target visible at t_seen, zero pixels afterwards);
-- authoritative answer recomputed from the rendered bundle's poses equals the
-  plan's provisional answer (back, -153.9 deg).
+- `poses_clear`: every camera/body centre is outside every obstacle expanded
+  by the 0.30 m body radius in the 0.10–1.70 m body-height band;
+- `path_clear`: every consecutive movement segment avoids those footprints.
 
-The first render attempt FAILED verification (an 8k-pixel edge sliver at one
-"invisible" frame) — caught by this exact check, fixed by extent-aware
-visibility, re-rendered clean. The two-phase design paid for itself on run one.
+On gates_bedroom, the three pre-navfix plans are permanently retained as
+negative regression cases (coffee-table/sofa, bed/armchair collisions). Three
+replacement trajectories (seeds 17/23/13; 16/13/10 frames) pass both clauses,
+were rendered at 1024² with RGB/depth/instance labels, and compile to
+left/left/right. Manual warm throughput was 1045 candidates/s.
 
 ## Authoritative compilation and families (Gaps A–C, 2026-08-06)
 
 Downstream of rendering, three modules close the pipeline through packaging:
 
 - `compiler.py` — `CapabilityCompiler` re-resolves frame variables on the
-  render backend (masks override geometry: render_0's t_seen moved 0→3),
+  render backend (masks override geometry: navfix render_0's t_seen moved 0→1),
   re-judges every clause with search tightening off, derives the answer from
   the rendered pose at t_q, and emits `scriptgen_certificate.v1` with
   geometry estimates demoted to comparison fields and a `mismatch` blocker.
@@ -112,10 +114,14 @@ Downstream of rendering, three modules close the pipeline through packaging:
   (no placeholders, no frame numbers, no gold token), exports per-frame
   rgb/depth/instance PNGs and ships `web/scriptgen_family_review.html`.
 
-Clause semantics under intervention live in the spec (`scriptgen_spec.v2`):
+Clause semantics under intervention live in the spec (`scriptgen_spec.v3`):
 `on_violation="abstain"` marks evidence clauses (violated → gold becomes the
 abstain option), `"invalid"` marks validity clauses (violated → no gold may
 be asserted). `abstain_on_unresolvable` does the same for frame variables.
+The third phase, `search_only`, validates the path that was physically acquired
+but is intentionally excluded when compiling reindexed presentation variants:
+otherwise a shuffled filmstrip would be mistaken for a physically traversed
+teleport path and fail for the wrong reason.
 
 ## Remaining integration (next steps)
 
@@ -125,3 +131,5 @@ be asserted). `abstain_on_unresolvable` does the same for frame variables.
   slots via `ambiguous_referent`; region-qualified referents lift this).
 - Answer-balance control: the walk-away motif biases gold answers toward
   "back"; add motifs/turn patterns that distribute final relative bearings.
+- Simulator-side capsule collision / navmesh validation before large-scale
+  acquisition; current hard validity is based on scene_ir static rotated OBBs.

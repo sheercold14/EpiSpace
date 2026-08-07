@@ -1,4 +1,4 @@
-"""Test data access: the three rendered scripted-demo trajectories.
+"""Test data access: the three traversable scripted-demo trajectories.
 
 Integration tests run against real rendered bundles (no Isaac Sim needed —
 only their exported npz masks and JSON truths) and skip cleanly on hosts
@@ -17,7 +17,7 @@ from spatial_episode.scriptgen.behavior import RenderSceneView
 from spatial_episode.scriptgen.standards import STD_V1
 
 BATCH_ROOT = Path(
-    "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch"
+    "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch_navfix"
 )
 SCENE_IR_PATH = Path(
     "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/"

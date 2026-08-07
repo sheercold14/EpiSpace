@@ -178,9 +178,9 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
 # --- integration: the three rendered gates_bedroom trajectories ---
 
 EXPECTED = {
-    0: {"sector": "left", "t_seen": 3, "t_gone": 4, "t_q": 15},
-    1: {"sector": "left", "t_seen": 0, "t_gone": 1, "t_q": 11},
-    2: {"sector": "right", "t_seen": 0, "t_gone": 1, "t_q": 9},
+    0: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 15},
+    1: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 12},
+    2: {"sector": "right", "t_seen": 1, "t_gone": 2, "t_q": 9},
 }
 
 
@@ -208,11 +208,11 @@ def test_rendered_bundles_compile_answerable(
 def test_render_overrides_geometry_frame_vars(
     self_motion_compiler: CapabilityCompiler,
 ) -> None:
-    """render_0: geometry said t_seen=0, the masks say frame 3 is still clear."""
+    """render_0: geometry picks frame 0, masks keep the target clear through frame 1."""
     plan = load_plan_record(0)
     cert = self_motion_compiler.compile(
         load_render_view(0), plan["binding"], geometry_plan=plan
     )
     assert plan["frame_vars"]["t_seen"] == 0
-    assert cert.frame_vars["t_seen"] == 3
+    assert cert.frame_vars["t_seen"] == 1
     assert cert.geometry is not None and cert.geometry.frame_vars["t_seen"] == 0

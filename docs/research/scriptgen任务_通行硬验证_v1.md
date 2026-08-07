@@ -204,10 +204,16 @@ coffee_table 与 sofa。这是本次 bug 的病历,永久留档。
 
 ## 7. 最终验收清单
 
-- [ ] `pytest tests/scriptgen -q` 全绿(新渲染数据在位时);
-- [ ] 回归测试证明旧 plan_0 被新谓词拒绝;
-- [ ] `git diff` 中 standards.py 仅含 std.v3 四个新常量与版本号;
-- [ ] episode3d、scripts/pilot 无任何改动;
-- [ ] 变体测试全绿(置换仍是 abstain 且死于 trackable,证明裁决甲落实);
-- [ ] family_cli 对 batch_navfix/render_0 一条命令出 family.json + 审核页;
-- [ ] 生成吞吐手测 ≥1000 候选/秒,记录在提交信息里。
+- [x] `pytest tests/scriptgen -q` 全绿(新渲染数据在位时):66 passed;
+- [x] 回归测试证明旧 plan_0–2 均被新谓词拒绝;
+- [x] `git diff` 中 standards.py 仅含 std.v3 三个新数值字段、分节注释与版本号;
+- [x] episode3d、scripts/pilot 无任何改动;
+- [x] 变体测试全绿(置换仍是 abstain 且死于 trackable,证明裁决甲落实);
+- [x] family_cli 对 batch_navfix/render_0–2 均产出 family.json + 审核页;
+- [x] 生成吞吐手测 1045 候选/秒,已记录在 motif 提交信息里。
+
+执行数据位于 `OminiGibson/outputs/scripted_demo/batch_navfix/`:三条计划
+采用 seed 17/23/13,共 39 帧,权威答案为 left/left/right。原定 seed 41
+与 17/23 同为 left,按本任务的方向多样性要求换为 seed 13。三份渲染报告
+均为 success,三份 plan record 的 poses/path 碰撞计数均为 0;审核包位于
+`family_{0,1,2}/`。旧 `batch/` 未改动,仅作为 navfix 前的负例病历。
