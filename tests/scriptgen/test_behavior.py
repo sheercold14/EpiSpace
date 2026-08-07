@@ -61,6 +61,7 @@ def test_plan_to_agent_views_roundtrip() -> None:
 def test_layout_from_real_scene_ir() -> None:
     layout = layout_from_scene_ir(HALL_BUNDLE / "scene_ir.json")
     assert layout.objects, "expected question-able objects"
+    assert len(layout.obstacles) == len(layout.objects)
     assert layout.occluders, "expected wall occluders"
     labels = {obj.category for obj in layout.objects}
     assert "walls" not in labels and "floors" not in labels

@@ -98,3 +98,49 @@ def segment_intersects_rect(
         if t_min > t_max:
             return False
     return True
+
+
+def _point_in_rect_frame(
+    point: tuple[float, float], center: tuple[float, float], yaw_deg: float
+) -> tuple[float, float]:
+    """Transform a world point into an oriented rectangle's local frame."""
+    angle = math.radians(yaw_deg)
+    cos_yaw, sin_yaw = math.cos(angle), math.sin(angle)
+    dx, dy = point[0] - center[0], point[1] - center[1]
+    return (cos_yaw * dx + sin_yaw * dy, -sin_yaw * dx + cos_yaw * dy)
+
+
+def point_in_rotated_rect(
+    point: tuple[float, float],
+    center: tuple[float, float],
+    half_extents: tuple[float, float],
+    yaw_deg: float,
+) -> bool:
+    """Whether a point lies inside or on an oriented rectangle."""
+    x, y = _point_in_rect_frame(point, center, yaw_deg)
+    return abs(x) <= half_extents[0] and abs(y) <= half_extents[1]
+
+
+def segment_intersects_rotated_rect(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    center: tuple[float, float],
+    half_extents: tuple[float, float],
+    yaw_deg: float,
+) -> bool:
+    """Whether a segment intersects an oriented rectangle."""
+    local_p0 = _point_in_rect_frame(p0, center, yaw_deg)
+    local_p1 = _point_in_rect_frame(p1, center, yaw_deg)
+    hx, hy = half_extents
+    return segment_intersects_rect(local_p0, local_p1, (-hx, -hy), (hx, hy))
+
+
+def rotated_rect_penetration_depth(
+    point: tuple[float, float],
+    center: tuple[float, float],
+    half_extents: tuple[float, float],
+    yaw_deg: float,
+) -> float:
+    """Shortest local-axis distance from an interior point to the boundary."""
+    x, y = _point_in_rect_frame(point, center, yaw_deg)
+    return max(0.0, min(half_extents[0] - abs(x), half_extents[1] - abs(y)))

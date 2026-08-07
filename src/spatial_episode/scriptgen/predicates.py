@@ -17,7 +17,15 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from .geometry import azimuth_deg, cumulative_turn_deg, sector_margin_deg, sector_of
+from .geometry import (
+    azimuth_deg,
+    cumulative_turn_deg,
+    point_in_rotated_rect,
+    rotated_rect_penetration_depth,
+    sector_margin_deg,
+    sector_of,
+    segment_intersects_rotated_rect,
+)
 from .sceneview import SceneView
 from .standards import CompileStandard
 
@@ -69,6 +77,73 @@ def _tristates(
         observation = view.visibility(obj, t)
         rows.append((t, observation.tristate(std), round(observation.value, 4)))
     return rows
+
+
+def _body_band_obstacles(view: SceneView, std: CompileStandard):
+    return (
+        obstacle
+        for obstacle in view.layout.obstacles
+        if obstacle.z_low <= std.clearance_z_high_m
+        and obstacle.z_high >= std.clearance_z_low_m
+    )
+
+
+@predicate("poses_clear")
+def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
+    """Every sampled body centre clears all body-height obstacle footprints."""
+    worst: dict[str, Any] | None = None
+    collisions = 0
+    for t in frames:
+        position = view.camera_pose(t).xy
+        for obstacle in _body_band_obstacles(view, std):
+            expanded = tuple(value + std.body_radius_m for value in obstacle.half_extents_xy)
+            if not point_in_rotated_rect(
+                position, obstacle.center_xy, expanded, obstacle.yaw_deg
+            ):
+                continue
+            collisions += 1
+            depth = rotated_rect_penetration_depth(
+                position, obstacle.center_xy, expanded, obstacle.yaw_deg
+            )
+            candidate = {
+                "frame": t,
+                "obstacle": obstacle.label,
+                "penetration_depth_m": round(depth, 4),
+            }
+            if worst is None or depth > float(worst["penetration_depth_m"]):
+                worst = candidate
+    return Verdict(
+        worst is None,
+        {
+            "body_radius_m": std.body_radius_m,
+            "collision_count": collisions,
+            "worst_collision": worst,
+        },
+    )
+
+
+@predicate("path_clear")
+def path_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
+    """Every consecutive pose segment clears body-height obstacle footprints."""
+    from itertools import pairwise
+
+    collisions: list[dict[str, Any]] = []
+    for a, b in pairwise(frames):
+        start, end = view.camera_pose(a).xy, view.camera_pose(b).xy
+        for obstacle in _body_band_obstacles(view, std):
+            expanded = tuple(value + std.body_radius_m for value in obstacle.half_extents_xy)
+            if segment_intersects_rotated_rect(
+                start, end, obstacle.center_xy, expanded, obstacle.yaw_deg
+            ):
+                collisions.append({"frames": [a, b], "obstacle": obstacle.label})
+    return Verdict(
+        not collisions,
+        {
+            "body_radius_m": std.body_radius_m,
+            "collision_count": len(collisions),
+            "worst_collision": collisions[0] if collisions else None,
+        },
+    )
 
 
 @predicate("visible_in_range")

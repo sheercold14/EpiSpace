@@ -30,7 +30,7 @@ from typing import Any
 
 import numpy as np
 
-from .sceneview import Pose2D, SceneLayout, SceneObject, VisibilityObservation
+from .sceneview import Obstacle, Pose2D, SceneLayout, SceneObject, VisibilityObservation
 from .standards import CompileStandard
 
 # Structural categories: never question targets.
@@ -112,6 +112,14 @@ def _z_span(obb: dict[str, Any]) -> tuple[float, float]:
     return center_z - hz, center_z + hz
 
 
+def _yaw_deg(obb: dict[str, Any]) -> float:
+    """Planar heading of the OBB's local x axis in the canonical world frame."""
+    qx, qy, qz, qw = obb["world_from_obb"]["rotation_xyzw"]
+    sin_yaw = 2.0 * (qw * qz + qx * qy)
+    cos_yaw = 1.0 - 2.0 * (qy * qy + qz * qz)
+    return math.degrees(math.atan2(sin_yaw, cos_yaw))
+
+
 def layout_from_scene_ir(
     scene_ir: dict[str, Any] | str | Path,
     *,
@@ -129,6 +137,7 @@ def layout_from_scene_ir(
         ir = json.loads(Path(ir).read_text(encoding="utf-8"))
 
     objects: list[SceneObject] = []
+    obstacles: list[Obstacle] = []
     occluders: list[tuple[tuple[float, float], tuple[float, float]]] = []
     floor_boxes: list[tuple[tuple[float, float], tuple[float, float]]] = []
 
@@ -144,6 +153,17 @@ def layout_from_scene_ir(
         if label in STRUCTURAL_LABELS:
             continue
         hx, hy, _ = obb["half_extents_m"]
+        z_low, z_high = _z_span(obb)
+        obstacles.append(
+            Obstacle(
+                label=label,
+                center_xy=(obb["center_m"][0], obb["center_m"][1]),
+                half_extents_xy=(hx, hy),
+                yaw_deg=_yaw_deg(obb),
+                z_low=z_low,
+                z_high=z_high,
+            )
+        )
         objects.append(
             SceneObject(
                 name=entity["entity_id"],
@@ -169,6 +189,7 @@ def layout_from_scene_ir(
     return SceneLayout(
         scene_id=ir["scene_id"],
         objects=tuple(objects),
+        obstacles=tuple(obstacles),
         occluders=tuple(occluders),
         walkable_min=walkable_min,
         walkable_max=walkable_max,

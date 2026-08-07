@@ -5,6 +5,7 @@ from __future__ import annotations
 from spatial_episode.scriptgen.predicates import get_predicate
 from spatial_episode.scriptgen.sceneview import (
     GeometrySceneView,
+    Obstacle,
     Pose2D,
     SceneLayout,
     SceneObject,
@@ -81,3 +82,45 @@ def test_partially_in_fov_is_ambiguous() -> None:
     # Fully outside (azimuth 90) stays definitely invisible.
     far_out = Pose2D(0.0, 0.0, 0.0)
     assert _view([far_out]).visibility("sofa", 0).tristate(STD_V1) is False
+
+
+def _clearance_view(poses: list[Pose2D], *, z_low: float = 0.0, z_high: float = 1.0):
+    obstacle = Obstacle(
+        label="table",
+        center_xy=(0.0, 0.0),
+        half_extents_xy=(0.5, 0.25),
+        yaw_deg=45.0,
+        z_low=z_low,
+        z_high=z_high,
+    )
+    layout = SceneLayout(scene_id="clearance", objects=(), obstacles=(obstacle,))
+    return GeometrySceneView(layout=layout, poses=tuple(poses), std=STD_V1)
+
+
+def test_poses_clear_rejects_pose_inside_rotated_obstacle() -> None:
+    view = _clearance_view([Pose2D(0.0, 0.0, 0.0)])
+    verdict = get_predicate("poses_clear")(view, STD_V1, frames=[0])
+    assert verdict.holds is False
+    assert verdict.witness["worst_collision"]["obstacle"] == "table"
+    assert verdict.witness["worst_collision"]["penetration_depth_m"] > 0.0
+
+
+def test_path_clear_rejects_segment_crossing_rotated_obstacle() -> None:
+    view = _clearance_view([Pose2D(-2.0, 0.0, 0.0), Pose2D(2.0, 0.0, 0.0)])
+    verdict = get_predicate("path_clear")(view, STD_V1, frames=[0, 1])
+    assert verdict.holds is False
+    assert verdict.witness["worst_collision"] == {"frames": [0, 1], "obstacle": "table"}
+
+
+def test_clearance_ignores_obstacle_outside_body_height_band() -> None:
+    view = _clearance_view(
+        [Pose2D(-2.0, 0.0, 0.0), Pose2D(0.0, 0.0, 0.0)], z_low=2.0, z_high=2.5
+    )
+    assert get_predicate("poses_clear")(view, STD_V1, frames=[0, 1]).holds is True
+    assert get_predicate("path_clear")(view, STD_V1, frames=[0, 1]).holds is True
+
+
+def test_clear_trajectory_passes_both_clearance_predicates() -> None:
+    view = _clearance_view([Pose2D(-2.0, 2.0, 0.0), Pose2D(2.0, 2.0, 0.0)])
+    assert get_predicate("poses_clear")(view, STD_V1, frames=[0, 1]).holds is True
+    assert get_predicate("path_clear")(view, STD_V1, frames=[0, 1]).holds is True

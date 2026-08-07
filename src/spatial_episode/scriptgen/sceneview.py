@@ -75,11 +75,26 @@ class SceneObject:
     uid: str
 
 
+@dataclass(frozen=True)
+class Obstacle:
+    """One oriented obstacle footprint with its conservative vertical span."""
+
+    label: str
+    center_xy: tuple[float, float]
+    half_extents_xy: tuple[float, float]
+    yaw_deg: float
+    z_low: float
+    z_high: float
+
+
 class SceneView(Protocol):
     """What predicates are allowed to know about a candidate trajectory."""
 
     @property
     def frame_count(self) -> int: ...
+
+    @property
+    def layout(self) -> SceneLayout: ...
 
     def camera_pose(self, t: int) -> Pose2D: ...
 
@@ -100,6 +115,7 @@ class SceneLayout:
 
     scene_id: str
     objects: tuple[SceneObject, ...]
+    obstacles: tuple[Obstacle, ...] = ()
     occluders: tuple[tuple[tuple[float, float], tuple[float, float]], ...] = ()
     walkable_min: tuple[float, float] = (0.0, 0.0)
     walkable_max: tuple[float, float] = (10.0, 10.0)
@@ -135,6 +151,10 @@ class ReindexedSceneView:
     @property
     def frame_count(self) -> int:
         return len(self.frames)
+
+    @property
+    def layout(self) -> SceneLayout:
+        return self.base.layout
 
     def camera_pose(self, t: int) -> Pose2D:
         return self.base.camera_pose(self.frames[t])

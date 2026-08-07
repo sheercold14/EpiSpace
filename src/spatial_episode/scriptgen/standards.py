@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v2"
+    standard_version: str = "std.v3"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -52,6 +52,11 @@ class CompileStandard:
     # the scene does not jump discontinuously between frames.
     max_step_turn_deg: float = 40.0
     max_step_translation_m: float = 1.2
+
+    # --- traversability clearance (std.v3) ---
+    body_radius_m: float = 0.30
+    clearance_z_low_m: float = 0.10
+    clearance_z_high_m: float = 1.70
 
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates
