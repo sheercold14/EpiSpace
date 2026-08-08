@@ -6,14 +6,40 @@ Adding a capability means adding one spec here (and, rarely, one predicate to
 
 from __future__ import annotations
 
+from typing import Any
+
 from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
+
+_TRAVERSAL_CLAUSES = (
+    # Physical validity belongs to the acquired path only. Interventions
+    # reindex already-rendered frames, so the compiler must not re-judge
+    # these search-only clauses on a shuffled or shortened sequence.
+    Clause(
+        name="poses_clear",
+        predicate="poses_clear",
+        args={"frames": "0:$t_q"},
+        phase="search_only",
+    ),
+    Clause(
+        name="path_clear",
+        predicate="path_clear",
+        args={"frames": "0:$t_q"},
+        phase="search_only",
+    ),
+)
+
+
+def _script(*, clauses: tuple[Clause, ...], **fields: Any) -> ScriptSpec:
+    """Construct a library spec with the mandatory traversal safety gates."""
+    return ScriptSpec(clauses=_TRAVERSAL_CLAUSES + clauses, **fields)
+
 
 # Three-phase structure: SEEN (target clearly visible) -> TRANSITION (target
 # may slide out of frame gradually while the camera turns at a trackable rate)
 # -> GONE (definitely invisible until the question frame). The transition zone
 # is what makes trackable ego-motion and decisive disappearance compatible:
 # partial-visibility frames are permitted there and only there.
-SELF_MOTION = ScriptSpec(
+SELF_MOTION = _script(
     capability="self_motion_update",
     slots={
         "target": SlotSpec(min_size_m=0.5, unique_referent=True),
@@ -24,21 +50,6 @@ SELF_MOTION = ScriptSpec(
         "t_q": "last_frame()",  # the question frame
     },
     clauses=(
-        # Physical validity belongs to the acquired path only. Interventions
-        # reindex already-rendered frames, so the compiler must not re-judge
-        # these two search-only clauses on a shuffled or shortened sequence.
-        Clause(
-            name="poses_clear",
-            predicate="poses_clear",
-            args={"frames": "0:$t_q"},
-            phase="search_only",
-        ),
-        Clause(
-            name="path_clear",
-            predicate="path_clear",
-            args={"frames": "0:$t_q"},
-            phase="search_only",
-        ),
         # Target is clearly observed before it leaves the field of view.
         # Evidence clause: without the sighting, even an ideal agent must abstain.
         Clause(
@@ -109,11 +120,12 @@ SELF_MOTION = ScriptSpec(
             text=(
                 "这段第一人称序列记录了你在房间中的一次行走。"
                 "以最后一帧你的位置和朝向为准:{target}现在在你的哪个方向?"
-                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+                '如果序列提供的证据不足以判断,选"无法判断"。'
             ),
             options=("front", "left", "back", "right", "无法判断"),
         ),
     ),
+    intervention_window="$t_gone:$t_q-1",
     # Family contract: how the recompiled gold must respond to each
     # intervention. t_seen unresolvable = the sighting frames are gone.
     abstain_on_unresolvable=("t_seen",),
@@ -126,7 +138,7 @@ SELF_MOTION = ScriptSpec(
 )
 
 
-NET_TURN = ScriptSpec(
+NET_TURN = _script(
     capability="path_integration",
     slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
     frame_vars={"t_q": "last_frame()"},
@@ -154,11 +166,12 @@ NET_TURN = ScriptSpec(
             text=(
                 "这段第一人称序列记录了你在房间中的一次行走。"
                 "这段路你的净转向是向左还是向右?"
-                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+                '如果序列提供的证据不足以判断,选"无法判断"。'
             ),
             options=("left", "right", "无法判断"),
         ),
     ),
+    intervention_window="1:$t_q-1",
     variant_expectations={
         "permute": "abstain",
         "drop_filler": "same",
@@ -167,7 +180,7 @@ NET_TURN = ScriptSpec(
 )
 
 
-HOMING = ScriptSpec(
+HOMING = _script(
     capability="homing_probe",
     slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
     frame_vars={"t_q": "last_frame()"},
@@ -202,11 +215,12 @@ HOMING = ScriptSpec(
             text=(
                 "这段第一人称序列记录了你从起点开始的一次行走。"
                 "以最后的位置和朝向为准,出发点现在在你的哪个方向?"
-                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+                '如果序列提供的证据不足以判断,选"无法判断"。'
             ),
             options=("front", "left", "back", "right", "无法判断"),
         ),
     ),
+    intervention_window="1:$t_q-1",
     variant_expectations={
         "permute": "abstain",
         "drop_filler": "same",
@@ -215,7 +229,7 @@ HOMING = ScriptSpec(
 )
 
 
-VIEW_SIDE = ScriptSpec(
+VIEW_SIDE = _script(
     capability="view_side_check",
     slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
     frame_vars={
@@ -250,11 +264,12 @@ VIEW_SIDE = ScriptSpec(
             text=(
                 "如果这段第一人称序列提供了足够证据,"
                 "{target}最后出现时位于画面的左半边还是右半边?"
-                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+                '如果序列提供的证据不足以判断,选"无法判断"。'
             ),
             options=("left_half", "right_half", "无法判断"),
         ),
     ),
+    intervention_window="$t_gone:$t_q-1",
     abstain_on_unresolvable=("t_seen",),
     variant_expectations={
         "permute": "same",
@@ -265,6 +280,5 @@ VIEW_SIDE = ScriptSpec(
 )
 
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
-    script.capability: script
-    for script in (SELF_MOTION, NET_TURN, HOMING, VIEW_SIDE)
+    script.capability: script for script in (SELF_MOTION, NET_TURN, HOMING, VIEW_SIDE)
 }

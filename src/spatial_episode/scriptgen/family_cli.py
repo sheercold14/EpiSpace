@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 from .family import (
-    ScriptgenFamilyV2,
+    ScriptgenFamilyV3,
     ScriptgenQuestionGroupV1,
     build_family_site,
     build_question_group,
@@ -43,10 +43,14 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Build the declared question group instead of only the plan capability.",
     )
-    result.add_argument("--seed", type=int, default=17, help="Variant sampling seed.")
     result.add_argument(
-        "--drop-count", type=int, default=2, help="Frames removed by drop_filler."
+        "--template-index",
+        type=int,
+        default=0,
+        help="Question template to package in single-family mode.",
     )
+    result.add_argument("--seed", type=int, default=17, help="Variant sampling seed.")
+    result.add_argument("--drop-count", type=int, default=2, help="Frames removed by drop_filler.")
     result.add_argument(
         "--delay-extra", type=int, default=4, help="Pause frames inserted by delay."
     )
@@ -66,9 +70,7 @@ def main() -> int:
             drop_count=args.drop_count,
             delay_extra=args.delay_extra,
         )
-        group = ScriptgenQuestionGroupV1.model_validate_json(
-            group_path.read_text(encoding="utf-8")
-        )
+        group = ScriptgenQuestionGroupV1.model_validate_json(group_path.read_text(encoding="utf-8"))
         print(
             json.dumps(
                 {
@@ -92,8 +94,9 @@ def main() -> int:
         seed=args.seed,
         drop_count=args.drop_count,
         delay_extra=args.delay_extra,
+        template_index=args.template_index,
     )
-    doc = ScriptgenFamilyV2.model_validate_json(family_path.read_text(encoding="utf-8"))
+    doc = ScriptgenFamilyV3.model_validate_json(family_path.read_text(encoding="utf-8"))
     print(
         json.dumps(
             {

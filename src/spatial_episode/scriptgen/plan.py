@@ -34,15 +34,13 @@ class PlannedPose(SpecModel):
 class ProvisionalAnswer(SpecModel):
     """Geometry-backend answer estimate recorded for post-render cross-check."""
 
-    question_frame: int
-    target: str
-    azimuth_deg: float
-    sector: str
-    margin_deg: float
+    mode: str
+    label: str
+    witness: dict[str, float | int | str]
 
 
 class TrajectoryPlan(SpecModel):
-    schema_version: Literal["scriptgen_plan.v1"] = "scriptgen_plan.v1"
+    schema_version: Literal["scriptgen_plan.v2"] = "scriptgen_plan.v2"
     plan_id: str
     scene_id: str
     capability: str

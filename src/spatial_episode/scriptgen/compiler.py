@@ -27,6 +27,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from pydantic import Field
+
 from .answers import get_answer_mode
 from .checker import (
     FrameVarUnresolvable,
@@ -35,7 +37,7 @@ from .checker import (
     resolve_frame_vars,
 )
 from .sceneview import ReindexedSceneView, SceneView
-from .spec import ScriptSpec, SpecModel
+from .spec import ScriptSpec, SpecModel, Template
 from .standards import COMPATIBLE_PLAN_STANDARDS, CompileStandard
 
 CompileStatus = Literal["answerable", "abstain", "invalid"]
@@ -79,24 +81,26 @@ class FrameVisibility(SpecModel):
 class GeometryComparison(SpecModel):
     """Search-phase estimates carried along strictly for auditing.
 
-    Nothing here feeds the answer. ``frame_vars`` are the geometry backend's
-    resolutions; ``sector``/``azimuth_deg`` are the provisional answer.
+    Nothing here feeds the answer. Legacy v1 plan answers are normalized into
+    the same mode/label/witness shape used by v2 plans.
     """
 
     standard_version: str | None = None
-    frame_vars: dict[str, int] = {}
-    sector: str | None = None
-    azimuth_deg: float | None = None
+    frame_vars: dict[str, int] = Field(default_factory=dict)
+    mode: str | None = None
+    label: str | None = None
+    witness: dict[str, float | int | str] = Field(default_factory=dict)
 
 
 class Certificate(SpecModel):
     """Complete, replayable record of one authoritative compilation."""
 
-    schema_version: Literal["scriptgen_certificate.v2"] = "scriptgen_certificate.v2"
+    schema_version: Literal["scriptgen_certificate.v3"] = "scriptgen_certificate.v3"
     capability: str
     standard_version: str
     backend: str  # visibility kind of the compile backend, e.g. render_pixels
     binding: dict[str, str]
+    template_index: int
     frame_sequence: tuple[int, ...]  # source frame shown at each index
     status: CompileStatus
     reason: str | None  # failed clause / unresolvable frame var, if any
@@ -116,6 +120,17 @@ class CapabilityCompiler:
 
     script: ScriptSpec
     std: CompileStandard
+    template_index: int = 0
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.template_index < len(self.script.templates):
+            raise IndexError(
+                f"template_index {self.template_index} outside 0..{len(self.script.templates) - 1}"
+            )
+
+    @property
+    def template(self) -> Template:
+        return self.script.templates[self.template_index]
 
     def compile(
         self,
@@ -146,6 +161,7 @@ class CapabilityCompiler:
             standard_version=self.std.standard_version,
             backend=judged.visibility(target, 0).kind,
             binding=dict(binding),
+            template_index=self.template_index,
             frame_sequence=frame_sequence,
             target_visibility=self._target_visibility(judged, target, frame_sequence),
             geometry=geometry,
@@ -212,6 +228,7 @@ class CapabilityCompiler:
             self.script,
             binding,
             frame_vars,
+            template=self.template,
         )
         essential = (
             self._essential_frames(view, binding, frame_sequence, answer)
@@ -266,8 +283,7 @@ class CapabilityCompiler:
             reduced = frame_sequence[:drop_at] + frame_sequence[drop_at + 1 :]
             reduced_cert = self.compile(view, binding, frame_sequence=reduced)
             if reduced_cert.status != "answerable" or (
-                reduced_cert.answer is not None
-                and reduced_cert.answer.label != answer.label
+                reduced_cert.answer is not None and reduced_cert.answer.label != answer.label
             ):
                 essential.append(frame_sequence[drop_at])
         return tuple(essential)
@@ -279,15 +295,17 @@ def derive_answer(
     script: ScriptSpec,
     binding: dict[str, str],
     frame_vars: dict[str, int],
+    *,
+    template: Template,
 ) -> AuthoritativeAnswer:
     """Resolve and dispatch the spec's declared answer algorithm."""
     env: dict[str, Any] = {**binding, **frame_vars}
     kwargs = resolve_args(script.answer.args, env, view.frame_count)
     result = get_answer_mode(script.answer.mode)(view, std, **kwargs)
-    if result.label not in script.templates[0].options:
+    if result.label not in template.options:
         raise ValueError(
             f"answer mode {script.answer.mode!r} produced label {result.label!r} "
-            f"outside question options {script.templates[0].options!r}"
+            f"outside question options {template.options!r}"
         )
     return AuthoritativeAnswer(
         mode=script.answer.mode,
@@ -309,11 +327,18 @@ def _geometry_comparison(plan: dict[str, Any] | None) -> GeometryComparison | No
     if plan is None:
         return None
     provisional = plan.get("provisional_answer", {})
+    legacy_label = provisional.get("sector")
+    witness = dict(provisional.get("witness", {}))
+    if not witness:
+        for key in ("azimuth_deg", "sector", "margin_deg", "question_frame"):
+            if key in provisional:
+                witness[key] = provisional[key]
     return GeometryComparison(
         standard_version=plan.get("standard_version"),
         frame_vars=dict(plan.get("frame_vars", {})),
-        sector=provisional.get("sector"),
-        azimuth_deg=provisional.get("azimuth_deg"),
+        mode=provisional.get("mode", "target_sector" if legacy_label else None),
+        label=provisional.get("label", legacy_label),
+        witness=witness,
     )
 
 
@@ -344,6 +369,6 @@ def _mismatch(
         )
     if status != "answerable":
         return f"canonical_not_answerable:{status}"
-    if geometry.sector is not None and answer is not None and answer.label != geometry.sector:
-        return f"sector_disagreement:render={answer.label},geometry={geometry.sector}"
+    if geometry.label is not None and answer is not None and answer.label != geometry.label:
+        return f"label_disagreement:render={answer.label},geometry={geometry.label}"
     return None

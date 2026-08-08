@@ -14,7 +14,13 @@ import pytest
 from _batchdata import load_plan_record, load_render_view, needs_batch
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler, Certificate
-from spatial_episode.scriptgen.library import HOMING, NET_TURN, SELF_MOTION, VIEW_SIDE
+from spatial_episode.scriptgen.library import (
+    HOMING,
+    NET_TURN,
+    SCRIPT_LIBRARY,
+    SELF_MOTION,
+    VIEW_SIDE,
+)
 from spatial_episode.scriptgen.sceneview import (
     Pose2D,
     ReindexedSceneView,
@@ -96,8 +102,9 @@ def compiler() -> CapabilityCompiler:
 
 def test_answerable_certificate(compiler: CapabilityCompiler) -> None:
     cert = compiler.compile(qualifying_fake(), BINDING)
-    assert SELF_MOTION.schema_version == "scriptgen_spec.v4"
-    assert cert.schema_version == "scriptgen_certificate.v2"
+    assert SELF_MOTION.schema_version == "scriptgen_spec.v5"
+    assert cert.schema_version == "scriptgen_certificate.v3"
+    assert cert.template_index == 0
     assert cert.status == "answerable" and cert.reason is None
     assert cert.frame_vars == {"t_seen": 1, "t_gone": 2, "t_q": 12}
     assert cert.answer is not None
@@ -174,9 +181,7 @@ def test_ambiguous_frame_never_counts_as_seen(compiler: CapabilityCompiler) -> N
 
 def test_unseen_target_is_abstain(compiler: CapabilityCompiler) -> None:
     fake = qualifying_fake()
-    cert = compiler.compile(
-        FakeRenderView(yaws=fake.yaws, pixels=(0,) * len(fake.yaws)), BINDING
-    )
+    cert = compiler.compile(FakeRenderView(yaws=fake.yaws, pixels=(0,) * len(fake.yaws)), BINDING)
     assert cert.status == "abstain"
     assert cert.reason == "frame_var_unresolvable:t_seen"
     assert cert.answer is None
@@ -234,7 +239,17 @@ def test_geometry_disagreement_sets_mismatch(compiler: CapabilityCompiler) -> No
     }
     cert = compiler.compile(qualifying_fake(), BINDING, geometry_plan=plan)
     assert cert.status == "answerable"
-    assert cert.mismatch == "sector_disagreement:render=left,geometry=right"
+    assert cert.mismatch == "label_disagreement:render=left,geometry=right"
+
+
+def test_every_library_spec_has_mandatory_traversal_clauses() -> None:
+    for script in SCRIPT_LIBRARY.values():
+        traversal = script.clauses[:2]
+        assert [(clause.name, clause.predicate, clause.phase) for clause in traversal] == [
+            ("poses_clear", "poses_clear", "search_only"),
+            ("path_clear", "path_clear", "search_only"),
+        ]
+        assert all(clause.args == {"frames": "0:$t_q"} for clause in traversal)
 
 
 def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
@@ -304,9 +319,7 @@ def test_rendered_bundles_compile_answerable(
         "margin_deg": expected["margin_deg"],
         "question_frame": expected["t_q"],
     }
-    assert cert.frame_vars == {
-        key: expected[key] for key in ("t_seen", "t_gone", "t_q")
-    }
+    assert cert.frame_vars == {key: expected[key] for key in ("t_seen", "t_gone", "t_q")}
     assert cert.answer.witness["margin_deg"] >= STD_V1.sector_margin_deg
     # Round-trips through JSON as a frozen contract (witness dicts hold Any,
     # so equality is on the serialised form, not tuple-vs-list identity).
@@ -320,9 +333,7 @@ def test_render_overrides_geometry_frame_vars(
 ) -> None:
     """render_0: geometry picks frame 0, masks keep the target clear through frame 1."""
     plan = load_plan_record(0)
-    cert = self_motion_compiler.compile(
-        load_render_view(0), plan["binding"], geometry_plan=plan
-    )
+    cert = self_motion_compiler.compile(load_render_view(0), plan["binding"], geometry_plan=plan)
     assert plan["frame_vars"]["t_seen"] == 0
     assert cert.frame_vars["t_seen"] == 1
     assert cert.geometry is not None and cert.geometry.frame_vars["t_seen"] == 0

@@ -91,10 +91,10 @@ class FamilyEpisode(SpecModel):
     certificate: Certificate
 
 
-class ScriptgenFamilyV2(SpecModel):
+class ScriptgenFamilyV3(SpecModel):
     """The versioned family contract (registered in contracts/schema.py)."""
 
-    schema_version: Literal["scriptgen_family.v2"] = "scriptgen_family.v2"
+    schema_version: Literal["scriptgen_family.v3"] = "scriptgen_family.v3"
     family_id: str
     question_group_id: str
     role: FamilyRole
@@ -132,9 +132,7 @@ class QuestionGroupEntry(SpecModel):
 
 
 class ScriptgenQuestionGroupV1(SpecModel):
-    schema_version: Literal["scriptgen_question_group.v1"] = (
-        "scriptgen_question_group.v1"
-    )
+    schema_version: Literal["scriptgen_question_group.v1"] = "scriptgen_question_group.v1"
     question_group_id: str
     standard_version: str
     trajectory: QuestionGroupTrajectory
@@ -158,10 +156,15 @@ def build_family_doc(
     question_group_id: str | None = None,
     family_id: str | None = None,
     media_prefix: str = "media",
-) -> ScriptgenFamilyV2:
+    template_index: int = 0,
+) -> ScriptgenFamilyV3:
     """Compile canonical + variants and assemble the audited family document."""
     binding = dict(plan["binding"])
-    compiler = CapabilityCompiler(script=script, std=std)
+    compiler = CapabilityCompiler(
+        script=script,
+        std=std,
+        template_index=template_index,
+    )
     geometry_plan = plan if plan.get("capability") == script.capability else None
     canonical = compiler.compile(
         view,
@@ -179,7 +182,7 @@ def build_family_doc(
 
     target_id = binding.get("target", next(iter(binding.values())))
     target = view.object(target_id)
-    template = script.templates[0]
+    template = compiler.template
     question_text = template.text.format(target=target.category)
     checks = _audit(question_text, template, target.category, view.layout, canonical)
     if not checks.referent_unique:
@@ -214,7 +217,7 @@ def build_family_doc(
         for t in range(view.frame_count)
     )
 
-    return ScriptgenFamilyV2(
+    return ScriptgenFamilyV3(
         family_id=family_id,
         question_group_id=question_group_id,
         role=role,
@@ -245,6 +248,7 @@ def build_family_site(
     seed: int = 17,
     drop_count: int = 2,
     delay_extra: int = 4,
+    template_index: int = 0,
 ) -> Path:
     """One command: rendered bundle -> family.json + media + review page."""
     from .media import export_bundle_channels
@@ -253,15 +257,20 @@ def build_family_site(
     script = SCRIPT_LIBRARY[plan["capability"]]
     view = RenderSceneView.from_bundle(bundle, std, scene_ir=scene_ir)
     doc = build_family_doc(
-        view, plan, script, std, seed=seed, drop_count=drop_count, delay_extra=delay_extra
+        view,
+        plan,
+        script,
+        std,
+        seed=seed,
+        drop_count=drop_count,
+        delay_extra=delay_extra,
+        template_index=template_index,
     )
 
     out.mkdir(parents=True, exist_ok=True)
     target_ids = list(view.entity_runtime_ids.get(doc.target.entity_id, ()))
     export_bundle_channels(bundle, target_ids, view.frame_count, out / "media")
-    (out / "family.json").write_text(
-        doc.model_dump_json(indent=1), encoding="utf-8"
-    )
+    (out / "family.json").write_text(doc.model_dump_json(indent=1), encoding="utf-8")
     shutil.copyfile(WEB_TEMPLATE, out / "index.html")
     return out / "family.json"
 
@@ -307,9 +316,7 @@ def build_question_group(
             )
         if qualification.status != "answerable" or qualification.answer is None:
             if script.capability == plan.get("capability"):
-                raise FamilyBlocked(
-                    f"source capability not answerable: {qualification.reason}"
-                )
+                raise FamilyBlocked(f"source capability not answerable: {qualification.reason}")
             questions.append(
                 QuestionGroupEntry(
                     capability=script.capability,

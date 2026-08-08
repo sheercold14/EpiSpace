@@ -17,7 +17,7 @@ import random
 from collections import Counter
 
 from .checker import check_clauses
-from .geometry import azimuth_deg, sector_margin_deg, sector_of
+from .compiler import derive_answer
 from .motifs import get_motif
 from .plan import GenerationReport, PlannedPose, ProvisionalAnswer, TrajectoryPlan
 from .sceneview import GeometrySceneView, SceneLayout
@@ -109,10 +109,7 @@ def _search_binding(
             poses=tuple(PlannedPose.from_pose(frame, pose) for frame, pose in enumerate(poses)),
             knob_levels={knob.name: float(_eval_knob(knob.expr, env)) for knob in script.knobs},
             clause_witnesses=report.witnesses(),
-            # v1 convention: the questioned slot is named "target".
-            provisional_answer=_provisional_answer(
-                view, binding.get("target", next(iter(binding.values()))), report.frame_vars
-            ),
+            provisional_answer=_provisional_answer(view, std, script, binding, report.frame_vars),
         )
     rejection_counts["binding_exhausted"] += 1
     return None
@@ -125,15 +122,22 @@ def _eval_knob(expr: str, env: dict[str, object]) -> int:
 
 
 def _provisional_answer(
-    view: GeometrySceneView, target: str, frame_vars: dict[str, int]
+    view: GeometrySceneView,
+    std: CompileStandard,
+    script: ScriptSpec,
+    binding: dict[str, str],
+    frame_vars: dict[str, int],
 ) -> ProvisionalAnswer:
-    t_q = frame_vars.get("t_q", view.frame_count - 1)
-    pose = view.camera_pose(t_q)
-    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(target).xy)
+    answer = derive_answer(
+        view,
+        std,
+        script,
+        binding,
+        frame_vars,
+        template=script.templates[0],
+    )
     return ProvisionalAnswer(
-        question_frame=t_q,
-        target=target,
-        azimuth_deg=round(azimuth, 1),
-        sector=sector_of(azimuth),
-        margin_deg=round(sector_margin_deg(azimuth), 1),
+        mode=answer.mode,
+        label=answer.label,
+        witness=answer.witness,
     )

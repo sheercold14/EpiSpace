@@ -5,8 +5,9 @@ from __future__ import annotations
 from itertools import pairwise
 
 from spatial_episode.scriptgen import STD_V1, generate_plans
+from spatial_episode.scriptgen.compiler import CapabilityCompiler
 from spatial_episode.scriptgen.demo import DEMO_LAYOUT
-from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.library import HOMING, NET_TURN, SELF_MOTION
 from spatial_episode.scriptgen.sceneview import GeometrySceneView, Pose2D
 
 
@@ -44,8 +45,10 @@ def test_plan_invariants_replay() -> None:
         assert 80 <= turned["cum_turn_deg"] <= 200
 
         # Gold answer margin honours the standard.
-        assert plan.provisional_answer.margin_deg >= STD_V1.sector_margin_deg
-        assert plan.provisional_answer.sector in {"front", "left", "back", "right"}
+        assert plan.schema_version == "scriptgen_plan.v2"
+        assert plan.provisional_answer.mode == "target_sector"
+        assert plan.provisional_answer.label in {"front", "left", "back", "right"}
+        assert plan.provisional_answer.witness["margin_deg"] >= STD_V1.sector_margin_deg
 
         # Knob level matches the recorded frame variables.
         assert plan.knob_levels["delay"] == float(t_q - t_gone)
@@ -68,6 +71,25 @@ def test_generation_is_deterministic() -> None:
     b = generate_plans(DEMO_LAYOUT, SELF_MOTION, STD_V1, seed=23)
     assert [p.plan_id for p in a.plans] == [p.plan_id for p in b.plans]
     assert a.model_dump() == b.model_dump()
+
+
+def test_generation_dispatches_each_declared_answer_mode() -> None:
+    for script in (NET_TURN, HOMING):
+        report = generate_plans(DEMO_LAYOUT, script, STD_V1, seed=17)
+        assert report.plans, (script.capability, report.rejection_counts)
+        plan = report.plans[0]
+        poses = tuple(Pose2D(p.x, p.y, p.yaw_deg) for p in plan.poses)
+        view = GeometrySceneView(layout=DEMO_LAYOUT, poses=poses, std=STD_V1)
+        cert = CapabilityCompiler(script=script, std=STD_V1).compile(
+            view,
+            plan.binding,
+            geometry_plan=plan.model_dump(),
+        )
+        assert plan.provisional_answer.mode == script.answer.mode
+        assert cert.mismatch is None
+        assert cert.answer is not None
+        assert cert.answer.label == plan.provisional_answer.label
+        assert cert.answer.witness == plan.provisional_answer.witness
 
 
 def test_slot_rejections_are_reported() -> None:

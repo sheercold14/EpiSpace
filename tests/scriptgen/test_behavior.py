@@ -152,4 +152,4 @@ def test_planning_succeeds_on_residential_scene() -> None:
     )
     assert result.plans, f"no plans on real home scene; rejections={result.rejection_counts}"
     plan = result.plans[0]
-    assert plan.provisional_answer.margin_deg >= STD_V1.sector_margin_deg
+    assert plan.provisional_answer.witness["margin_deg"] >= STD_V1.sector_margin_deg

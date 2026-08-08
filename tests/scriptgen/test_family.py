@@ -13,11 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from _batchdata import BATCH_ROOT, SCENE_IR_PATH, load_render_view, needs_batch
+from test_compiler import TARGET, FakeRenderView, qualifying_fake
 
 from spatial_episode.contracts.schema import CONTRACTS
 from spatial_episode.scriptgen.family import (
     FamilyBlocked,
-    ScriptgenFamilyV2,
+    ScriptgenFamilyV3,
     ScriptgenQuestionGroupV1,
     build_family_doc,
     build_family_site,
@@ -27,9 +29,6 @@ from spatial_episode.scriptgen.library import SELF_MOTION
 from spatial_episode.scriptgen.sceneview import SceneLayout, SceneObject
 from spatial_episode.scriptgen.spec import Template
 from spatial_episode.scriptgen.standards import STD_V1
-
-from _batchdata import BATCH_ROOT, SCENE_IR_PATH, load_render_view, needs_batch
-from test_compiler import TARGET, FakeRenderView, qualifying_fake
 
 PLAN = {
     "plan_id": "fake-plan",
@@ -61,7 +60,7 @@ def fake_bundle_view(extra_objects: tuple[SceneObject, ...] = ()) -> FakeBundleV
 
 def test_family_doc_shape() -> None:
     doc = build_family_doc(fake_bundle_view(), PLAN, SELF_MOTION, STD_V1, seed=3)
-    assert doc.schema_version == "scriptgen_family.v2"
+    assert doc.schema_version == "scriptgen_family.v3"
     assert doc.role == "primary"
     assert doc.question_group_id == "fake-plan.question_group"
     assert [e.kind for e in doc.episodes] == [
@@ -81,7 +80,7 @@ def test_family_doc_shape() -> None:
     # Media paths are relative (decision #2).
     assert all(not f.rgb.startswith("/") for f in doc.frames)
     serialized = doc.model_dump_json()
-    assert ScriptgenFamilyV2.model_validate_json(serialized).model_dump_json() == serialized
+    assert ScriptgenFamilyV3.model_validate_json(serialized).model_dump_json() == serialized
 
 
 def test_duplicate_referent_blocks() -> None:
@@ -112,10 +111,31 @@ def test_geometry_disagreement_blocks() -> None:
 
 
 def test_family_schema_registered_in_contracts() -> None:
-    assert CONTRACTS["scriptgen_family.v2.schema.json"] is ScriptgenFamilyV2
-    assert "scriptgen_family.v1.schema.json" not in CONTRACTS
-    schema = ScriptgenFamilyV2.model_json_schema()
-    assert schema["properties"]["schema_version"]["const"] == "scriptgen_family.v2"
+    assert CONTRACTS["scriptgen_family.v3.schema.json"] is ScriptgenFamilyV3
+    assert "scriptgen_family.v2.schema.json" not in CONTRACTS
+    schema = ScriptgenFamilyV3.model_json_schema()
+    assert schema["properties"]["schema_version"]["const"] == "scriptgen_family.v3"
+
+
+def test_selected_template_drives_validation_and_packaging() -> None:
+    alternate = Template(
+        text="请根据完整序列判断:{target}最终相对你的方向是什么?",
+        options=SELF_MOTION.templates[0].options,
+    )
+    script = SELF_MOTION.model_copy(
+        update={
+            "templates": (
+                Template(text="无效候选:{target}?", options=("right", "无法判断")),
+                alternate,
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="outside question options"):
+        build_family_doc(fake_bundle_view(), PLAN, script, STD_V1, seed=3)
+
+    doc = build_family_doc(fake_bundle_view(), PLAN, script, STD_V1, seed=3, template_index=1)
+    assert doc.question.text == alternate.text.format(target=TARGET.category)
+    assert all(episode.certificate.template_index == 1 for episode in doc.episodes)
 
 
 @needs_batch
@@ -128,7 +148,7 @@ def test_one_command_site_from_render_0(tmp_path: Path) -> None:
         STD_V1,
         seed=17,
     )
-    doc = ScriptgenFamilyV2.model_validate_json(family_path.read_text(encoding="utf-8"))
+    doc = ScriptgenFamilyV3.model_validate_json(family_path.read_text(encoding="utf-8"))
     assert {e.kind: e.label for e in doc.episodes} == {
         "canonical": "left",
         "permute": "无法判断",
@@ -190,9 +210,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
         STD_V1,
         seed=17,
     )
-    group = ScriptgenQuestionGroupV1.model_validate_json(
-        group_path.read_text(encoding="utf-8")
-    )
+    group = ScriptgenQuestionGroupV1.model_validate_json(group_path.read_text(encoding="utf-8"))
     questions = {question.capability: question for question in group.questions}
     assert set(questions) == {
         "self_motion_update",
@@ -207,8 +225,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
     assert questions["self_motion_update"].label == expected_direction
 
     net_turn = sum(
-        _wrap_deg(later.yaw_deg - earlier.yaw_deg)
-        for earlier, later in zip(poses, poses[1:])
+        _wrap_deg(later.yaw_deg - earlier.yaw_deg) for earlier, later in zip(poses, poses[1:])
     )
     expected_net = "left" if net_turn > 0.0 else "right"
     assert questions["path_integration"].label == expected_net
@@ -249,9 +266,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
         if question.family is None:
             continue
         family_path = group_path.parent / question.family
-        family = ScriptgenFamilyV2.model_validate_json(
-            family_path.read_text(encoding="utf-8")
-        )
+        family = ScriptgenFamilyV3.model_validate_json(family_path.read_text(encoding="utf-8"))
         canonical = next(ep for ep in family.episodes if ep.kind == "canonical")
         assert canonical.label == question.label
         assert family.question_group_id == group.question_group_id
@@ -266,7 +281,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
 
     view_family_path = group_path.parent / (questions["view_side_check"].family or "")
     if questions["view_side_check"].family is not None:
-        view_family = ScriptgenFamilyV2.model_validate_json(
+        view_family = ScriptgenFamilyV3.model_validate_json(
             view_family_path.read_text(encoding="utf-8")
         )
         episodes = {episode.kind: episode for episode in view_family.episodes}

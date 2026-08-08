@@ -28,6 +28,7 @@ import random
 from dataclasses import dataclass
 from typing import Literal
 
+from .checker import eval_frame_range
 from .compiler import CapabilityCompiler, Certificate
 from .sceneview import SceneView
 from .spec import SpecModel
@@ -99,21 +100,20 @@ class VariantBuilder:
 
     # --- operators (index sequences only; no judgment happens here) ---
 
-    def _permute_sequences(
-        self, rng: random.Random, max_tries: int
-    ) -> list[tuple[int, ...]]:
-        """Candidate shuffles of the gone-segment, question frame kept last."""
-        t_gone = self.canonical.frame_vars.get("t_gone", 1)
-        t_q = self.canonical.frame_vars["t_q"]
-        prefix = list(range(0, t_gone))
-        middle = list(range(t_gone, t_q))
+    def _permute_sequences(self, rng: random.Random, max_tries: int) -> list[tuple[int, ...]]:
+        """Candidate shuffles of the spec-declared intervention window."""
+        positions = self._intervention_positions()
+        original = list(self.canonical.frame_sequence)
         candidates: list[tuple[int, ...]] = []
         for _ in range(max_tries):
-            shuffled = middle[:]
+            shuffled = [original[position] for position in positions]
             rng.shuffle(shuffled)
-            if shuffled == middle:
+            if shuffled == [original[position] for position in positions]:
                 continue
-            candidates.append(tuple(prefix + shuffled + [t_q]))
+            candidate = original[:]
+            for position, source_frame in zip(positions, shuffled, strict=True):
+                candidate[position] = source_frame
+            candidates.append(tuple(candidate))
         return candidates
 
     def _drop_key_sequence(self) -> tuple[int, ...]:
@@ -142,8 +142,7 @@ class VariantBuilder:
             reduced = tuple(t for t in sequence if t != frame)
             cert = self.compiler.compile(self.view, self.binding, frame_sequence=reduced)
             if cert.status == "answerable" and (
-                cert.answer is not None
-                and cert.answer.label == self.canonical.answer.label  # type: ignore[union-attr]
+                cert.answer is not None and cert.answer.label == self.canonical.answer.label  # type: ignore[union-attr]
             ):
                 sequence = list(reduced)
                 dropped += 1
@@ -152,15 +151,29 @@ class VariantBuilder:
         return tuple(sequence)
 
     def _delay_sequence(self, delay_extra: int) -> tuple[int, ...]:
-        """Pause mid-gone: repeat one frame, lengthening the invisible span."""
-        t_gone = self.canonical.frame_vars.get("t_gone", 1)
-        t_q = self.canonical.frame_vars["t_q"]
-        pause_at = (t_gone + t_q) // 2
+        """Pause at the midpoint of the spec-declared intervention window."""
+        positions = self._intervention_positions()
+        pause_position = positions[len(positions) // 2]
         sequence = list(self.canonical.frame_sequence)
-        position = sequence.index(pause_at)
+        pause_at = sequence[pause_position]
         return tuple(
-            sequence[: position + 1] + [pause_at] * delay_extra + sequence[position + 1 :]
+            sequence[: pause_position + 1]
+            + [pause_at] * delay_extra
+            + sequence[pause_position + 1 :]
         )
+
+    def _intervention_positions(self) -> list[int]:
+        positions = eval_frame_range(
+            self.compiler.script.intervention_window,
+            self.canonical.frame_vars,
+            len(self.canonical.frame_sequence),
+        )
+        if not positions:
+            raise ValueError(
+                f"empty intervention_window for {self.compiler.script.capability}: "
+                f"{self.compiler.script.intervention_window!r}"
+            )
+        return positions
 
     # --- verification: recompile and cross-check the declared expectation ---
 
@@ -198,6 +211,6 @@ class VariantBuilder:
             return None
         if expectation == "abstain":
             if cert.status == "abstain":
-                return self.compiler.script.templates[0].abstain_option
+                return self.compiler.template.abstain_option
             return None
         raise ValueError(f"unknown expectation: {expectation!r}")
