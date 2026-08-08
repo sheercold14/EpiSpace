@@ -32,6 +32,7 @@ from .library import (
     CROSS_VIEW_CLOSER,
     CROSS_VIEW_RELATION,
     CROSS_VIEW_SCRIPT_SETS,
+    EXISTENCE_SUFFICIENCY,
     HOMING,
     MULTI_TURN,
     NET_TURN,
@@ -65,11 +66,26 @@ QUESTION_ROLES: dict[str, FamilyRole] = {
     **{script.capability: "primary" for script in REFERENCE_FRAME_SCRIPTS},
     **{script.capability: "primary" for script in CROSS_VIEW_RELATION},
     **{script.capability: "probe" for script in CROSS_VIEW_CLOSER},
+    EXISTENCE_SUFFICIENCY.capability: "primary",
 }
-QUESTION_GROUP_SCRIPTS = (SELF_MOTION, NET_TURN, NET_TURN_MAGNITUDE, HOMING, VIEW_SIDE)
+QUESTION_GROUP_SCRIPTS = (
+    SELF_MOTION,
+    NET_TURN,
+    NET_TURN_MAGNITUDE,
+    HOMING,
+    VIEW_SIDE,
+    EXISTENCE_SUFFICIENCY,
+)
 QUESTION_SCRIPT_SETS = {
-    **{script.capability: REFERENCE_FRAME_SCRIPTS for script in REFERENCE_FRAME_SCRIPTS},
-    **CROSS_VIEW_SCRIPT_SETS,
+    **{
+        script.capability: (*REFERENCE_FRAME_SCRIPTS, EXISTENCE_SUFFICIENCY)
+        for script in REFERENCE_FRAME_SCRIPTS
+    },
+    **{
+        capability: (*scripts, EXISTENCE_SUFFICIENCY)
+        for capability, scripts in CROSS_VIEW_SCRIPT_SETS.items()
+    },
+    EXISTENCE_SUFFICIENCY.capability: (EXISTENCE_SUFFICIENCY,),
 }
 
 

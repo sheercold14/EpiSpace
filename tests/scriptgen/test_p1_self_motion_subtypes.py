@@ -55,7 +55,7 @@ def _view(plan) -> GeometrySceneView:
 
 
 def test_p1_registry_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v7"
+    assert STD_V1.standard_version == "std.v8"
     assert "net_turn_magnitude" in registered_answer_modes()
     assert {
         "displacement_below",

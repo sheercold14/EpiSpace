@@ -10,6 +10,7 @@ from spatial_episode.scriptgen.standards import (
     STD_V5_ADDED_FIELDS,
     STD_V6_ADDED_FIELDS,
     STD_V7_ADDED_FIELDS,
+    STD_V8_ADDED_FIELDS,
     CompileStandard,
 )
 
@@ -35,7 +36,7 @@ STD_V3_FIELDS = {
 }
 
 
-def test_std_v7_declares_its_compatible_lineage() -> None:
+def test_std_v8_declares_its_compatible_lineage() -> None:
     actual = {field.name for field in fields(CompileStandard)}
     assert actual == (
         STD_V3_FIELDS
@@ -43,10 +44,12 @@ def test_std_v7_declares_its_compatible_lineage() -> None:
         | set(STD_V5_ADDED_FIELDS)
         | set(STD_V6_ADDED_FIELDS)
         | set(STD_V7_ADDED_FIELDS)
+        | set(STD_V8_ADDED_FIELDS)
     )
     assert COMPATIBLE_PLAN_STANDARDS == {
         "std.v4": ("std.v3",),
         "std.v5": ("std.v4", "std.v3"),
         "std.v6": ("std.v5", "std.v4", "std.v3"),
         "std.v7": ("std.v6", "std.v5", "std.v4", "std.v3"),
+        "std.v8": ("std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
     }

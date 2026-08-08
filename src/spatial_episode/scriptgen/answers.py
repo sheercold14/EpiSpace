@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .coverage import measure_coverage
 from .geometry import (
     azimuth_deg,
     bearing_deg,
@@ -278,5 +279,64 @@ def closer_of(
             "first_distance_m": round(first_distance, 3),
             "second_distance_m": round(second_distance, 3),
             "distance_ratio": round(larger / max(smaller, 1e-9), 3),
+        },
+    )
+
+
+@answer_mode("existence_sufficiency")
+def existence_sufficiency(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    category: str,
+    frames: list[int],
+) -> AnswerResult:
+    """Present, absent, or unknowable from sightings plus free-space coverage."""
+    matching = [obj for obj in view.objects() if obj.category == category]
+    visible_instances = 0
+    first_visible_frame = -1
+    for obj in matching:
+        visible_frames = [
+            frame
+            for frame in frames
+            if view.visibility(obj.name, frame).tristate(std) is True
+        ]
+        if visible_frames:
+            visible_instances += 1
+            if first_visible_frame < 0:
+                first_visible_frame = min(visible_frames)
+            else:
+                first_visible_frame = min(first_visible_frame, *visible_frames)
+
+    coverage = measure_coverage(view, std, frames=frames)
+    tier_names = ("low", "medium", "high")
+    coverage_tier = "below_low"
+    for threshold, tier_name in zip(std.coverage_ratio_levels, tier_names, strict=True):
+        if coverage.coverage_ratio >= threshold:
+            coverage_tier = tier_name
+    sufficient = (
+        coverage.coverage_ratio >= std.coverage_ratio_levels[-1]
+        and coverage.max_hidden_diameter_m < std.coverage_hidden_object_size_m
+    )
+    if visible_instances:
+        label = "present"
+    elif not matching and sufficient:
+        label = "absent"
+    else:
+        label = "无法判断"
+    return AnswerResult(
+        label=label,
+        witness={
+            "category": category,
+            "scene_instance_count": len(matching),
+            "visible_instance_count": visible_instances,
+            "first_visible_frame": first_visible_frame,
+            "coverage_ratio": round(coverage.coverage_ratio, 4),
+            "coverage_tier": coverage_tier,
+            "covered_cell_count": coverage.covered_cell_count,
+            "total_free_cell_count": coverage.total_free_cell_count,
+            "max_hidden_diameter_m": round(coverage.max_hidden_diameter_m, 3),
+            "required_coverage_ratio": std.coverage_ratio_levels[-1],
+            "hidden_object_size_m": std.coverage_hidden_object_size_m,
         },
     )

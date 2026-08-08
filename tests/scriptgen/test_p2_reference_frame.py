@@ -14,6 +14,7 @@ from spatial_episode.scriptgen.compiler import CapabilityCompiler
 from spatial_episode.scriptgen.family import QUESTION_SCRIPT_SETS, build_family_doc
 from spatial_episode.scriptgen.geometry import wrap_deg
 from spatial_episode.scriptgen.library import (
+    EXISTENCE_SUFFICIENCY,
     IMAGINED_VIEWPOINT_OFFSETS,
     REFERENCE_FRAME_DEEP,
     REFERENCE_FRAME_SCRIPTS,
@@ -61,7 +62,7 @@ def _plan_and_view():
 
 
 def test_p2_registry_and_standard_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v7"
+    assert STD_V1.standard_version == "std.v8"
     assert STD_V1.imagined_viewpoint_offsets_deg == IMAGINED_VIEWPOINT_OFFSETS
     assert {"imagined_sector", "imagined_visibility"} <= set(registered_answer_modes())
     assert {
@@ -138,7 +139,10 @@ def test_family_packages_every_bound_referent_and_fills_question_slots() -> None
     assert set(doc.referents) == {"viewpoint", "facing", "target"}
     assert len({referent.entity_id for referent in doc.referents.values()}) == 3
     assert all(token not in doc.question.text for token in ("{viewpoint}", "{facing}", "{target}"))
-    assert QUESTION_SCRIPT_SETS[REFERENCE_FRAME_DEEP[0].capability] == REFERENCE_FRAME_SCRIPTS
+    assert QUESTION_SCRIPT_SETS[REFERENCE_FRAME_DEEP[0].capability] == (
+        *REFERENCE_FRAME_SCRIPTS,
+        EXISTENCE_SUFFICIENCY,
+    )
 
 
 @pytest.mark.skipif(not HOME_SCENE_IR.exists(), reason="Beechwood scene_ir is unavailable")

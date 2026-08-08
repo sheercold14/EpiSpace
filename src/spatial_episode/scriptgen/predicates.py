@@ -19,6 +19,7 @@ from functools import lru_cache
 from itertools import pairwise
 from typing import Any
 
+from .coverage import measure_coverage
 from .geometry import (
     azimuth_deg,
     bearing_deg,
@@ -844,6 +845,113 @@ def closer_ratio_ge(
             "second_distance_m": round(distances[1], 3),
             "distance_ratio": round(ratio, 3),
             "required_ratio": std.closer_min_distance_ratio,
+        },
+    )
+
+
+@predicate("category_absent")
+def category_absent(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    category: str,
+) -> Verdict:
+    """The queried category is absent in simulator scene truth."""
+    del std
+    matches = [obj.name for obj in view.objects() if obj.category == category]
+    return Verdict(
+        not matches,
+        {"category": category, "scene_instance_count": len(matches), "instances": matches},
+    )
+
+
+@predicate("coverage_ratio_ge")
+def coverage_ratio_ge(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    frames: Sequence[int],
+) -> Verdict:
+    """Coverage and residual hiding space jointly license an absence claim."""
+    required = std.coverage_ratio_levels[-1]
+    report = measure_coverage(view, std, frames=list(frames))
+    ratio_ok = report.coverage_ratio >= required
+    hidden_region_ok = report.max_hidden_diameter_m < std.coverage_hidden_object_size_m
+    return Verdict(
+        ratio_ok and hidden_region_ok,
+        {
+            "tier": "high",
+            "coverage_ratio": round(report.coverage_ratio, 4),
+            "required_ratio": required,
+            "ratio_ok": ratio_ok,
+            "covered_cell_count": report.covered_cell_count,
+            "total_free_cell_count": report.total_free_cell_count,
+            "uncovered_component_count": report.uncovered_component_count,
+            "largest_uncovered_component_cells": report.largest_uncovered_component_cells,
+            "max_hidden_diameter_m": round(report.max_hidden_diameter_m, 3),
+            "hidden_object_size_m": std.coverage_hidden_object_size_m,
+            "hidden_region_ok": hidden_region_ok,
+        },
+    )
+
+
+@predicate("no_single_frame_coverage_sufficient")
+def no_single_frame_coverage_sufficient(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    frames: Sequence[int],
+) -> Verdict:
+    """No individual frame can license the canonical absence answer."""
+    sufficient_frames: list[int] = []
+    per_frame: dict[str, dict[str, float]] = {}
+    for frame in frames:
+        report = measure_coverage(view, std, frames=[frame])
+        sufficient = (
+            report.coverage_ratio >= std.coverage_ratio_levels[-1]
+            and report.max_hidden_diameter_m < std.coverage_hidden_object_size_m
+        )
+        if sufficient:
+            sufficient_frames.append(frame)
+        per_frame[str(frame)] = {
+            "coverage_ratio": round(report.coverage_ratio, 4),
+            "max_hidden_diameter_m": round(report.max_hidden_diameter_m, 3),
+        }
+    return Verdict(
+        not sufficient_frames,
+        {"sufficient_frames": sufficient_frames, "per_frame": per_frame},
+    )
+
+
+@predicate("drop_target_breaks_coverage")
+def drop_target_breaks_coverage(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    target: str,
+    frames: Sequence[int],
+) -> Verdict:
+    """The generic drop-key intervention provably destroys coverage evidence."""
+    kept = [
+        frame
+        for frame in frames
+        if view.visibility(target, frame).tristate(std) is False
+    ]
+    removed = [frame for frame in frames if frame not in kept]
+    report = measure_coverage(view, std, frames=kept)
+    still_sufficient = (
+        report.coverage_ratio >= std.coverage_ratio_levels[-1]
+        and report.max_hidden_diameter_m < std.coverage_hidden_object_size_m
+    )
+    holds = bool(kept) and bool(removed) and not still_sufficient
+    return Verdict(
+        holds,
+        {
+            "kept_frames": kept,
+            "removed_frames": removed,
+            "residual_coverage_ratio": round(report.coverage_ratio, 4),
+            "residual_max_hidden_diameter_m": round(report.max_hidden_diameter_m, 3),
+            "still_sufficient": still_sufficient,
         },
     )
 

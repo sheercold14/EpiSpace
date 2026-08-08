@@ -703,6 +703,79 @@ CROSS_VIEW_SCRIPT_SETS = {
     for script in (CROSS_VIEW_RELATION[index], CROSS_VIEW_CLOSER[index])
 }
 
+
+def _existence_sufficiency_spec(*, category: str) -> ScriptSpec:
+    """Declare the cross-frame absence/insufficient-evidence meta question."""
+    return _script(
+        capability=f"existence_sufficiency_{category}",
+        # Existing plans all carry a target binding. It remains a compatibility
+        # anchor for compiler/family contracts; category truth is a spec constant.
+        slots={"target": SlotSpec(min_size_m=0.3, unique_referent=True)},
+        frame_vars={"t_q": "last_frame()"},
+        clauses=(
+            Clause(
+                name="trackable_observation",
+                predicate="step_motion_bounded",
+                args={"frames": "0:$t_q"},
+                phase="search_only",
+            ),
+            Clause(
+                name="category_absent",
+                predicate="category_absent",
+                args={"category": category},
+                phase="search",
+            ),
+            Clause(
+                name="coverage_sufficient",
+                predicate="coverage_ratio_ge",
+                args={"frames": "0:$t_q"},
+                phase="compile",
+                on_violation="abstain",
+            ),
+            Clause(
+                name="no_single_frame_shortcut",
+                predicate="no_single_frame_coverage_sufficient",
+                args={"frames": "0:$t_q"},
+                phase="compile",
+            ),
+            Clause(
+                name="drop_key_destroys_evidence",
+                predicate="drop_target_breaks_coverage",
+                args={"target": "$target", "frames": "0:$t_q"},
+                phase="search",
+            ),
+        ),
+        answer=AnswerSpec(
+            mode="existence_sufficiency",
+            args={"category": category, "frames": "0:$t_q"},
+        ),
+        # Actual ratio and analysis tier are recorded by the coverage witness;
+        # unlike frame expressions, the knob evaluator intentionally has no floats.
+        knobs=(),
+        length=(10, 18),
+        # No dedicated camera choreography: generation uses accept/reject over
+        # existing target-compatible motifs, and question groups attach to any source.
+        motifs=("survey",),
+        templates=(
+            Template(
+                text=(
+                    f"仅根据这段连续观察,能否确定这套房里有没有{category}?"
+                    '请在给定选项中作答;如果证据不足,选"无法判断"。'
+                ),
+                options=("present", "absent", "无法判断"),
+            ),
+        ),
+        intervention_window="0:$t_q",
+        variant_expectations={
+            "permute": "same",
+            "drop_key": "abstain",
+            "delay": "same",
+        },
+    )
+
+
+EXISTENCE_SUFFICIENCY = _existence_sufficiency_spec(category="bed")
+
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
     script.capability: script
     for script in (
@@ -717,5 +790,6 @@ SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
         VIEW_SIDE,
         *REFERENCE_FRAME_SCRIPTS,
         *CROSS_VIEW_SCRIPTS,
+        EXISTENCE_SUFFICIENCY,
     )
 }

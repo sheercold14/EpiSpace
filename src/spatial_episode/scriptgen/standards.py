@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v7"
+    standard_version: str = "std.v8"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -82,6 +82,13 @@ class CompileStandard:
     closer_min_distance_ratio: float = 1.25
     landmark_chain_lengths: tuple[int, ...] = (1, 2, 3)
 
+    # --- evidence coverage and absence calibration (std.v8) ---
+    # Lower bounds for analysis buckets; the highest tier licenses absence.
+    coverage_ratio_levels: tuple[float, ...] = (0.50, 0.70, 0.85)
+    # Uniform conservative proxy from decision 5: if an unseen connected
+    # region can contain even this 1 m footprint, absence is not licensed.
+    coverage_hidden_object_size_m: float = 1.0
+
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates
     # survive the authoritative post-render re-check.
@@ -104,6 +111,8 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     "std.v6": ("std.v5", "std.v4", "std.v3"),
     # std.v7 adds only cross-view binding fields.
     "std.v7": ("std.v6", "std.v5", "std.v4", "std.v3"),
+    # std.v8 adds only evidence-coverage fields.
+    "std.v8": ("std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
 }
 
 STD_V4_ADDED_FIELDS = (
@@ -132,4 +141,9 @@ STD_V7_ADDED_FIELDS = (
     "chain_min_covisible_frames",
     "closer_min_distance_ratio",
     "landmark_chain_lengths",
+)
+
+STD_V8_ADDED_FIELDS = (
+    "coverage_ratio_levels",
+    "coverage_hidden_object_size_m",
 )

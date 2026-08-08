@@ -219,6 +219,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
         "path_integration_magnitude",
         "homing_probe",
         "view_side_check",
+        "existence_sufficiency_bed",
     }
 
     view = load_render_view(index)
@@ -264,6 +265,10 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
     else:
         assert view_side.label is None
         assert view_side.skip_reason == "invalid:clause:view_side_margin_ok"
+
+    existence = questions["existence_sufficiency_bed"]
+    assert existence.label is None and existence.family_id is None
+    assert existence.skip_reason == "invalid:clause:category_absent"
 
     for capability, question in questions.items():
         if question.family is None:

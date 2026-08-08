@@ -213,6 +213,11 @@ def _occupancy_grid(layout: SceneLayout) -> _OccupancyGrid:
     )
 
 
+def proposal_occupancy_grid(layout: SceneLayout) -> _OccupancyGrid:
+    """Public read-only access to the trajectory proposal free-space grid."""
+    return _occupancy_grid(layout)
+
+
 def _octile_heuristic(grid: _OccupancyGrid, left: int, right: int) -> float:
     lx, ly = left % grid.width, left // grid.width
     rx, ry = right % grid.width, right // grid.width
@@ -710,8 +715,12 @@ def _survey_station(
 def survey(
     layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
 ) -> tuple[Pose2D, ...]:
-    """Stationary, rate-limited panorama exposing P, Q and X in separate views."""
-    names = (binding["viewpoint"], binding["facing"], binding["target"])
+    """Stationary, rate-limited panorama exposing every bound landmark."""
+    names = tuple(
+        binding[name]
+        for name in ("viewpoint", "facing", "target")
+        if name in binding
+    )
     station = _survey_station(layout, names, rng)
     start_yaw = rng.uniform(-180.0, 180.0)
     direction = rng.choice((-1.0, 1.0))

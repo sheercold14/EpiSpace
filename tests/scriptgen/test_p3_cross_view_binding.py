@@ -17,6 +17,7 @@ from spatial_episode.scriptgen.library import (
     CROSS_VIEW_CLOSER,
     CROSS_VIEW_RELATION,
     CROSS_VIEW_SCRIPTS,
+    EXISTENCE_SUFFICIENCY,
     SCRIPT_LIBRARY,
 )
 from spatial_episode.scriptgen.predicates import registered_predicates
@@ -125,7 +126,7 @@ def _case(chain_length: int):
 
 
 def test_p3_registry_standard_and_library_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v7"
+    assert STD_V1.standard_version == "std.v8"
     assert STD_V1.landmark_chain_lengths == (1, 2, 3)
     assert {"pair_relation", "closer_of"} <= set(registered_answer_modes())
     assert {
@@ -191,6 +192,7 @@ def test_relation_and_distance_questions_recompile_on_the_same_chain(
     assert QUESTION_SCRIPT_SETS[relation_script.capability] == (
         CROSS_VIEW_RELATION[chain_length - 1],
         CROSS_VIEW_CLOSER[chain_length - 1],
+        EXISTENCE_SUFFICIENCY,
     )
 
 
