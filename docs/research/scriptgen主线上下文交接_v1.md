@@ -53,21 +53,24 @@ H0/H1 不预测。同一条自运动轨迹上"检查→积分→积分+变换→
 
 ## 4. 引擎现状(已验证)
 
-代码在 `src/spatial_episode/scriptgen/`,67 个测试全绿(集成测试吃三条
+代码在 `src/spatial_episode/scriptgen/`,79 个测试全绿(集成测试吃三条
 已渲染轨迹,机器上没有数据时干净 skip;全程不需要 Isaac Sim)。
 
-- `standards.py`:全部阈值,冻结版本 std.v3(双阈值可见性、15° 扇区裕度、
+- `standards.py`:全部阈值,冻结版本 std.v4(双阈值可见性、15° 扇区裕度、
   每帧转向≤40°/位移≤1.2m,以及人体半径 0.30m、躯干高度带
-  0.10–1.70m 的通行约束);改阈值必须再升版;
+  0.10–1.70m 的通行约束,以及三个答案判界阈值);显式声明 v3 plan
+  为纯扩展兼容但不传递到 v2;改阈值必须再升版;
 - `predicates.py`:谓词单点,返回判定+见证;模糊帧不许出题;
   `poses_clear/path_clear` 分别硬验每帧站位和相邻帧线段不进入旋转障碍足印;
   障碍同时包含家具和结构墙,见证显式记录检查的墙数;
-- `spec.py`/`library.py`:声明式剧本,schema 为 scriptgen_spec.v3——
+- `spec.py`/`library.py`:声明式剧本,schema 为 scriptgen_spec.v4——
+  每个 spec 以 `AnswerSpec(mode,args)` 声明答案算法;
   新增三个家族契约字段:`Clause.on_violation`(abstain=证据被毁 /
   invalid=题目出包线)、`abstain_on_unresolvable`(帧变量解析失败的归类)、
   `variant_expectations`(各干预的预期效应,按能力声明),以及条款阶段
   `search_only`(实际采集路径必须通行,但不拿变体的呈现顺序重判通行);
   题面模板为家族安全版(无帧号、不断言目击、全家族逐字共享);
+- `answers.py`:答案模式登记处,编译器按 spec 分发并产出 label+witness;
 - `checker.py`:$变量/加减法/闭区间帧范围/帧变量解析器(last_visible、
   first_invisible_after 等);对着 SceneView 协议写,换后端即换判定依据;
 - `motifs.py`:walk_and_turn 先以 5cm 占据栅格、0.35m 提议净空和 8 邻域
@@ -83,15 +86,16 @@ H0/H1 不预测。同一条自运动轨迹上"检查→积分→积分+变换→
   (gates_bedroom 为 22 件物体+4 段墙=26),墙不进入可提问 objects;
 - `compiler.py`(空缺A):CapabilityCompiler,渲后重解析帧变量、足额裕度
   重判 search/compile 条款(不重判 search_only 通行条款)、渲后位姿推权威答案,
-  产出 scriptgen_certificate.v1
+  产出 scriptgen_certificate.v2
   (几何估计降级为对照字段,mismatch 非空即阻断);附留一法 essential 帧集;
 - `sceneview.py` 新增 ReindexedSceneView:变体=原始帧的索引序列,
   是干预算子与留一法共用的基座;
 - `variants.py`(空缺B):置换/删关键帧/删无关帧/延迟 四算子只产索引序列,
   金标一律由重跑同一编译器产生,与 spec 预期不符抛 FamilyMismatch;
-- `family.py`/`family_cli.py`(空缺C):scriptgen_family.v1 单 JSON
+- `family.py`/`family_cli.py`(空缺C):scriptgen_family.v2 单 JSON
   (已注册 contracts/schema.py),打包前审计指称唯一+题面三项泄漏检查,
-  任一不过抛 FamilyBlocked;`media.py`:三通道 PNG 导出(自脚本下沉);
+  任一不过抛 FamilyBlocked;`--group` 为同轨迹合格题型各建一家族并共享
+  媒体,机会性跳过写入 group.json;`media.py`:三通道 PNG 导出(自脚本下沉);
 - `web/scriptgen_review.html`(单轨迹)+ `web/scriptgen_family_review.html`
   (家族:五条变体序胶片、原始帧号徽标、重复帧标记、金标/状态/预期、
   条款见证、审计灯)。family 页尚未在真浏览器目验(仅 JS 语法检查
