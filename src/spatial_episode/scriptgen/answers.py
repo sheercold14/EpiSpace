@@ -230,3 +230,53 @@ def imagined_visibility(
             "unoccluded_ratio": round(observation.unoccluded_ratio, 3),
         },
     )
+
+
+@answer_mode("pair_relation")
+def pair_relation(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    reference: str,
+) -> AnswerResult:
+    """Object sector in the reference object's intrinsic OBB orientation."""
+    del std
+    source = view.object(obj)
+    anchor = view.object(reference)
+    azimuth = azimuth_deg(anchor.xy, anchor.yaw_deg, source.xy)
+    label = sector_of(azimuth)
+    return AnswerResult(
+        label=label,
+        witness={
+            "reference_yaw_deg": round(anchor.yaw_deg, 1),
+            "azimuth_deg": round(azimuth, 1),
+            "margin_deg": round(sector_margin_deg(azimuth), 1),
+        },
+    )
+
+
+@answer_mode("closer_of")
+def closer_of(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    first: str,
+    second: str,
+    anchor: str,
+) -> AnswerResult:
+    """Which declared object is closer to an anchor in world geometry."""
+    del std
+    anchor_xy = view.object(anchor).xy
+    first_distance = distance_m(view.object(first).xy, anchor_xy)
+    second_distance = distance_m(view.object(second).xy, anchor_xy)
+    label = "first" if first_distance < second_distance else "second"
+    smaller, larger = sorted((first_distance, second_distance))
+    return AnswerResult(
+        label=label,
+        witness={
+            "first_distance_m": round(first_distance, 3),
+            "second_distance_m": round(second_distance, 3),
+            "distance_ratio": round(larger / max(smaller, 1e-9), 3),
+        },
+    )

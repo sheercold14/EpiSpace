@@ -61,7 +61,7 @@ def _plan_and_view():
 
 
 def test_p2_registry_and_standard_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v6"
+    assert STD_V1.standard_version == "std.v7"
     assert STD_V1.imagined_viewpoint_offsets_deg == IMAGINED_VIEWPOINT_OFFSETS
     assert {"imagined_sector", "imagined_visibility"} <= set(registered_answer_modes())
     assert {

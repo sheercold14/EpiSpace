@@ -29,6 +29,9 @@ from typing import Any, Literal
 from .behavior import RenderSceneView
 from .compiler import CapabilityCompiler, Certificate
 from .library import (
+    CROSS_VIEW_CLOSER,
+    CROSS_VIEW_RELATION,
+    CROSS_VIEW_SCRIPT_SETS,
     HOMING,
     MULTI_TURN,
     NET_TURN,
@@ -60,10 +63,13 @@ QUESTION_ROLES: dict[str, FamilyRole] = {
     MULTI_TURN.capability: "primary",
     OCCLUDED_MOTION.capability: "primary",
     **{script.capability: "primary" for script in REFERENCE_FRAME_SCRIPTS},
+    **{script.capability: "primary" for script in CROSS_VIEW_RELATION},
+    **{script.capability: "probe" for script in CROSS_VIEW_CLOSER},
 }
 QUESTION_GROUP_SCRIPTS = (SELF_MOTION, NET_TURN, NET_TURN_MAGNITUDE, HOMING, VIEW_SIDE)
 QUESTION_SCRIPT_SETS = {
-    script.capability: REFERENCE_FRAME_SCRIPTS for script in REFERENCE_FRAME_SCRIPTS
+    **{script.capability: REFERENCE_FRAME_SCRIPTS for script in REFERENCE_FRAME_SCRIPTS},
+    **CROSS_VIEW_SCRIPT_SETS,
 }
 
 

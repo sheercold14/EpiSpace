@@ -720,3 +720,133 @@ def survey(
         Pose2D(station[0], station[1], wrap_deg(start_yaw + index * step))
         for index in range(frame_count)
     )
+
+
+def _landmark_chain(binding: dict[str, str]) -> tuple[str, ...]:
+    anchors = tuple(
+        binding[name]
+        for name in sorted(
+            (name for name in binding if name.startswith("anchor")),
+            key=lambda name: int(name.removeprefix("anchor")),
+        )
+    )
+    return (binding["target"], *anchors, binding["other"])
+
+
+def _pair_station(
+    layout: SceneLayout,
+    grid: _OccupancyGrid,
+    left_name: str,
+    right_name: str,
+    target_name: str,
+    other_name: str,
+    rng: random.Random,
+    component_id: int | None,
+) -> tuple[int, float] | None:
+    """Free observation station that frames one chain edge but not X and Y."""
+    left, right = layout.object(left_name), layout.object(right_name)
+    target, other = layout.object(target_name), layout.object(other_name)
+    candidates = (
+        grid.component_cells[component_id]
+        if component_id is not None
+        else grid.free_cells
+    )
+    for _ in range(min(512, len(candidates))):
+        index = candidates[rng.randrange(len(candidates))]
+        xy = grid.world_xy(index)
+        if blocking_occluders(layout, xy, left) or blocking_occluders(layout, xy, right):
+            continue
+        left_yaw = bearing_deg(xy, left.xy)
+        separation = wrap_deg(bearing_deg(xy, right.xy) - left_yaw)
+        if abs(separation) > 70.0:
+            continue
+        yaw = wrap_deg(left_yaw + separation / 2.0)
+        target_in_view = (
+            abs(wrap_deg(bearing_deg(xy, target.xy) - yaw)) <= 45.0
+            and not blocking_occluders(layout, xy, target)
+        )
+        other_in_view = (
+            abs(wrap_deg(bearing_deg(xy, other.xy) - yaw)) <= 45.0
+            and not blocking_occluders(layout, xy, other)
+        )
+        if target_in_view and other_in_view:
+            continue
+        return index, yaw
+    return None
+
+
+def _landmark_stations(
+    layout: SceneLayout, binding: dict[str, str], rng: random.Random
+) -> tuple[tuple[int, float], ...] | None:
+    grid = _occupancy_grid(layout)
+    chain = _landmark_chain(binding)
+    for _ in range(8):
+        stations: list[tuple[int, float]] = []
+        component_id: int | None = None
+        for left, right in pairwise(chain):
+            station = _pair_station(
+                layout,
+                grid,
+                left,
+                right,
+                binding["target"],
+                binding["other"],
+                rng,
+                component_id,
+            )
+            if station is None:
+                break
+            stations.append(station)
+            component_id = grid.component_ids[station[0]]
+        if len(stations) != len(chain) - 1:
+            continue
+        if all(
+            _connect_cells(grid, left[0], right[0]) is not None
+            for left, right in pairwise(stations)
+        ):
+            return tuple(stations)
+    return None
+
+
+@motif("visit_landmarks")
+def visit_landmarks(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """Visit edge-wise co-visibility stations along an X-anchor-Y chain."""
+    grid = _occupancy_grid(layout)
+    stations = _landmark_stations(layout, binding, rng)
+    if stations is None:
+        fallback = grid.world_xy(grid.free_cells[0])
+        return tuple(Pose2D(fallback[0], fallback[1], 0.0) for _ in range(frame_count))
+
+    transition_count = len(stations) - 1
+    reserved = 2 + 8 * transition_count
+    nav_total = frame_count - reserved
+    nav_intervals = [nav_total // transition_count] * transition_count
+    for index in range(nav_total % transition_count):
+        nav_intervals[index] += 1
+
+    first_xy = grid.world_xy(stations[0][0])
+    poses = [Pose2D(first_xy[0], first_xy[1], stations[0][1])] * 2
+    current_yaw = stations[0][1]
+    for transition, ((start_index, _), (end_index, station_yaw)) in enumerate(
+        pairwise(stations)
+    ):
+        cells = _connect_cells(grid, start_index, end_index)
+        if cells is None:
+            return tuple(poses[-1] for _ in range(frame_count))
+        route = [grid.world_xy(index) for index in _simplify_route(grid, cells)]
+        if len(route) == 1:
+            walk = tuple(
+                Pose2D(route[0][0], route[0][1], current_yaw)
+                for _ in range(nav_intervals[transition] + 1)
+            )
+        else:
+            walk = _walk_polyline(route, current_yaw, nav_intervals[transition] + 1)
+        poses.extend(walk[1:])
+        end_xy = grid.world_xy(end_index)
+        turned = _turn_in_place(end_xy, walk[-1].yaw_deg, station_yaw, 6)
+        poses.extend(turned)
+        poses.extend([Pose2D(end_xy[0], end_xy[1], station_yaw)] * 2)
+        current_yaw = station_yaw
+    return tuple(poses)

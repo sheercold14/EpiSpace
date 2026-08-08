@@ -587,6 +587,122 @@ REFERENCE_FRAME_SHALLOW = tuple(
 )
 REFERENCE_FRAME_SCRIPTS = REFERENCE_FRAME_DEEP + REFERENCE_FRAME_SHALLOW
 
+
+def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
+    """Declare one pair-relation/distance question over an anchor-chain length."""
+    relation = answer_mode == "pair_relation"
+    stem = "cross_view_pair_relation" if relation else "cross_view_closer"
+    slots = {
+        "target": SlotSpec(min_size_m=0.3, unique_referent=True),
+        **{
+            f"anchor{index}": SlotSpec(min_size_m=0.3, unique_referent=True)
+            for index in range(1, chain_length + 1)
+        },
+        "other": SlotSpec(min_size_m=0.3, unique_referent=True),
+    }
+    chain_args: dict[str, str | int | float | bool] = {
+        "first": "$target",
+        "second": "$other",
+        "anchor1": "$anchor1",
+        "frames": "0:$t_q",
+    }
+    for index in range(2, chain_length + 1):
+        chain_args[f"anchor{index}"] = f"$anchor{index}"
+    if relation:
+        qualifier = Clause(
+            name="relation_margin",
+            predicate="pair_relation_margin_ge",
+            args={"obj": "$target", "reference": "$other"},
+            phase="search",
+        )
+        answer = AnswerSpec(
+            mode="pair_relation",
+            args={"obj": "$target", "reference": "$other"},
+        )
+        question = (
+            "以{other}自身的朝向为准,{target}在{other}的哪个方向?"
+            '如果证据不足,选"无法判断"。'
+        )
+        options = ("front", "left", "back", "right", "无法判断")
+    else:
+        qualifier = Clause(
+            name="distance_ratio",
+            predicate="closer_ratio_ge",
+            args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
+            phase="search",
+        )
+        answer = AnswerSpec(
+            mode="closer_of",
+            args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
+        )
+        question = (
+            "{target}和{other}中,哪一个离{anchor1}更近?"
+            '第一个选项指{target},第二个选项指{other};证据不足时选"无法判断"。'
+        )
+        options = ("first", "second", "无法判断")
+    length_ranges = {1: (24, 30), 2: (32, 40), 3: (40, 52)}
+    return _script(
+        capability=f"{stem}_k{chain_length}",
+        slots=slots,
+        frame_vars={"t_q": "last_frame()"},
+        clauses=(
+            Clause(
+                name="trackable_visit",
+                predicate="step_motion_bounded",
+                args={"frames": "0:$t_q"},
+                phase="search_only",
+            ),
+            Clause(
+                name="queried_pair_never_covisible",
+                predicate="never_covisible",
+                args={"first": "$target", "second": "$other", "frames": "0:$t_q"},
+                phase="compile",
+            ),
+            Clause(
+                name="anchor_chain_evidence",
+                predicate="chain_connected",
+                args=chain_args,
+                phase="compile",
+                on_violation="abstain",
+            ),
+            qualifier,
+        ),
+        answer=answer,
+        knobs=(
+            Knob(
+                name="anchor_chain_length",
+                expr=str(chain_length),
+                levels=(1.0, 2.0, 3.0),
+            ),
+        ),
+        length=length_ranges[chain_length],
+        motifs=("visit_landmarks",),
+        templates=(Template(text=question, options=options),),
+        intervention_window="0:$t_q",
+        variant_expectations={
+            "permute": "same",
+            "drop_key": "abstain",
+            "drop_filler": "same",
+            "delay": "same",
+        },
+    )
+
+
+CROSS_VIEW_RELATION = tuple(
+    _cross_view_spec(chain_length=length, answer_mode="pair_relation")
+    for length in (1, 2, 3)
+)
+CROSS_VIEW_CLOSER = tuple(
+    _cross_view_spec(chain_length=length, answer_mode="closer_of")
+    for length in (1, 2, 3)
+)
+CROSS_VIEW_SCRIPTS = CROSS_VIEW_RELATION + CROSS_VIEW_CLOSER
+CROSS_VIEW_SCRIPT_SETS = {
+    script.capability: (CROSS_VIEW_RELATION[index], CROSS_VIEW_CLOSER[index])
+    for index in range(3)
+    for script in (CROSS_VIEW_RELATION[index], CROSS_VIEW_CLOSER[index])
+}
+
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
     script.capability: script
     for script in (
@@ -600,5 +716,6 @@ SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
         HOMING,
         VIEW_SIDE,
         *REFERENCE_FRAME_SCRIPTS,
+        *CROSS_VIEW_SCRIPTS,
     )
 }

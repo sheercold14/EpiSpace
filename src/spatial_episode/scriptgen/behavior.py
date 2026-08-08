@@ -186,6 +186,7 @@ def layout_from_scene_ir(
                 xy=(obb["center_m"][0], obb["center_m"][1]),
                 size_m=2.0 * max(hx, hy),
                 uid=entity["entity_id"],
+                yaw_deg=_yaw_deg(obb),
             )
         )
 

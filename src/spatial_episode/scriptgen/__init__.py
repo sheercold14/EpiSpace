@@ -12,6 +12,9 @@ Layers (see docs/scriptgen_engine.md):
 from .compiler import CapabilityCompiler, Certificate
 from .generate import generate_plans
 from .library import (
+    CROSS_VIEW_CLOSER,
+    CROSS_VIEW_RELATION,
+    CROSS_VIEW_SCRIPTS,
     HOMING,
     MULTI_TURN,
     NET_TURN,
@@ -31,6 +34,9 @@ from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
 from .standards import STD_V1, CompileStandard
 
 __all__ = [
+    "CROSS_VIEW_CLOSER",
+    "CROSS_VIEW_RELATION",
+    "CROSS_VIEW_SCRIPTS",
     "HOMING",
     "MULTI_TURN",
     "NET_TURN",

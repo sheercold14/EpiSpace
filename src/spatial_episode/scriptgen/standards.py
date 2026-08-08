@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v6"
+    standard_version: str = "std.v7"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -77,6 +77,11 @@ class CompileStandard:
     imagined_min_anchor_distance_m: float = 1.0
     imagined_viewpoint_offsets_deg: tuple[int, ...] = (0, 45, 90, 135, 180)
 
+    # --- cross-view landmark binding (std.v7) ---
+    chain_min_covisible_frames: int = 2
+    closer_min_distance_ratio: float = 1.25
+    landmark_chain_lengths: tuple[int, ...] = (1, 2, 3)
+
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates
     # survive the authoritative post-render re-check.
@@ -97,6 +102,8 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     "std.v5": ("std.v4", "std.v3"),
     # std.v6 adds only reference-frame fields.
     "std.v6": ("std.v5", "std.v4", "std.v3"),
+    # std.v7 adds only cross-view binding fields.
+    "std.v7": ("std.v6", "std.v5", "std.v4", "std.v3"),
 }
 
 STD_V4_ADDED_FIELDS = (
@@ -119,4 +126,10 @@ STD_V6_ADDED_FIELDS = (
     "landmark_min_visible_frames",
     "imagined_min_anchor_distance_m",
     "imagined_viewpoint_offsets_deg",
+)
+
+STD_V7_ADDED_FIELDS = (
+    "chain_min_covisible_frames",
+    "closer_min_distance_ratio",
+    "landmark_chain_lengths",
 )

@@ -78,6 +78,7 @@ class SceneObject:
     xy: tuple[float, float]
     size_m: float
     uid: str
+    yaw_deg: float = 0.0
 
 
 @dataclass(frozen=True)

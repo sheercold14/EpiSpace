@@ -712,6 +712,142 @@ def imagined_curve_visibility_decisive(
     )
 
 
+@predicate("never_covisible")
+def never_covisible(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    first: str,
+    second: str,
+    frames: Sequence[int],
+) -> Verdict:
+    """Two queried objects are never jointly readable in a single frame."""
+    covisible: list[int] = []
+    ambiguous: list[int] = []
+    for frame in frames:
+        states = (
+            view.visibility(first, frame).tristate(std),
+            view.visibility(second, frame).tristate(std),
+        )
+        if all(state is True for state in states):
+            covisible.append(frame)
+        elif all(state is not False for state in states) and any(
+            state is None for state in states
+        ):
+            ambiguous.append(frame)
+    holds: bool | None = False if covisible else None if ambiguous else True
+    return Verdict(
+        holds,
+        {"covisible_frames": covisible, "ambiguous_frames": ambiguous},
+    )
+
+
+@predicate("chain_connected")
+def chain_connected(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    first: str,
+    second: str,
+    anchor1: str,
+    frames: Sequence[int],
+    anchor2: str = "",
+    anchor3: str = "",
+) -> Verdict:
+    """Every adjacent pair in X-L1-...-Lk-Y is clearly co-visible enough."""
+    names = [first, anchor1]
+    names.extend(name for name in (anchor2, anchor3) if name)
+    names.append(second)
+    counts: dict[str, int] = {}
+    ambiguous_counts: dict[str, int] = {}
+    for left, right in pairwise(names):
+        edge = f"{left}->{right}"
+        count = 0
+        ambiguous = 0
+        for frame in frames:
+            states = (
+                view.visibility(left, frame).tristate(std),
+                view.visibility(right, frame).tristate(std),
+            )
+            if all(state is True for state in states):
+                count += 1
+            elif all(state is not False for state in states) and any(
+                state is None for state in states
+            ):
+                ambiguous += 1
+        counts[edge] = count
+        ambiguous_counts[edge] = ambiguous
+    holds = all(count >= std.chain_min_covisible_frames for count in counts.values())
+    failing = [
+        edge for edge, count in counts.items() if count < std.chain_min_covisible_frames
+    ]
+    unresolved = bool(failing) and all(
+        counts[edge] + ambiguous_counts[edge] >= std.chain_min_covisible_frames
+        for edge in failing
+    )
+    return Verdict(
+        None if unresolved else holds,
+        {
+            "covisible_counts": counts,
+            "ambiguous_counts": ambiguous_counts,
+            "required_frames": std.chain_min_covisible_frames,
+        },
+    )
+
+
+@predicate("pair_relation_margin_ge")
+def pair_relation_margin_ge(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    reference: str,
+) -> Verdict:
+    """Object relation clears sector boundaries in Y's intrinsic frame."""
+    source = view.object(obj)
+    anchor = view.object(reference)
+    azimuth = azimuth_deg(anchor.xy, anchor.yaw_deg, source.xy)
+    margin = sector_margin_deg(azimuth)
+    return Verdict(
+        margin >= std.sector_margin_deg,
+        {
+            "reference_yaw_deg": round(anchor.yaw_deg, 1),
+            "azimuth_deg": round(azimuth, 1),
+            "sector": sector_of(azimuth),
+            "margin_deg": round(margin, 1),
+            "required_deg": std.sector_margin_deg,
+        },
+    )
+
+
+@predicate("closer_ratio_ge")
+def closer_ratio_ge(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    first: str,
+    second: str,
+    anchor: str,
+) -> Verdict:
+    """The closer comparison is separated by the declared distance ratio."""
+    anchor_xy = view.object(anchor).xy
+    distances = (
+        distance_m(view.object(first).xy, anchor_xy),
+        distance_m(view.object(second).xy, anchor_xy),
+    )
+    smaller, larger = sorted(distances)
+    ratio = larger / max(smaller, 1e-9)
+    return Verdict(
+        ratio >= std.closer_min_distance_ratio,
+        {
+            "first_distance_m": round(distances[0], 3),
+            "second_distance_m": round(distances[1], 3),
+            "distance_ratio": round(ratio, 3),
+            "required_ratio": std.closer_min_distance_ratio,
+        },
+    )
+
+
 @predicate("start_far_enough")
 def start_far_enough(view: SceneView, std: CompileStandard, *, frame: int) -> Verdict:
     """The question pose is far enough from frame 0 for homing to be stable."""
