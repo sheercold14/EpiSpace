@@ -11,21 +11,37 @@ Layers (see docs/scriptgen_engine.md):
 
 from .compiler import CapabilityCompiler, Certificate
 from .generate import generate_plans
-from .library import HOMING, NET_TURN, SCRIPT_LIBRARY, SELF_MOTION, VIEW_SIDE
+from .library import (
+    HOMING,
+    MULTI_TURN,
+    NET_TURN,
+    NET_TURN_MAGNITUDE,
+    OCCLUDED_MOTION,
+    PURE_ROTATION,
+    PURE_TRANSLATION,
+    SCRIPT_LIBRARY,
+    SELF_MOTION,
+    VIEW_SIDE,
+)
 from .plan import GenerationReport, TrajectoryPlan
 from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
 from .standards import STD_V1, CompileStandard
 
 __all__ = [
+    "HOMING",
+    "MULTI_TURN",
+    "NET_TURN",
+    "NET_TURN_MAGNITUDE",
+    "OCCLUDED_MOTION",
+    "PURE_ROTATION",
+    "PURE_TRANSLATION",
     "SCRIPT_LIBRARY",
     "SELF_MOTION",
-    "NET_TURN",
-    "HOMING",
-    "VIEW_SIDE",
     "STD_V1",
+    "VIEW_SIDE",
+    "AnswerSpec",
     "CapabilityCompiler",
     "Certificate",
-    "AnswerSpec",
     "Clause",
     "CompileStandard",
     "GenerationReport",

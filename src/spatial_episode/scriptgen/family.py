@@ -28,7 +28,18 @@ from typing import Any, Literal
 
 from .behavior import RenderSceneView
 from .compiler import CapabilityCompiler, Certificate
-from .library import HOMING, NET_TURN, SCRIPT_LIBRARY, SELF_MOTION, VIEW_SIDE
+from .library import (
+    HOMING,
+    MULTI_TURN,
+    NET_TURN,
+    NET_TURN_MAGNITUDE,
+    OCCLUDED_MOTION,
+    PURE_ROTATION,
+    PURE_TRANSLATION,
+    SCRIPT_LIBRARY,
+    SELF_MOTION,
+    VIEW_SIDE,
+)
 from .sceneview import SceneLayout
 from .spec import ScriptSpec, SpecModel, Template
 from .standards import CompileStandard
@@ -40,10 +51,15 @@ FamilyRole = Literal["primary", "probe", "check"]
 QUESTION_ROLES: dict[str, FamilyRole] = {
     SELF_MOTION.capability: "primary",
     NET_TURN.capability: "primary",
+    NET_TURN_MAGNITUDE.capability: "primary",
     HOMING.capability: "probe",
     VIEW_SIDE.capability: "check",
+    PURE_ROTATION.capability: "primary",
+    PURE_TRANSLATION.capability: "primary",
+    MULTI_TURN.capability: "primary",
+    OCCLUDED_MOTION.capability: "primary",
 }
-QUESTION_GROUP_SCRIPTS = (SELF_MOTION, NET_TURN, HOMING, VIEW_SIDE)
+QUESTION_GROUP_SCRIPTS = (SELF_MOTION, NET_TURN, NET_TURN_MAGNITUDE, HOMING, VIEW_SIDE)
 
 
 class FamilyQuestion(SpecModel):
@@ -281,7 +297,7 @@ def build_question_group(
     scene_ir: Path,
     out: Path,
     std: CompileStandard,
-    scripts: tuple[ScriptSpec, ...] = QUESTION_GROUP_SCRIPTS,
+    scripts: tuple[ScriptSpec, ...] | None = None,
     *,
     seed: int = 17,
     drop_count: int = 2,
@@ -294,6 +310,11 @@ def build_question_group(
     view = RenderSceneView.from_bundle(bundle, std, scene_ir=scene_ir)
     binding = dict(plan["binding"])
     question_group_id = f"{plan['plan_id']}.question_group.s{seed}"
+    if scripts is None:
+        source = SCRIPT_LIBRARY[plan["capability"]]
+        scripts = tuple(
+            {script.capability: script for script in (source, *QUESTION_GROUP_SCRIPTS[1:])}.values()
+        )
 
     out.mkdir(parents=True, exist_ok=True)
     target_id = binding.get("target", next(iter(binding.values())))

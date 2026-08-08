@@ -103,6 +103,19 @@ def test_walls_are_collision_obstacles_but_not_question_objects() -> None:
     assert crossing.witness["worst_collision"]["obstacle"] == "walls"
 
 
+def test_eye_height_occluders_are_selected_by_height_not_label() -> None:
+    scene_ir = {
+        "scene_id": "height-occluder",
+        "entities": [
+            _scene_ir_entity("floors", "floor", (0.0, 0.0, 0.0), (4.0, 4.0, 0.05)),
+            _scene_ir_entity("bookcase", "tall", (0.0, 0.0, 1.0), (0.5, 0.2, 1.0)),
+            _scene_ir_entity("table", "low", (2.0, 0.0, 0.4), (0.5, 0.5, 0.4)),
+        ],
+    }
+    layout = layout_from_scene_ir(scene_ir)
+    assert {obstacle.entity_id for obstacle in layout.occlusion_obstacles} == {"tall"}
+
+
 @needs_bundles
 def test_layout_from_real_scene_ir() -> None:
     layout = layout_from_scene_ir(HALL_BUNDLE / "scene_ir.json")

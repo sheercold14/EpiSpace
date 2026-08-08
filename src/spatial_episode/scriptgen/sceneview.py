@@ -22,7 +22,12 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-from .geometry import azimuth_deg, distance_m, segment_intersects_rect
+from .geometry import (
+    azimuth_deg,
+    distance_m,
+    segment_intersects_rect,
+    segment_intersects_rotated_rect,
+)
 from .standards import CompileStandard
 
 VisibilityKind = Literal["geom_ratio", "render_pixels"]
@@ -85,6 +90,7 @@ class Obstacle:
     yaw_deg: float
     z_low: float
     z_high: float
+    entity_id: str | None = None
 
 
 class SceneView(Protocol):
@@ -104,6 +110,8 @@ class SceneView(Protocol):
 
     def visibility(self, name: str, t: int) -> VisibilityObservation: ...
 
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]: ...
+
 
 @dataclass(frozen=True)
 class SceneLayout:
@@ -117,6 +125,7 @@ class SceneLayout:
     objects: tuple[SceneObject, ...]
     obstacles: tuple[Obstacle, ...] = ()
     occluders: tuple[tuple[tuple[float, float], tuple[float, float]], ...] = ()
+    occlusion_obstacles: tuple[Obstacle, ...] = ()
     walkable_min: tuple[float, float] = (0.0, 0.0)
     walkable_max: tuple[float, float] = (10.0, 10.0)
 
@@ -168,6 +177,9 @@ class ReindexedSceneView:
     def visibility(self, name: str, t: int) -> VisibilityObservation:
         return self.base.visibility(name, self.frames[t])
 
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
+        return self.base.occluders_between(name, self.frames[t])
+
 
 @dataclass(frozen=True)
 class GeometrySceneView:
@@ -217,7 +229,13 @@ class GeometrySceneView:
             ambiguous = (self.std.geom_max_invisible_ratio + self.std.geom_min_visible_ratio) / 2.0
             return VisibilityObservation("geom_ratio", ambiguous, 1.0)
         unoccluded = self._unoccluded_ratio(pose.xy, obj)
+        if unoccluded == 0.0:
+            return VisibilityObservation("geom_ratio", 0.0, 0.0)
         return VisibilityObservation("geom_ratio", obj.size_m / dist, unoccluded)
+
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
+        target = self.layout.object(name)
+        return blocking_occluders(self.layout, self.poses[t].xy, target)
 
     def _unoccluded_ratio(self, camera_xy: tuple[float, float], obj: SceneObject) -> float:
         """Fraction of sample rays towards the object that clear all occluders."""
@@ -228,10 +246,45 @@ class GeometrySceneView:
         clear = 0
         for offset in offsets:
             target = (obj.xy[0] + offset, obj.xy[1])
-            blocked = any(
-                segment_intersects_rect(camera_xy, target, rect_min, rect_max)
-                for rect_min, rect_max in self.layout.occluders
-            )
-            if not blocked:
+            if not blocking_occluders(self.layout, camera_xy, obj, target_xy=target):
                 clear += 1
         return clear / self.ray_samples
+
+
+def blocking_occluders(
+    layout: SceneLayout,
+    camera_xy: tuple[float, float],
+    target: SceneObject,
+    *,
+    target_xy: tuple[float, float] | None = None,
+) -> tuple[str, ...]:
+    """Eye-height obstacles intersecting the ray before the target's near face."""
+    destination = target.xy if target_xy is None else target_xy
+    distance = distance_m(camera_xy, destination)
+    if distance < 1e-6:
+        return ()
+    stop = max(0.0, distance - target.size_m / 2.0)
+    fraction = stop / distance
+    ray_end = (
+        camera_xy[0] + (destination[0] - camera_xy[0]) * fraction,
+        camera_xy[1] + (destination[1] - camera_xy[1]) * fraction,
+    )
+
+    blocked: list[str] = []
+    if layout.occlusion_obstacles:
+        for obstacle in layout.occlusion_obstacles:
+            if obstacle.entity_id == target.uid:
+                continue
+            if segment_intersects_rotated_rect(
+                camera_xy,
+                ray_end,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
+            ):
+                blocked.append(obstacle.entity_id or obstacle.label)
+    else:
+        for index, (rect_min, rect_max) in enumerate(layout.occluders):
+            if segment_intersects_rect(camera_xy, ray_end, rect_min, rect_max):
+                blocked.append(f"legacy_occluder:{index}")
+    return tuple(blocked)

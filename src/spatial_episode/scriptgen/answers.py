@@ -51,9 +51,7 @@ def get_answer_mode(name: str) -> AnswerFn:
     try:
         return _REGISTRY[name]
     except KeyError as error:
-        raise KeyError(
-            f"unknown answer mode: {name}; known: {sorted(_REGISTRY)}"
-        ) from error
+        raise KeyError(f"unknown answer mode: {name}; known: {sorted(_REGISTRY)}") from error
 
 
 def registered_answer_modes() -> list[str]:
@@ -120,6 +118,26 @@ def net_turn(
     return AnswerResult(
         label="left" if turn > 0.0 else "right",
         witness={"net_turn_deg": round(turn, 1)},
+    )
+
+
+@answer_mode("net_turn_magnitude")
+def net_turn_magnitude(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    frames: list[int],
+) -> AnswerResult:
+    """Whether absolute signed net turn exceeds the declared magnitude tier."""
+    turn = net_turn_deg([view.camera_pose(t).yaw_deg for t in frames])
+    magnitude = abs(turn)
+    return AnswerResult(
+        label="over_90" if magnitude > std.net_turn_magnitude_deg else "at_most_90",
+        witness={
+            "net_turn_deg": round(turn, 1),
+            "magnitude_deg": round(magnitude, 1),
+            "threshold_deg": std.net_turn_magnitude_deg,
+        },
     )
 
 

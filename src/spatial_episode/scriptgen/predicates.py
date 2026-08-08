@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
+from itertools import pairwise
 from typing import Any
 
 from .geometry import (
@@ -194,9 +195,7 @@ def _clearance_results(view: SceneView, std: CompileStandard, frames: Sequence[i
 @predicate("poses_clear")
 def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Every sampled body centre clears all body-height obstacle footprints."""
-    obstacle_count, wall_count, collisions, worst, _, _ = _clearance_results(
-        view, std, frames
-    )
+    obstacle_count, wall_count, collisions, worst, _, _ = _clearance_results(view, std, frames)
     return Verdict(
         worst is None,
         {
@@ -212,9 +211,7 @@ def poses_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int])
 @predicate("path_clear")
 def path_clear(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Every consecutive pose segment clears body-height obstacle footprints."""
-    obstacle_count, wall_count, _, _, collisions, worst = _clearance_results(
-        view, std, frames
-    )
+    obstacle_count, wall_count, _, _, collisions, worst = _clearance_results(view, std, frames)
     return Verdict(
         collisions == 0,
         {
@@ -377,9 +374,7 @@ def sector_margin_ge(
 
 
 @predicate("view_side_margin_ge")
-def view_side_margin_ge(
-    view: SceneView, std: CompileStandard, *, obj: str, frame: int
-) -> Verdict:
+def view_side_margin_ge(view: SceneView, std: CompileStandard, *, obj: str, frame: int) -> Verdict:
     """An object's image-side azimuth clears the vertical midline."""
     pose = view.camera_pose(frame)
     azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(obj).xy)
@@ -397,9 +392,7 @@ def view_side_margin_ge(
 
 
 @predicate("net_turn_margin_ge")
-def net_turn_margin_ge(
-    view: SceneView, std: CompileStandard, *, frames: Sequence[int]
-) -> Verdict:
+def net_turn_margin_ge(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
     """Signed net turn clears the zero-degree left/right boundary."""
     turn = net_turn_deg([view.camera_pose(t).yaw_deg for t in frames])
     margin = abs(turn)
@@ -413,10 +406,105 @@ def net_turn_margin_ge(
     )
 
 
-@predicate("start_far_enough")
-def start_far_enough(
-    view: SceneView, std: CompileStandard, *, frame: int
+@predicate("net_turn_magnitude_margin_ge")
+def net_turn_magnitude_margin_ge(
+    view: SceneView, std: CompileStandard, *, frames: Sequence[int]
 ) -> Verdict:
+    """Net-turn magnitude stays clear of the declared 90-degree tier boundary."""
+    turn = net_turn_deg([view.camera_pose(t).yaw_deg for t in frames])
+    magnitude = abs(turn)
+    margin = abs(magnitude - std.net_turn_magnitude_deg)
+    return Verdict(
+        margin >= std.net_turn_margin_deg,
+        {
+            "net_turn_deg": round(turn, 1),
+            "magnitude_deg": round(magnitude, 1),
+            "threshold_deg": std.net_turn_magnitude_deg,
+            "margin_deg": round(margin, 1),
+            "required_margin_deg": std.net_turn_margin_deg,
+        },
+    )
+
+
+@predicate("displacement_below")
+def displacement_below(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
+    """Every pose remains within the pure-rotation radius of the first pose."""
+    frame_list = list(frames)
+    origin = view.camera_pose(frame_list[0]).xy
+    displacement = max(distance_m(origin, view.camera_pose(t).xy) for t in frame_list)
+    return Verdict(
+        displacement <= std.pure_rotation_max_displacement_m,
+        {
+            "max_displacement_m": round(displacement, 3),
+            "allowed_m": std.pure_rotation_max_displacement_m,
+        },
+    )
+
+
+@predicate("turn_below")
+def turn_below(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) -> Verdict:
+    """Cumulative heading change stays inside the pure-translation envelope."""
+    turn = cumulative_turn_deg([view.camera_pose(t).yaw_deg for t in frames])
+    return Verdict(
+        turn <= std.pure_translation_max_turn_deg,
+        {
+            "cum_turn_deg": round(turn, 1),
+            "allowed_deg": std.pure_translation_max_turn_deg,
+        },
+    )
+
+
+def _turn_segment_count(view: SceneView, frames: Sequence[int], threshold: float) -> int:
+    from .geometry import wrap_deg
+
+    active = [
+        abs(wrap_deg(view.camera_pose(b).yaw_deg - view.camera_pose(a).yaw_deg)) >= threshold
+        for a, b in pairwise(frames)
+    ]
+    return sum(
+        value and (index == 0 or not active[index - 1]) for index, value in enumerate(active)
+    )
+
+
+@predicate("turn_segments_between")
+def turn_segments_between(
+    view: SceneView, std: CompileStandard, *, frames: Sequence[int]
+) -> Verdict:
+    """Heading changes form two or three disjoint segments separated by straight motion."""
+    count = _turn_segment_count(view, frames, std.turn_segment_min_step_deg)
+    return Verdict(
+        std.multi_turn_min_segments <= count <= std.multi_turn_max_segments,
+        {
+            "turn_segment_count": count,
+            "min_segments": std.multi_turn_min_segments,
+            "max_segments": std.multi_turn_max_segments,
+            "active_step_deg": std.turn_segment_min_step_deg,
+        },
+    )
+
+
+@predicate("occluded_in_view")
+def occluded_in_view(view: SceneView, std: CompileStandard, *, obj: str, frame: int) -> Verdict:
+    """Target centre is in-frustum but a declared eye-height obstacle blocks it."""
+    pose = view.camera_pose(frame)
+    target = view.object(obj)
+    azimuth = abs(azimuth_deg(pose.xy, pose.yaw_deg, target.xy))
+    in_frustum = azimuth <= std.fov_half_angle_deg
+    blocked_by = view.occluders_between(obj, frame) if hasattr(view, "occluders_between") else ()
+    return Verdict(
+        in_frustum and bool(blocked_by),
+        {
+            "obj": obj,
+            "frame": frame,
+            "azimuth_deg": round(azimuth, 1),
+            "fov_half_angle_deg": std.fov_half_angle_deg,
+            "blocked_by": ",".join(blocked_by),
+        },
+    )
+
+
+@predicate("start_far_enough")
+def start_far_enough(view: SceneView, std: CompileStandard, *, frame: int) -> Verdict:
     """The question pose is far enough from frame 0 for homing to be stable."""
     distance = distance_m(view.camera_pose(0).xy, view.camera_pose(frame).xy)
     return Verdict(
@@ -430,9 +518,7 @@ def start_far_enough(
 
 
 @predicate("start_sector_margin_ge")
-def start_sector_margin_ge(
-    view: SceneView, std: CompileStandard, *, frame: int
-) -> Verdict:
+def start_sector_margin_ge(view: SceneView, std: CompileStandard, *, frame: int) -> Verdict:
     """The frame-0 position clears a four-sector boundary at question time."""
     start = view.camera_pose(0)
     pose = view.camera_pose(frame)

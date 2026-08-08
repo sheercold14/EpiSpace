@@ -26,7 +26,7 @@ from .geometry import (
     point_in_rotated_rect,
     wrap_deg,
 )
-from .sceneview import Pose2D, SceneLayout
+from .sceneview import Pose2D, SceneLayout, blocking_occluders
 
 Motif = Callable[[SceneLayout, dict[str, str], int, random.Random], tuple[Pose2D, ...]]
 
@@ -147,9 +147,7 @@ def _occupancy_grid(layout: SceneLayout) -> _OccupancyGrid:
                 if blocked[index]:
                     continue
                 point = (min_x + ix * GRID_RESOLUTION_M, min_y + iy * GRID_RESOLUTION_M)
-                if point_in_rotated_rect(
-                    point, obstacle.center_xy, expanded, obstacle.yaw_deg
-                ):
+                if point_in_rotated_rect(point, obstacle.center_xy, expanded, obstacle.yaw_deg):
                     blocked[index] = 1
 
     free_cells = tuple(index for index, value in enumerate(blocked) if value == 0)
@@ -286,16 +284,18 @@ def _grid_line_clear(grid: _OccupancyGrid, start: int, end: int) -> bool:
         if move_y:
             error += delta_x
             y += step_y
-        if move_x and move_y and (
-            grid.blocked[previous_y * grid.width + x]
-            or grid.blocked[y * grid.width + previous_x]
+        if (
+            move_x
+            and move_y
+            and (
+                grid.blocked[previous_y * grid.width + x]
+                or grid.blocked[y * grid.width + previous_x]
+            )
         ):
             return False
 
 
-def _simplify_route(
-    grid: _OccupancyGrid, cells: tuple[int, ...]
-) -> list[int]:
+def _simplify_route(grid: _OccupancyGrid, cells: tuple[int, ...]) -> list[int]:
     """Greedily shortcut an A* route without sacrificing proposal clearance."""
     simplified = [cells[0]]
     current = 0
@@ -310,9 +310,7 @@ def _simplify_route(
     return simplified
 
 
-def _sample_start(
-    grid: _OccupancyGrid, target_xy: tuple[float, float], rng: random.Random
-) -> int:
+def _sample_start(grid: _OccupancyGrid, target_xy: tuple[float, float], rng: random.Random) -> int:
     for _ in range(64):
         angle = rng.uniform(0.0, 2.0 * math.pi)
         radius = rng.uniform(2.0, 4.0)
@@ -349,9 +347,7 @@ def _sample_end(grid: _OccupancyGrid, start: int, rng: random.Random) -> int:
     return best
 
 
-def _connect_cells(
-    grid: _OccupancyGrid, start: int, end: int
-) -> tuple[int, ...] | None:
+def _connect_cells(grid: _OccupancyGrid, start: int, end: int) -> tuple[int, ...] | None:
     """Use the trivial straight route when clear, otherwise run grid A*."""
     if start == end:
         return (start,)
@@ -430,11 +426,87 @@ def _walk_polyline(
     for previous, position in pairwise(positions):
         desired = bearing_deg(previous, position) if previous != position else yaw
         delta = wrap_deg(desired - yaw)
-        yaw = wrap_deg(
-            yaw + max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta))
-        )
+        yaw = wrap_deg(yaw + max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta)))
         poses.append(Pose2D(position[0], position[1], yaw))
     return tuple(poses)
+
+
+def _turn_in_place(
+    xy: tuple[float, float], start_yaw: float, final_yaw: float, frame_count: int
+) -> list[Pose2D]:
+    """Rate-limited in-place rotation, including exactly ``frame_count`` poses."""
+    poses: list[Pose2D] = []
+    yaw = start_yaw
+    for _ in range(frame_count):
+        delta = wrap_deg(final_yaw - yaw)
+        step = max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta))
+        yaw = wrap_deg(yaw + step)
+        poses.append(Pose2D(xy[0], xy[1], yaw))
+    return poses
+
+
+def _target_final_yaw(
+    camera_xy: tuple[float, float], target_xy: tuple[float, float], rng: random.Random
+) -> float:
+    """Balanced left/right/back final gaze with extra back acceptance mass."""
+    turn_direction = rng.choice((-1.0, 1.0))
+    desired_azimuth = turn_direction * rng.choice((100.0, 150.0))
+    desired_azimuth += rng.uniform(-8.0, 8.0)
+    return wrap_deg(bearing_deg(camera_xy, target_xy) - desired_azimuth)
+
+
+def _straight_past_endpoints(
+    layout: SceneLayout, target_xy: tuple[float, float], target_size_m: float, rng: random.Random
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Sample a collision-free straight line passing beside, never through, a target."""
+    grid = _occupancy_grid(layout)
+    lateral_offset = max(1.1, target_size_m / 2.0 + PROPOSAL_CLEARANCE_M + 0.25)
+    for _ in range(96):
+        angle = rng.uniform(-math.pi, math.pi)
+        forward = (math.cos(angle), math.sin(angle))
+        left = (-forward[1], forward[0])
+        sign = rng.choice((-1.0, 1.0))
+        reach = rng.uniform(2.2, 3.0)
+        start_xy = (
+            target_xy[0] - forward[0] * reach + left[0] * lateral_offset * sign,
+            target_xy[1] - forward[1] * reach + left[1] * lateral_offset * sign,
+        )
+        end_xy = (
+            target_xy[0] + forward[0] * reach + left[0] * lateral_offset * sign,
+            target_xy[1] + forward[1] * reach + left[1] * lateral_offset * sign,
+        )
+        start, end = grid.nearest_index(start_xy), grid.nearest_index(end_xy)
+        if not grid.is_free(start) or not grid.is_free(end):
+            continue
+        if grid.component_ids[start] != grid.component_ids[end]:
+            continue
+        if not _grid_line_clear(grid, start, end):
+            continue
+        return grid.world_xy(start), grid.world_xy(end)
+    fallback = grid.world_xy(_sample_start(grid, target_xy, rng))
+    return fallback, fallback
+
+
+def _direct_multi_turn_route(
+    layout: SceneLayout, target_xy: tuple[float, float], rng: random.Random
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Direct free route whose heading differs enough from the initial target gaze."""
+    grid = _occupancy_grid(layout)
+    for _ in range(96):
+        start = _sample_start(grid, target_xy, rng)
+        component = grid.component_cells[grid.component_ids[start]]
+        end = component[rng.randrange(len(component))]
+        distance = distance_m(grid.world_xy(start), grid.world_xy(end))
+        if not 2.0 <= distance <= 3.5 or not _grid_line_clear(grid, start, end):
+            continue
+        start_xy, end_xy = grid.world_xy(start), grid.world_xy(end)
+        gaze = bearing_deg(start_xy, target_xy)
+        route_heading = bearing_deg(start_xy, end_xy)
+        heading_change = abs(wrap_deg(route_heading - gaze))
+        if 55.0 <= heading_change <= 120.0:
+            return start_xy, end_xy
+    fallback = grid.world_xy(_sample_start(grid, target_xy, rng))
+    return fallback, fallback
 
 
 @motif("walk_and_turn")
@@ -458,12 +530,162 @@ def walk_and_turn(
     # random final gaze so the target's final bearing spreads over
     # left/right/back instead of collapsing onto "behind the walker".
     end = walk[-1]
-    offset = rng.choice([90.0, -90.0, 180.0]) + rng.uniform(-20.0, 20.0)
-    final_yaw = wrap_deg(bearing_deg(end.xy, target.xy) + offset)
+    final_yaw = _target_final_yaw(end.xy, target.xy, rng)
     yaw = end.yaw_deg
     for _ in range(look_frames):
         delta = wrap_deg(final_yaw - yaw)
         step = max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta))
         yaw = wrap_deg(yaw + step)
         walk.append(Pose2D(end.x, end.y, yaw))
+    return tuple(walk)
+
+
+@motif("stand_and_turn")
+def stand_and_turn(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """T2: observe a target, then rotate in place until it leaves the view."""
+    target = layout.object(binding["target"])
+    grid = _occupancy_grid(layout)
+    start = grid.world_xy(_sample_start(grid, target.xy, rng))
+    initial_yaw = bearing_deg(start, target.xy)
+    final_yaw = _target_final_yaw(start, target.xy, rng)
+    poses = [Pose2D(start[0], start[1], initial_yaw)] * 2
+    poses.extend(_turn_in_place(start, initial_yaw, final_yaw, frame_count - 2))
+    return tuple(poses)
+
+
+@motif("walk_straight_past")
+def walk_straight_past(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """T3: translate past a side-front target with exactly constant heading."""
+    target = layout.object(binding["target"])
+    start, end = _straight_past_endpoints(layout, target.xy, target.size_m, rng)
+    heading = bearing_deg(start, end) if start != end else bearing_deg(start, target.xy)
+    return tuple(
+        Pose2D(_lerp(start[0], end[0], t), _lerp(start[1], end[1], t), heading)
+        for t in (index / (frame_count - 1) for index in range(frame_count))
+    )
+
+
+@motif("walk_multi_turn")
+def walk_multi_turn(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """T4: two or three separated rotations with straight motion between them."""
+    target = layout.object(binding["target"])
+    start, end = _direct_multi_turn_route(layout, target.xy, rng)
+    initial_yaw = bearing_deg(start, target.xy)
+    route_yaw = bearing_deg(start, end) if start != end else initial_yaw
+    requested_segments = rng.choice((2, 3))
+    first_turn_frames = 3
+    middle_turn_frames = 2 if requested_segments == 3 else 0
+    final_turn_frames = 4
+    straight_frames = frame_count - 2 - first_turn_frames - middle_turn_frames - final_turn_frames
+    poses = [Pose2D(start[0], start[1], initial_yaw)] * 2
+    poses.extend(_turn_in_place(start, initial_yaw, route_yaw, first_turn_frames))
+    first_straight = straight_frames // 2 if middle_turn_frames else straight_frames
+    second_straight = straight_frames - first_straight
+    poses.extend(
+        Pose2D(
+            _lerp(start[0], end[0], step / straight_frames),
+            _lerp(start[1], end[1], step / straight_frames),
+            route_yaw,
+        )
+        for step in range(1, first_straight + 1)
+    )
+    gaze_yaw = route_yaw
+    if middle_turn_frames:
+        midpoint = (
+            _lerp(start[0], end[0], first_straight / straight_frames),
+            _lerp(start[1], end[1], first_straight / straight_frames),
+        )
+        gaze_yaw = wrap_deg(route_yaw + rng.choice((-45.0, 45.0)))
+        poses.extend(_turn_in_place(midpoint, route_yaw, gaze_yaw, middle_turn_frames))
+        poses.extend(
+            Pose2D(
+                _lerp(midpoint[0], end[0], step / second_straight),
+                _lerp(midpoint[1], end[1], step / second_straight),
+                gaze_yaw,
+            )
+            for step in range(1, second_straight + 1)
+        )
+    final_yaw = _target_final_yaw(end, target.xy, rng)
+    poses.extend(_turn_in_place(end, gaze_yaw, final_yaw, final_turn_frames))
+    return tuple(poses)
+
+
+def _occluded_endpoint(
+    layout: SceneLayout, target_xy: tuple[float, float], rng: random.Random
+) -> tuple[float, float] | None:
+    grid = _occupancy_grid(layout)
+    candidates: list[tuple[tuple[float, float], float]] = []
+    if layout.occlusion_obstacles:
+        candidates.extend(
+            (obstacle.center_xy, math.hypot(*obstacle.half_extents_xy))
+            for obstacle in layout.occlusion_obstacles
+        )
+    else:
+        candidates.extend(
+            (
+                ((low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0),
+                math.hypot((high[0] - low[0]) / 2.0, (high[1] - low[1]) / 2.0),
+            )
+            for low, high in layout.occluders
+        )
+    rng.shuffle(candidates)
+    for center, extent in candidates:
+        length = distance_m(target_xy, center)
+        if length < 0.5:
+            continue
+        unit = ((center[0] - target_xy[0]) / length, (center[1] - target_xy[1]) / length)
+        for clearance in (0.8, 1.1, 1.4):
+            proposed = (
+                center[0] + unit[0] * (extent + clearance),
+                center[1] + unit[1] * (extent + clearance),
+            )
+            index = grid.nearest_index(proposed)
+            if grid.is_free(index):
+                return grid.world_xy(index)
+    return None
+
+
+@motif("walk_to_occlusion")
+def walk_to_occlusion(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """T5: finish facing a target from behind an eye-height occluder."""
+    target = layout.object(binding["target"])
+    grid = _occupancy_grid(layout)
+    endpoint = _occluded_endpoint(layout, target.xy, rng)
+    if endpoint is None:
+        start = grid.world_xy(_sample_start(grid, target.xy, rng))
+        return tuple(
+            Pose2D(start[0], start[1], bearing_deg(start, target.xy)) for _ in range(frame_count)
+        )
+
+    end_index = grid.nearest_index(endpoint)
+    route: list[tuple[float, float]] | None = None
+    for _ in range(64):
+        start_index = _sample_start(grid, target.xy, rng)
+        start_xy = grid.world_xy(start_index)
+        if grid.component_ids[start_index] != grid.component_ids[end_index]:
+            continue
+        if blocking_occluders(layout, start_xy, target):
+            continue
+        cells = _connect_cells(grid, start_index, end_index)
+        if cells is None:
+            continue
+        route = [grid.world_xy(index) for index in _simplify_route(grid, cells)]
+        break
+    if route is None:
+        route = [endpoint, endpoint]
+
+    look_frames = 5
+    initial_yaw = bearing_deg(route[0], target.xy)
+    walk = list(_walk_polyline(route, initial_yaw, frame_count - look_frames))
+    end = walk[-1]
+    final_yaw = bearing_deg(end.xy, target.xy)
+    walk.extend(_turn_in_place(end.xy, end.yaw_deg, final_yaw, look_frames))
     return tuple(walk)

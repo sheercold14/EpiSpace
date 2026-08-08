@@ -180,6 +180,181 @@ NET_TURN = _script(
 )
 
 
+NET_TURN_MAGNITUDE = _script(
+    capability="path_integration_magnitude",
+    slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
+    frame_vars={"t_q": "last_frame()"},
+    clauses=(
+        Clause(
+            name="trackable",
+            predicate="step_motion_bounded",
+            args={"frames": "0:$t_q"},
+            phase="search",
+            on_violation="abstain",
+        ),
+        Clause(
+            name="magnitude_margin_ok",
+            predicate="net_turn_magnitude_margin_ge",
+            args={"frames": "0:$t_q"},
+            phase="search",
+        ),
+    ),
+    answer=AnswerSpec(mode="net_turn_magnitude", args={"frames": "0:$t_q"}),
+    length=(10, 18),
+    motifs=("walk_and_turn",),
+    templates=(
+        Template(
+            text=(
+                "这段第一人称序列记录了你在房间中的一次移动。"
+                "你的净转角是否超过90度?"
+                '如果序列提供的证据不足以判断,选"无法判断"。'
+            ),
+            options=("over_90", "at_most_90", "无法判断"),
+        ),
+    ),
+    intervention_window="1:$t_q-1",
+    variant_expectations={
+        "permute": "abstain",
+        "drop_filler": "same",
+        "delay": "same",
+    },
+)
+
+
+def _self_motion_subtype(
+    *,
+    capability: str,
+    motif: str,
+    motion_clauses: tuple[Clause, ...],
+    length: tuple[int, int],
+) -> ScriptSpec:
+    """Declare one C/combination-one trajectory subtype over the shared memory task."""
+    return _script(
+        capability=capability,
+        slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
+        frame_vars={
+            "t_seen": "last_visible($target)",
+            "t_gone": "first_invisible_after($target, $t_seen)",
+            "t_q": "last_frame()",
+        },
+        clauses=(
+            Clause(
+                name="seen_early",
+                predicate="visible_somewhere",
+                args={"obj": "$target", "frames": "0:$t_seen"},
+                phase="compile",
+                on_violation="abstain",
+            ),
+            Clause(
+                name="trackable",
+                predicate="step_motion_bounded",
+                args={"frames": "0:$t_q"},
+                phase="search",
+                on_violation="abstain",
+            ),
+            Clause(
+                name="gone",
+                predicate="invisible_in_range",
+                args={"obj": "$target", "frames": "$t_gone:$t_q"},
+                phase="compile",
+            ),
+            Clause(
+                name="gap",
+                predicate="frame_gap_ge",
+                args={"later": "$t_q", "earlier": "$t_gone", "gap": 3},
+                phase="search",
+            ),
+            *motion_clauses,
+            Clause(
+                name="margin_ok",
+                predicate="sector_margin_ge",
+                args={"obj": "$target", "frame": "$t_q"},
+                phase="search",
+            ),
+        ),
+        answer=AnswerSpec(mode="target_sector", args={"obj": "$target", "frame": "$t_q"}),
+        knobs=(Knob(name="delay", expr="$t_q-$t_gone", levels=(3, 6, 10)),),
+        length=length,
+        motifs=(motif,),
+        templates=SELF_MOTION.templates,
+        intervention_window="$t_gone:$t_q-1",
+        abstain_on_unresolvable=("t_seen",),
+        variant_expectations=SELF_MOTION.variant_expectations,
+    )
+
+
+PURE_ROTATION = _self_motion_subtype(
+    capability="self_motion_update_pure_rotation",
+    motif="stand_and_turn",
+    length=(10, 16),
+    motion_clauses=(
+        Clause(
+            name="stationary",
+            predicate="displacement_below",
+            args={"frames": "0:$t_q"},
+            phase="search",
+        ),
+        Clause(
+            name="turned",
+            predicate="cum_turn_between",
+            args={"frames": "$t_seen:$t_q", "deg_min": 80, "deg_max": 200},
+            phase="search",
+        ),
+    ),
+)
+
+
+PURE_TRANSLATION = _self_motion_subtype(
+    capability="self_motion_update_pure_translation",
+    motif="walk_straight_past",
+    length=(10, 16),
+    motion_clauses=(
+        Clause(
+            name="heading_constant",
+            predicate="turn_below",
+            args={"frames": "0:$t_q"},
+            phase="search",
+        ),
+    ),
+)
+
+
+MULTI_TURN = _self_motion_subtype(
+    capability="self_motion_update_multi_turn",
+    motif="walk_multi_turn",
+    length=(14, 18),
+    motion_clauses=(
+        Clause(
+            name="turned",
+            predicate="cum_turn_between",
+            args={"frames": "$t_seen:$t_q", "deg_min": 80, "deg_max": 200},
+            phase="search",
+        ),
+        Clause(
+            name="turn_segments",
+            predicate="turn_segments_between",
+            args={"frames": "0:$t_q"},
+            phase="search",
+        ),
+    ),
+)
+
+
+OCCLUDED_MOTION = _self_motion_subtype(
+    capability="self_motion_update_occluded",
+    motif="walk_to_occlusion",
+    length=(14, 18),
+    motion_clauses=(
+        Clause(
+            name="occluded_at_question",
+            predicate="occluded_in_view",
+            args={"obj": "$target", "frame": "$t_q"},
+            phase="compile",
+        ),
+    ),
+)
+
+
 HOMING = _script(
     capability="homing_probe",
     slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
@@ -280,5 +455,16 @@ VIEW_SIDE = _script(
 )
 
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
-    script.capability: script for script in (SELF_MOTION, NET_TURN, HOMING, VIEW_SIDE)
+    script.capability: script
+    for script in (
+        SELF_MOTION,
+        PURE_ROTATION,
+        PURE_TRANSLATION,
+        MULTI_TURN,
+        OCCLUDED_MOTION,
+        NET_TURN,
+        NET_TURN_MAGNITUDE,
+        HOMING,
+        VIEW_SIDE,
+    )
 }

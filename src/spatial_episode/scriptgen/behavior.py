@@ -30,8 +30,15 @@ from typing import Any
 
 import numpy as np
 
-from .sceneview import Obstacle, Pose2D, SceneLayout, SceneObject, VisibilityObservation
-from .standards import CompileStandard
+from .sceneview import (
+    Obstacle,
+    Pose2D,
+    SceneLayout,
+    SceneObject,
+    VisibilityObservation,
+    blocking_occluders,
+)
+from .standards import STD_V1, CompileStandard
 
 # Structural categories: never question targets.
 STRUCTURAL_LABELS = frozenset(
@@ -39,8 +46,6 @@ STRUCTURAL_LABELS = frozenset(
 )
 # Structural geometry that blocks locomotion even though it is never a target.
 STRUCTURAL_OBSTACLE_LABELS = frozenset({"walls"})
-# Categories whose OBB blocks line of sight at eye level.
-OCCLUDER_LABELS = frozenset({"walls", "pillar"})
 
 
 def yaw_deg_from_quaternion_xyzw(q: tuple[float, float, float, float]) -> float:
@@ -61,7 +66,7 @@ def quaternion_xyzw_from_yaw_deg(yaw_deg: float) -> tuple[float, float, float, f
     return (0.0, 0.0, math.sin(half), math.cos(half))
 
 
-def plan_to_agent_views(plan: Any, *, camera_height_m: float = 1.5) -> list[dict[str, Any]]:
+def plan_to_agent_views(plan: Any, *, camera_height_m: float | None = None) -> list[dict[str, Any]]:
     """Export a scriptgen TrajectoryPlan as acquisition camera-schedule views.
 
     Output items mirror the ``world_from_agent`` view records the OmniGibson
@@ -69,6 +74,7 @@ def plan_to_agent_views(plan: Any, *, camera_height_m: float = 1.5) -> list[dict
     replay a planned trajectory with the same sensor pipeline it uses for its
     own sampled trajectories.
     """
+    camera_height_m = STD_V1.camera_height_m if camera_height_m is None else camera_height_m
     views: list[dict[str, Any]] = []
     for pose in plan.poses:
         views.append(
@@ -108,10 +114,13 @@ def _footprint_aabb(obb: dict[str, Any]) -> tuple[tuple[float, float], tuple[flo
 
 def _z_span(obb: dict[str, Any]) -> tuple[float, float]:
     center_z = obb["center_m"][2]
-    # Conservative: use the raw half extent (rotation can only shrink z reach
-    # of the z axis but other axes may contribute; walls are near-upright).
-    hz = max(obb["half_extents_m"])
-    return center_z - hz, center_z + hz
+    hx, hy, hz = obb["half_extents_m"]
+    qx, qy, qz, qw = obb["world_from_obb"]["rotation_xyzw"]
+    r20 = abs(2.0 * (qx * qz - qw * qy))
+    r21 = abs(2.0 * (qy * qz + qw * qx))
+    r22 = abs(1.0 - 2.0 * (qx * qx + qy * qy))
+    extent_z = r20 * hx + r21 * hy + r22 * hz
+    return center_z - extent_z, center_z + extent_z
 
 
 def _yaw_deg(obb: dict[str, Any]) -> float:
@@ -125,13 +134,13 @@ def _yaw_deg(obb: dict[str, Any]) -> float:
 def layout_from_scene_ir(
     scene_ir: dict[str, Any] | str | Path,
     *,
-    camera_height_m: float = 1.5,
+    std: CompileStandard = STD_V1,
 ) -> SceneLayout:
     """Build a planning layout from a bundle's ``scene_ir.json``.
 
     Objects are non-structural entities; obstacles contain those objects plus
-    structural walls; occluders are wall/pillar footprints that span the
-    camera height; walkable bounds are the union of floor footprints. Walls
+    structural walls; occluders are obstacle footprints whose top reaches
+    the declared eye height; walkable bounds are the union of floor footprints. Walls
     are deliberately collision-only, never question targets. The raw label is
     used as the category, and entity UUIDs carry through so the render backend
     and certificates reference the same ids.
@@ -142,6 +151,7 @@ def layout_from_scene_ir(
 
     objects: list[SceneObject] = []
     obstacles: list[Obstacle] = []
+    occlusion_obstacles: list[Obstacle] = []
     occluders: list[tuple[tuple[float, float], tuple[float, float]]] = []
     floor_boxes: list[tuple[tuple[float, float], tuple[float, float]]] = []
 
@@ -150,23 +160,22 @@ def layout_from_scene_ir(
         obb = entity["obb"]
         if label == "floors":
             floor_boxes.append(_footprint_aabb(obb))
-        if label in OCCLUDER_LABELS:
-            z_low, z_high = _z_span(obb)
-            if z_low <= camera_height_m <= z_high:
-                occluders.append(_footprint_aabb(obb))
         if label not in STRUCTURAL_LABELS or label in STRUCTURAL_OBSTACLE_LABELS:
             hx, hy, _ = obb["half_extents_m"]
             z_low, z_high = _z_span(obb)
-            obstacles.append(
-                Obstacle(
-                    label=label,
-                    center_xy=(obb["center_m"][0], obb["center_m"][1]),
-                    half_extents_xy=(hx, hy),
-                    yaw_deg=_yaw_deg(obb),
-                    z_low=z_low,
-                    z_high=z_high,
-                )
+            obstacle = Obstacle(
+                label=label,
+                center_xy=(obb["center_m"][0], obb["center_m"][1]),
+                half_extents_xy=(hx, hy),
+                yaw_deg=_yaw_deg(obb),
+                z_low=z_low,
+                z_high=z_high,
+                entity_id=entity["entity_id"],
             )
+            obstacles.append(obstacle)
+            if z_high >= std.camera_height_m:
+                occlusion_obstacles.append(obstacle)
+                occluders.append(_footprint_aabb(obb))
         if label in STRUCTURAL_LABELS:
             continue
         hx, hy, _ = obb["half_extents_m"]
@@ -197,6 +206,7 @@ def layout_from_scene_ir(
         objects=tuple(objects),
         obstacles=tuple(obstacles),
         occluders=tuple(occluders),
+        occlusion_obstacles=tuple(occlusion_obstacles),
         walkable_min=walkable_min,
         walkable_max=walkable_max,
     )
@@ -252,7 +262,7 @@ class RenderSceneView:
         root = Path(bundle_root)
         ir_path = Path(scene_ir) if scene_ir is not None else root / "scene_ir.json"
         ir = json.loads(ir_path.read_text(encoding="utf-8"))
-        layout = layout_from_scene_ir(ir)
+        layout = layout_from_scene_ir(ir, std=std)
         poses = poses_from_trajectory_plan(root / "trajectory_plan.json")
         runtime_map: dict[str, list[int]] = {}
         for runtime_id, entity_id in ir["runtime_semantic_id_map"].items():
@@ -285,6 +295,10 @@ class RenderSceneView:
         instance = self._instance_mask(t)
         pixels = int(np.isin(instance, runtime_ids).sum())
         return VisibilityObservation("render_pixels", float(pixels), 1.0)
+
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
+        target = self.layout.object(name)
+        return blocking_occluders(self.layout, self.poses[t].xy, target)
 
     def _instance_mask(self, t: int) -> np.ndarray:
         if t not in self._mask_cache:

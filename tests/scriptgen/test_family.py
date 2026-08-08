@@ -215,6 +215,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
     assert set(questions) == {
         "self_motion_update",
         "path_integration",
+        "path_integration_magnitude",
         "homing_probe",
         "view_side_check",
     }
@@ -229,6 +230,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
     )
     expected_net = "left" if net_turn > 0.0 else "right"
     assert questions["path_integration"].label == expected_net
+    assert questions["path_integration_magnitude"].label == "at_most_90"
 
     start, end = poses[0], poses[-1]
     start_distance = math.dist(start.xy, end.xy)

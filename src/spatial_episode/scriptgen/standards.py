@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v4"
+    standard_version: str = "std.v5"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -63,6 +63,15 @@ class CompileStandard:
     net_turn_margin_deg: float = 15.0
     homing_min_distance_m: float = 1.0
 
+    # --- self-motion subtype envelopes (std.v5) ---
+    pure_rotation_max_displacement_m: float = 0.10
+    pure_translation_max_turn_deg: float = 2.0
+    net_turn_magnitude_deg: float = 90.0
+    turn_segment_min_step_deg: float = 5.0
+    multi_turn_min_segments: int = 2
+    multi_turn_max_segments: int = 3
+    camera_height_m: float = 1.5
+
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates
     # survive the authoritative post-render re-check.
@@ -78,10 +87,23 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     # std.v4 only adds the three answer thresholds below; every v3-era search
     # promise is judged by unchanged fields and values.
     "std.v4": ("std.v3",),
+    # std.v5 only adds subtype fields. It is independently a pure extension
+    # of both v4 and the wallfix plans authored under v3.
+    "std.v5": ("std.v4", "std.v3"),
 }
 
 STD_V4_ADDED_FIELDS = (
     "view_side_margin_deg",
     "net_turn_margin_deg",
     "homing_min_distance_m",
+)
+
+STD_V5_ADDED_FIELDS = (
+    "pure_rotation_max_displacement_m",
+    "pure_translation_max_turn_deg",
+    "net_turn_magnitude_deg",
+    "turn_segment_min_step_deg",
+    "multi_turn_min_segments",
+    "multi_turn_max_segments",
+    "camera_height_m",
 )
