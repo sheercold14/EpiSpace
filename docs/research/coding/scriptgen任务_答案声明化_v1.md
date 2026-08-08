@@ -80,6 +80,43 @@ binding——避免本轮就开"无目标剧本"的引擎手术。这是记录�
 已知事实:现有 motif 起手正对目标,画面侧题在现有三条轨迹上可能
 全部或部分跳过——这是预期行为,修 motif 是下一个任务的事。
 
+**裁决庚(2026-08-08 补,答复执行方提问):std.v3 的旧 plan record
+允许在 std.v4 下编译,以显式声明的版本谱系放行,不放宽阻断本身。**
+
+冲突:wallfix 的 plan record(只读)记录 standard_version=std.v3,
+编译器升 std.v4 后,现有 standard_version_drift 审计会阻断 canonical。
+
+裁决依据:该审计的本意是"搜索期的承诺必须在编译期的同一把尺下兑现"。
+std.v4 相对 v3 **只新增三个常量、未改动任何既有数值**,因此 v3 时代的
+每一条搜索承诺在 v4 下的判定逐项相同——版本字符串变了,尺没变。
+按字符串阻断在此处比真实语义更粗,应以显式数据声明兼容谱系:
+
+```python
+# standards.py 模块级。谱系准入标准:仅当新版本对旧版本是纯扩展
+# (零既有数值变动、只增字段)时才可列入;每项附一行理由。
+COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
+    # std.v4 只新增 view_side_margin_deg / net_turn_margin_deg /
+    # homing_min_distance_m,v3 既有判定逐项不变。
+    "std.v4": ("std.v3",),
+}
+```
+
+执行要求:
+
+1. drift 判定改为:plan 版本 ∉ {当前版本} ∪ 兼容集 才置 mismatch;
+   证书照旧同时记录编译版本(v4)与 plan 版本(geometry.standard_version
+   =v3),审计链不断;
+2. **谱系不传递**:v2 与更早不入列,旧 `batch/` 的 navfix 前数据依然
+   被阻断——那次是真语义变更,必须重造,历史不翻案;
+3. 配一个钉住"纯扩展"声明的单测:standards.py 里维护
+   `STD_V4_ADDED_FIELDS = ("view_side_margin_deg", "net_turn_margin_deg",
+   "homing_min_distance_m")`,测试断言 CompileStandard 的字段集合 =
+   钉死的 v3 字段清单 ∪ STD_V4_ADDED_FIELDS——将来有人改既有数值或
+   偷偷加字段而不更新谱系声明,测试先红;
+4. 组打包时 `geometry_plan` **只传给与 plan record capability 相同的
+   spec**(即自运动方向题);新题型无搜索期承诺,geometry_plan=None,
+   本就不触发 drift 审计。
+
 **裁决己:新阈值三个,standards **std.v3 → std.v4**:**
 
 ```python
