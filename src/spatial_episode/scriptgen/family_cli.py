@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 from .family import (
-    ScriptgenFamilyV3,
+    ScriptgenFamilyV4,
     ScriptgenQuestionGroupV1,
     build_family_site,
     build_question_group,
@@ -96,7 +96,7 @@ def main() -> int:
         delay_extra=args.delay_extra,
         template_index=args.template_index,
     )
-    doc = ScriptgenFamilyV3.model_validate_json(family_path.read_text(encoding="utf-8"))
+    doc = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
     print(
         json.dumps(
             {

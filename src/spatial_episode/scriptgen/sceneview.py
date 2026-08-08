@@ -233,6 +233,16 @@ class GeometrySceneView:
             return VisibilityObservation("geom_ratio", 0.0, 0.0)
         return VisibilityObservation("geom_ratio", obj.size_m / dist, unoccluded)
 
+    def visibility_from_pose(self, name: str, pose: Pose2D) -> VisibilityObservation:
+        """Query static scene truth from a constructed pose outside the sequence."""
+        probe = GeometrySceneView(
+            layout=self.layout,
+            poses=(pose,),
+            std=self.std,
+            ray_samples=self.ray_samples,
+        )
+        return probe.visibility(name, 0)
+
     def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
         target = self.layout.object(name)
         return blocking_occluders(self.layout, self.poses[t].xy, target)

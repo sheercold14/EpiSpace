@@ -12,12 +12,14 @@ from dataclasses import dataclass
 
 from .geometry import (
     azimuth_deg,
+    bearing_deg,
     distance_m,
     net_turn_deg,
     sector_margin_deg,
     sector_of,
+    wrap_deg,
 )
-from .sceneview import SceneView
+from .sceneview import GeometrySceneView, Pose2D, SceneView
 from .standards import CompileStandard
 
 AnswerWitnessValue = float | int | str
@@ -162,5 +164,69 @@ def start_sector(
             "margin_deg": round(sector_margin_deg(azimuth), 1),
             "start_distance_m": round(distance_m(start.xy, pose.xy), 2),
             "question_frame": frame,
+        },
+    )
+
+
+def _imagined_pose(view: SceneView, viewpoint: str, facing: str, yaw_offset_deg: float) -> Pose2D:
+    origin = view.object(viewpoint).xy
+    yaw = wrap_deg(bearing_deg(origin, view.object(facing).xy) + yaw_offset_deg)
+    return Pose2D(origin[0], origin[1], yaw)
+
+
+@answer_mode("imagined_sector")
+def imagined_sector(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+    yaw_offset_deg: float = 0.0,
+) -> AnswerResult:
+    """Target sector from a constructed position-and-facing reference frame."""
+    del std
+    pose = _imagined_pose(view, viewpoint, facing, yaw_offset_deg)
+    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(obj).xy)
+    label = sector_of(azimuth)
+    return AnswerResult(
+        label=label,
+        witness={
+            "imagined_x": round(pose.x, 3),
+            "imagined_y": round(pose.y, 3),
+            "imagined_yaw_deg": round(pose.yaw_deg, 1),
+            "yaw_offset_deg": round(yaw_offset_deg, 1),
+            "azimuth_deg": round(azimuth, 1),
+            "margin_deg": round(sector_margin_deg(azimuth), 1),
+        },
+    )
+
+
+@answer_mode("imagined_visibility")
+def imagined_visibility(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+    yaw_offset_deg: float = 0.0,
+) -> AnswerResult:
+    """Geometric visibility from a constructed pose, independent of sequence frames."""
+    pose = _imagined_pose(view, viewpoint, facing, yaw_offset_deg)
+    probe = GeometrySceneView(layout=view.layout, poses=(pose,), std=std)
+    observation = probe.visibility(obj, 0)
+    state = observation.tristate(std)
+    if state is None:
+        raise ValueError("imagined visibility is ambiguous; qualification clause missing")
+    return AnswerResult(
+        label="visible" if state else "not_visible",
+        witness={
+            "imagined_x": round(pose.x, 3),
+            "imagined_y": round(pose.y, 3),
+            "imagined_yaw_deg": round(pose.yaw_deg, 1),
+            "yaw_offset_deg": round(yaw_offset_deg, 1),
+            "visibility_value": round(observation.value, 4),
+            "unoccluded_ratio": round(observation.unoccluded_ratio, 3),
         },
     )

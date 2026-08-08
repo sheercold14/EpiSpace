@@ -36,6 +36,7 @@ from .library import (
     OCCLUDED_MOTION,
     PURE_ROTATION,
     PURE_TRANSLATION,
+    REFERENCE_FRAME_SCRIPTS,
     SCRIPT_LIBRARY,
     SELF_MOTION,
     VIEW_SIDE,
@@ -58,8 +59,12 @@ QUESTION_ROLES: dict[str, FamilyRole] = {
     PURE_TRANSLATION.capability: "primary",
     MULTI_TURN.capability: "primary",
     OCCLUDED_MOTION.capability: "primary",
+    **{script.capability: "primary" for script in REFERENCE_FRAME_SCRIPTS},
 }
 QUESTION_GROUP_SCRIPTS = (SELF_MOTION, NET_TURN, NET_TURN_MAGNITUDE, HOMING, VIEW_SIDE)
+QUESTION_SCRIPT_SETS = {
+    script.capability: REFERENCE_FRAME_SCRIPTS for script in REFERENCE_FRAME_SCRIPTS
+}
 
 
 class FamilyQuestion(SpecModel):
@@ -107,10 +112,10 @@ class FamilyEpisode(SpecModel):
     certificate: Certificate
 
 
-class ScriptgenFamilyV3(SpecModel):
+class ScriptgenFamilyV4(SpecModel):
     """The versioned family contract (registered in contracts/schema.py)."""
 
-    schema_version: Literal["scriptgen_family.v3"] = "scriptgen_family.v3"
+    schema_version: Literal["scriptgen_family.v4"] = "scriptgen_family.v4"
     family_id: str
     question_group_id: str
     role: FamilyRole
@@ -120,6 +125,7 @@ class ScriptgenFamilyV3(SpecModel):
     seed: int
     plan_id: str
     target: FamilyTarget
+    referents: dict[str, FamilyTarget]
     question: FamilyQuestion
     frames: tuple[FrameMedia, ...]
     episodes: tuple[FamilyEpisode, ...]
@@ -173,7 +179,7 @@ def build_family_doc(
     family_id: str | None = None,
     media_prefix: str = "media",
     template_index: int = 0,
-) -> ScriptgenFamilyV3:
+) -> ScriptgenFamilyV4:
     """Compile canonical + variants and assemble the audited family document."""
     binding = dict(plan["binding"])
     compiler = CapabilityCompiler(
@@ -198,9 +204,15 @@ def build_family_doc(
 
     target_id = binding.get("target", next(iter(binding.values())))
     target = view.object(target_id)
+    referents = {
+        slot: FamilyTarget(entity_id=entity_id, category=view.object(entity_id).category)
+        for slot, entity_id in binding.items()
+    }
     template = compiler.template
-    question_text = template.text.format(target=target.category)
-    checks = _audit(question_text, template, target.category, view.layout, canonical)
+    question_text = template.text.format(
+        **{slot: referent.category for slot, referent in referents.items()}
+    )
+    checks = _audit(question_text, template, tuple(referents.values()), view.layout, canonical)
     if not checks.referent_unique:
         raise FamilyBlocked(f"referent not unique in scene: {target.category}")
     if checks.unfilled_placeholders or checks.frame_number_leak or checks.answer_token_leak:
@@ -233,7 +245,7 @@ def build_family_doc(
         for t in range(view.frame_count)
     )
 
-    return ScriptgenFamilyV3(
+    return ScriptgenFamilyV4(
         family_id=family_id,
         question_group_id=question_group_id,
         role=role,
@@ -243,6 +255,7 @@ def build_family_doc(
         seed=seed,
         plan_id=plan["plan_id"],
         target=FamilyTarget(entity_id=target_id, category=target.category),
+        referents=referents,
         question=FamilyQuestion(
             text=question_text,
             options=template.options,
@@ -284,7 +297,11 @@ def build_family_site(
     )
 
     out.mkdir(parents=True, exist_ok=True)
-    target_ids = list(view.entity_runtime_ids.get(doc.target.entity_id, ()))
+    target_ids = [
+        runtime_id
+        for referent in doc.referents.values()
+        for runtime_id in view.entity_runtime_ids.get(referent.entity_id, ())
+    ]
     export_bundle_channels(bundle, target_ids, view.frame_count, out / "media")
     (out / "family.json").write_text(doc.model_dump_json(indent=1), encoding="utf-8")
     shutil.copyfile(WEB_TEMPLATE, out / "index.html")
@@ -312,13 +329,21 @@ def build_question_group(
     question_group_id = f"{plan['plan_id']}.question_group.s{seed}"
     if scripts is None:
         source = SCRIPT_LIBRARY[plan["capability"]]
-        scripts = tuple(
-            {script.capability: script for script in (source, *QUESTION_GROUP_SCRIPTS[1:])}.values()
+        scripts = QUESTION_SCRIPT_SETS.get(
+            source.capability,
+            tuple(
+                {
+                    script.capability: script for script in (source, *QUESTION_GROUP_SCRIPTS[1:])
+                }.values()
+            ),
         )
 
     out.mkdir(parents=True, exist_ok=True)
-    target_id = binding.get("target", next(iter(binding.values())))
-    target_ids = list(view.entity_runtime_ids.get(target_id, ()))
+    target_ids = [
+        runtime_id
+        for entity_id in binding.values()
+        for runtime_id in view.entity_runtime_ids.get(entity_id, ())
+    ]
     export_bundle_channels(bundle, target_ids, view.frame_count, out / "media")
 
     questions: list[QuestionGroupEntry] = []
@@ -418,14 +443,17 @@ def _role_for(script: ScriptSpec) -> FamilyRole:
 def _audit(
     question_text: str,
     template: Template,
-    target_category: str,
+    referents: tuple[FamilyTarget, ...],
     layout: SceneLayout,
     canonical: Certificate,
 ) -> FamilyChecks:
-    same_category = [o for o in layout.objects if o.category == target_category]
+    categories_unique = all(
+        sum(obj.category == referent.category for obj in layout.objects) == 1
+        for referent in referents
+    )
     gold = canonical.answer.label if canonical.answer else ""
     return FamilyChecks(
-        referent_unique=len(same_category) == 1,
+        referent_unique=categories_unique,
         unfilled_placeholders=bool(re.search(r"[{}]", question_text)),
         frame_number_leak=bool(re.search(r"第\s*\d+\s*帧", question_text)),
         answer_token_leak=bool(gold) and gold in question_text,

@@ -72,3 +72,43 @@
 §5 所列仓外 navmesh/胶囊二次复核未执行。新子型尚无渲染 bundle，
 对应 needs_batch 掩码复核待后续既有渲染管线产生产物后自动启用；本阶段
 没有手写或修改任何金标。
+
+## P2：基元 A（参考系变换）
+
+产出：
+
+- 新增 `survey` motif：在同一自由站位以不超过逐帧转向上限的速度完成
+  360° 环视，实际位移为 0；
+- 新增 `all_landmarks_visible`、`never_all_covisible`、
+  `imagined_pose_valid` 和深/浅两档曲线裕度谓词；每个 P/Q/X 至少有
+  2 个清晰目击帧，并禁止三者在任何单帧同时清晰可见，显式堵住静态
+  单帧旁路；
+- 新增 `imagined_sector` 与 `imagined_visibility` 答案模式；前者从
+  P 坐标和 P→Q 朝向构造想象位姿，后者经 `GeometrySceneView` 的任意
+  构造位姿入口计算视锥与遮挡；
+- 深档和浅档各声明 0/45/90/135/180° 五个 spec，共用同一 survey
+  录像和绑定。协变不是手改 family 金标，而是每个角度 spec 重新调用
+  编译器；帧置换/删目击/删冗余/延迟预期分别为
+  same/abstain/same/same，并由 VariantBuilder 复核；
+- family 升为 v4，增加全槽位 `referents`，题面按绑定逐一填充 P/Q/X，
+  媒体导出覆盖所有绑定实例；问题组登记处将同一 A 轨迹自动编排为
+  10 个角度×档位问题；
+- 新阈值进入 standards，版本升为 std.v6，并显式保持对
+  std.v3–std.v5 的纯扩展兼容。
+
+验证：
+
+- `tests/scriptgen` 共 106 项全绿；合成固定几何上深档五点金标为
+  right / right / back / back / left，方位角逐点严格按 -offset 协变；
+- Beechwood 真实多房间 `scene_ir` 上生成无碰撞 survey，深档五点为
+  front / right / right / back / back，浅档为
+  visible / not_visible / not_visible / not_visible / not_visible；上述钉值
+  均直接抄录编译器输出；
+- 置换保持答案，删尽 X 的目击帧由 `landmark_evidence` 构造性地产生
+  弃答；三条 wallfix 的既有 left / left / right 金标和数值钉值不变。
+
+偏离：计划中的浅档“附加想象视图渲染掩码复核”需要仓外渲染器产出
+not-in-sequence 视图；受不得启动 Isaac Sim 的硬约束，本阶段只完成
+EpiSpace 内几何权威链和任意位姿查询入口，未伪造掩码或手写复核结果。
+角度协变采用同一问题组中的声明式 sibling specs，而没有扩张既有四种
+帧手术算子；每个角度仍经过同一编译器和 spec 预期核对。

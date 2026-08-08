@@ -19,7 +19,7 @@ from test_compiler import TARGET, FakeRenderView, qualifying_fake
 from spatial_episode.contracts.schema import CONTRACTS
 from spatial_episode.scriptgen.family import (
     FamilyBlocked,
-    ScriptgenFamilyV3,
+    ScriptgenFamilyV4,
     ScriptgenQuestionGroupV1,
     build_family_doc,
     build_family_site,
@@ -60,8 +60,9 @@ def fake_bundle_view(extra_objects: tuple[SceneObject, ...] = ()) -> FakeBundleV
 
 def test_family_doc_shape() -> None:
     doc = build_family_doc(fake_bundle_view(), PLAN, SELF_MOTION, STD_V1, seed=3)
-    assert doc.schema_version == "scriptgen_family.v3"
+    assert doc.schema_version == "scriptgen_family.v4"
     assert doc.role == "primary"
+    assert doc.referents == {"target": doc.target}
     assert doc.question_group_id == "fake-plan.question_group"
     assert [e.kind for e in doc.episodes] == [
         "canonical",
@@ -80,7 +81,7 @@ def test_family_doc_shape() -> None:
     # Media paths are relative (decision #2).
     assert all(not f.rgb.startswith("/") for f in doc.frames)
     serialized = doc.model_dump_json()
-    assert ScriptgenFamilyV3.model_validate_json(serialized).model_dump_json() == serialized
+    assert ScriptgenFamilyV4.model_validate_json(serialized).model_dump_json() == serialized
 
 
 def test_duplicate_referent_blocks() -> None:
@@ -111,10 +112,10 @@ def test_geometry_disagreement_blocks() -> None:
 
 
 def test_family_schema_registered_in_contracts() -> None:
-    assert CONTRACTS["scriptgen_family.v3.schema.json"] is ScriptgenFamilyV3
-    assert "scriptgen_family.v2.schema.json" not in CONTRACTS
-    schema = ScriptgenFamilyV3.model_json_schema()
-    assert schema["properties"]["schema_version"]["const"] == "scriptgen_family.v3"
+    assert CONTRACTS["scriptgen_family.v4.schema.json"] is ScriptgenFamilyV4
+    assert "scriptgen_family.v3.schema.json" not in CONTRACTS
+    schema = ScriptgenFamilyV4.model_json_schema()
+    assert schema["properties"]["schema_version"]["const"] == "scriptgen_family.v4"
 
 
 def test_selected_template_drives_validation_and_packaging() -> None:
@@ -148,7 +149,7 @@ def test_one_command_site_from_render_0(tmp_path: Path) -> None:
         STD_V1,
         seed=17,
     )
-    doc = ScriptgenFamilyV3.model_validate_json(family_path.read_text(encoding="utf-8"))
+    doc = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
     assert {e.kind: e.label for e in doc.episodes} == {
         "canonical": "left",
         "permute": "无法判断",
@@ -268,7 +269,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
         if question.family is None:
             continue
         family_path = group_path.parent / question.family
-        family = ScriptgenFamilyV3.model_validate_json(family_path.read_text(encoding="utf-8"))
+        family = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
         canonical = next(ep for ep in family.episodes if ep.kind == "canonical")
         assert canonical.label == question.label
         assert family.question_group_id == group.question_group_id
@@ -283,7 +284,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
 
     view_family_path = group_path.parent / (questions["view_side_check"].family or "")
     if questions["view_side_check"].family is not None:
-        view_family = ScriptgenFamilyV3.model_validate_json(
+        view_family = ScriptgenFamilyV4.model_validate_json(
             view_family_path.read_text(encoding="utf-8")
         )
         episodes = {episode.kind: episode for episode in view_family.episodes}

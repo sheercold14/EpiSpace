@@ -21,14 +21,16 @@ from typing import Any
 
 from .geometry import (
     azimuth_deg,
+    bearing_deg,
     cumulative_turn_deg,
     distance_m,
     net_turn_deg,
     sector_margin_deg,
     sector_of,
     segment_intersects_rect,
+    wrap_deg,
 )
-from .sceneview import SceneLayout, SceneView
+from .sceneview import GeometrySceneView, Pose2D, SceneLayout, SceneView
 from .standards import CompileStandard
 
 
@@ -500,6 +502,213 @@ def occluded_in_view(view: SceneView, std: CompileStandard, *, obj: str, frame: 
             "fov_half_angle_deg": std.fov_half_angle_deg,
             "blocked_by": ",".join(blocked_by),
         },
+    )
+
+
+@predicate("all_landmarks_visible")
+def all_landmarks_visible(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+    frames: Sequence[int],
+) -> Verdict:
+    """Each imagined-frame landmark has enough independently clear sightings."""
+    counts: dict[str, int] = {}
+    ambiguous: dict[str, int] = {}
+    for name in (viewpoint, facing, obj):
+        rows = _tristates(view, name, frames, std)
+        counts[name] = sum(state is True for _, state, _ in rows)
+        ambiguous[name] = sum(state is None for _, state, _ in rows)
+    holds = all(count >= std.landmark_min_visible_frames for count in counts.values())
+    decision: bool | None = None if not holds and any(ambiguous.values()) else holds
+    return Verdict(
+        decision,
+        {
+            "visible_counts": counts,
+            "ambiguous_counts": ambiguous,
+            "required_frames": std.landmark_min_visible_frames,
+        },
+    )
+
+
+@predicate("never_all_covisible")
+def never_all_covisible(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+    frames: Sequence[int],
+) -> Verdict:
+    """No single frame exposes all three landmarks as a static shortcut."""
+    all_visible_frames: list[int] = []
+    ambiguous_frames: list[int] = []
+    for frame in frames:
+        states = [view.visibility(name, frame).tristate(std) for name in (viewpoint, facing, obj)]
+        if all(state is True for state in states):
+            all_visible_frames.append(frame)
+        elif all(state is not False for state in states) and any(state is None for state in states):
+            ambiguous_frames.append(frame)
+    if all_visible_frames:
+        holds: bool | None = False
+    elif ambiguous_frames:
+        holds = None
+    else:
+        holds = True
+    return Verdict(
+        holds,
+        {
+            "all_visible_frames": all_visible_frames,
+            "ambiguous_frames": ambiguous_frames,
+        },
+    )
+
+
+def _imagined_pose_values(
+    view: SceneView, viewpoint: str, facing: str, yaw_offset_deg: float
+) -> tuple[tuple[float, float], float]:
+    origin = view.object(viewpoint).xy
+    yaw = wrap_deg(bearing_deg(origin, view.object(facing).xy) + yaw_offset_deg)
+    return origin, yaw
+
+
+@predicate("imagined_pose_valid")
+def imagined_pose_valid(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+) -> Verdict:
+    """P and Q are separated enough to define a stable imagined heading."""
+    distance = distance_m(view.object(viewpoint).xy, view.object(facing).xy)
+    return Verdict(
+        distance >= std.imagined_min_anchor_distance_m,
+        {
+            "anchor_distance_m": round(distance, 3),
+            "required_m": std.imagined_min_anchor_distance_m,
+        },
+    )
+
+
+@predicate("imagined_sector_margin_ge")
+def imagined_sector_margin_ge(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+    yaw_offset_deg: float = 0.0,
+) -> Verdict:
+    """Target direction clears sector boundaries in the constructed frame."""
+    origin, yaw = _imagined_pose_values(view, viewpoint, facing, yaw_offset_deg)
+    azimuth = azimuth_deg(origin, yaw, view.object(obj).xy)
+    margin = sector_margin_deg(azimuth)
+    return Verdict(
+        margin >= std.sector_margin_deg,
+        {
+            "imagined_yaw_deg": round(yaw, 1),
+            "yaw_offset_deg": round(yaw_offset_deg, 1),
+            "azimuth_deg": round(azimuth, 1),
+            "sector": sector_of(azimuth),
+            "margin_deg": round(margin, 1),
+            "required_deg": std.sector_margin_deg,
+        },
+    )
+
+
+@predicate("imagined_curve_sector_margins_ge")
+def imagined_curve_sector_margins_ge(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+) -> Verdict:
+    """Every preregistered imagined-yaw point clears a sector boundary."""
+    margins: list[tuple[int, float]] = []
+    for offset in std.imagined_viewpoint_offsets_deg:
+        origin, yaw = _imagined_pose_values(view, viewpoint, facing, offset)
+        azimuth = azimuth_deg(origin, yaw, view.object(obj).xy)
+        margins.append((offset, sector_margin_deg(azimuth)))
+    minimum = min(margin for _, margin in margins)
+    return Verdict(
+        minimum >= std.sector_margin_deg,
+        {
+            "offset_margins_deg": {str(offset): round(margin, 1) for offset, margin in margins},
+            "minimum_margin_deg": round(minimum, 1),
+            "required_deg": std.sector_margin_deg,
+        },
+    )
+
+
+@predicate("imagined_visibility_decisive")
+def imagined_visibility_decisive(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+    yaw_offset_deg: float = 0.0,
+) -> Verdict:
+    """Constructed-pose visibility lies outside the geometry ambiguity band."""
+    origin, yaw = _imagined_pose_values(view, viewpoint, facing, yaw_offset_deg)
+    probe = GeometrySceneView(
+        layout=view.layout,
+        poses=(Pose2D(origin[0], origin[1], yaw),),
+        std=std,
+    )
+    observation = probe.visibility(obj, 0)
+    state = observation.tristate(std)
+    return Verdict(
+        state is not None,
+        {
+            "imagined_yaw_deg": round(yaw, 1),
+            "yaw_offset_deg": round(yaw_offset_deg, 1),
+            "visibility_state": (
+                "visible" if state is True else "invisible" if state is False else "ambiguous"
+            ),
+            "visibility_value": round(observation.value, 4),
+            "unoccluded_ratio": round(observation.unoccluded_ratio, 3),
+        },
+    )
+
+
+@predicate("imagined_curve_visibility_decisive")
+def imagined_curve_visibility_decisive(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    viewpoint: str,
+    facing: str,
+    obj: str,
+) -> Verdict:
+    """Every preregistered imagined-yaw point has a decisive visibility state."""
+    states: list[tuple[int, str]] = []
+    for offset in std.imagined_viewpoint_offsets_deg:
+        origin, yaw = _imagined_pose_values(view, viewpoint, facing, offset)
+        probe = GeometrySceneView(
+            layout=view.layout,
+            poses=(Pose2D(origin[0], origin[1], yaw),),
+            std=std,
+        )
+        state = probe.visibility(obj, 0).tristate(std)
+        states.append(
+            (
+                offset,
+                "visible" if state is True else "invisible" if state is False else "ambiguous",
+            )
+        )
+    return Verdict(
+        all(state != "ambiguous" for _, state in states),
+        {"offset_states": {str(offset): state for offset, state in states}},
     )
 
 

@@ -689,3 +689,34 @@ def walk_to_occlusion(
     final_yaw = bearing_deg(end.xy, target.xy)
     walk.extend(_turn_in_place(end.xy, end.yaw_deg, final_yaw, look_frames))
     return tuple(walk)
+
+
+def _survey_station(
+    layout: SceneLayout, landmark_names: tuple[str, ...], rng: random.Random
+) -> tuple[float, float]:
+    """Free point with unobstructed, sufficiently close rays to all landmarks."""
+    grid = _occupancy_grid(layout)
+    candidates = list(grid.free_cells)
+    rng.shuffle(candidates)
+    landmarks = tuple(layout.object(name) for name in landmark_names)
+    for index in candidates[:512]:
+        xy = grid.world_xy(index)
+        if all(not blocking_occluders(layout, xy, landmark) for landmark in landmarks):
+            return xy
+    return grid.world_xy(candidates[0])
+
+
+@motif("survey")
+def survey(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """Stationary, rate-limited panorama exposing P, Q and X in separate views."""
+    names = (binding["viewpoint"], binding["facing"], binding["target"])
+    station = _survey_station(layout, names, rng)
+    start_yaw = rng.uniform(-180.0, 180.0)
+    direction = rng.choice((-1.0, 1.0))
+    step = direction * 360.0 / (frame_count - 1)
+    return tuple(
+        Pose2D(station[0], station[1], wrap_deg(start_yaw + index * step))
+        for index in range(frame_count)
+    )

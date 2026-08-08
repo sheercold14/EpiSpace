@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v5"
+    standard_version: str = "std.v6"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -72,6 +72,11 @@ class CompileStandard:
     multi_turn_max_segments: int = 3
     camera_height_m: float = 1.5
 
+    # --- imagined-viewpoint transformation (std.v6) ---
+    landmark_min_visible_frames: int = 2
+    imagined_min_anchor_distance_m: float = 1.0
+    imagined_viewpoint_offsets_deg: tuple[int, ...] = (0, 45, 90, 135, 180)
+
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates
     # survive the authoritative post-render re-check.
@@ -90,6 +95,8 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     # std.v5 only adds subtype fields. It is independently a pure extension
     # of both v4 and the wallfix plans authored under v3.
     "std.v5": ("std.v4", "std.v3"),
+    # std.v6 adds only reference-frame fields.
+    "std.v6": ("std.v5", "std.v4", "std.v3"),
 }
 
 STD_V4_ADDED_FIELDS = (
@@ -106,4 +113,10 @@ STD_V5_ADDED_FIELDS = (
     "multi_turn_min_segments",
     "multi_turn_max_segments",
     "camera_height_m",
+)
+
+STD_V6_ADDED_FIELDS = (
+    "landmark_min_visible_frames",
+    "imagined_min_anchor_distance_m",
+    "imagined_viewpoint_offsets_deg",
 )

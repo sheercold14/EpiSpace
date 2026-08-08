@@ -454,6 +454,139 @@ VIEW_SIDE = _script(
     },
 )
 
+
+IMAGINED_VIEWPOINT_OFFSETS = (0, 45, 90, 135, 180)
+
+
+def _reference_frame_spec(
+    *,
+    answer_mode: str,
+    yaw_offset_deg: int,
+) -> ScriptSpec:
+    """One point on the deep/shallow imagined-viewpoint covariance curve."""
+    deep = answer_mode == "imagined_sector"
+    suffix = "" if yaw_offset_deg == 0 else f"_yaw{yaw_offset_deg}"
+    stem = "reference_frame_transform" if deep else "reference_frame_visibility"
+    qualifier = Clause(
+        name="imagined_answer_decisive",
+        predicate=(
+            "imagined_curve_sector_margins_ge" if deep else "imagined_curve_visibility_decisive"
+        ),
+        args={
+            "viewpoint": "$viewpoint",
+            "facing": "$facing",
+            "obj": "$target",
+        },
+        phase="search",
+    )
+    if yaw_offset_deg:
+        facing_text = f"朝向从{{facing}}方向向左旋转{yaw_offset_deg}度"
+    else:
+        facing_text = "面向{facing}"
+    if deep:
+        question = f"若你站在{{viewpoint}}处、{facing_text},{{target}}在你的哪个方向?"
+        options = ("front", "left", "back", "right", "无法判断")
+    else:
+        question = f"若你站在{{viewpoint}}处、{facing_text},你能看见{{target}}吗?"
+        options = ("visible", "not_visible", "无法判断")
+    return _script(
+        capability=f"{stem}{suffix}",
+        slots={
+            "viewpoint": SlotSpec(min_size_m=0.3, unique_referent=True),
+            "facing": SlotSpec(min_size_m=0.3, unique_referent=True),
+            "target": SlotSpec(min_size_m=0.3, unique_referent=True),
+        },
+        frame_vars={"t_q": "last_frame()"},
+        clauses=(
+            Clause(
+                name="stationary_survey",
+                predicate="displacement_below",
+                args={"frames": "0:$t_q"},
+                phase="search_only",
+            ),
+            Clause(
+                name="trackable_survey",
+                predicate="step_motion_bounded",
+                args={"frames": "0:$t_q"},
+                phase="search_only",
+            ),
+            Clause(
+                name="landmark_evidence",
+                predicate="all_landmarks_visible",
+                args={
+                    "viewpoint": "$viewpoint",
+                    "facing": "$facing",
+                    "obj": "$target",
+                    "frames": "0:$t_q",
+                },
+                phase="compile",
+                on_violation="abstain",
+            ),
+            Clause(
+                name="no_single_frame_shortcut",
+                predicate="never_all_covisible",
+                args={
+                    "viewpoint": "$viewpoint",
+                    "facing": "$facing",
+                    "obj": "$target",
+                    "frames": "0:$t_q",
+                },
+                phase="compile",
+            ),
+            Clause(
+                name="imagined_pose_stable",
+                predicate="imagined_pose_valid",
+                args={"viewpoint": "$viewpoint", "facing": "$facing"},
+                phase="search",
+            ),
+            qualifier,
+        ),
+        answer=AnswerSpec(
+            mode=answer_mode,
+            args={
+                "viewpoint": "$viewpoint",
+                "facing": "$facing",
+                "obj": "$target",
+                "yaw_offset_deg": yaw_offset_deg,
+            },
+        ),
+        knobs=(
+            Knob(
+                name="imagined_yaw_offset_deg",
+                expr=str(yaw_offset_deg),
+                levels=tuple(float(value) for value in IMAGINED_VIEWPOINT_OFFSETS),
+            ),
+        ),
+        length=(14, 18),
+        motifs=("survey",),
+        templates=(
+            Template(
+                text=(
+                    f'这段第一人称序列是从同一站位拍摄的环视。{question}如果证据不足,选"无法判断"。'
+                ),
+                options=options,
+            ),
+        ),
+        intervention_window="0:$t_q",
+        variant_expectations={
+            "permute": "same",
+            "drop_key": "abstain",
+            "drop_filler": "same",
+            "delay": "same",
+        },
+    )
+
+
+REFERENCE_FRAME_DEEP = tuple(
+    _reference_frame_spec(answer_mode="imagined_sector", yaw_offset_deg=offset)
+    for offset in IMAGINED_VIEWPOINT_OFFSETS
+)
+REFERENCE_FRAME_SHALLOW = tuple(
+    _reference_frame_spec(answer_mode="imagined_visibility", yaw_offset_deg=offset)
+    for offset in IMAGINED_VIEWPOINT_OFFSETS
+)
+REFERENCE_FRAME_SCRIPTS = REFERENCE_FRAME_DEEP + REFERENCE_FRAME_SHALLOW
+
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
     script.capability: script
     for script in (
@@ -466,5 +599,6 @@ SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
         NET_TURN_MAGNITUDE,
         HOMING,
         VIEW_SIDE,
+        *REFERENCE_FRAME_SCRIPTS,
     )
 }
