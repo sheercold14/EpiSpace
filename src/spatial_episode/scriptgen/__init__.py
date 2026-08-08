@@ -13,7 +13,7 @@ from .compiler import CapabilityCompiler, Certificate
 from .generate import generate_plans
 from .library import SCRIPT_LIBRARY, SELF_MOTION
 from .plan import GenerationReport, TrajectoryPlan
-from .spec import Clause, Knob, ScriptSpec, SlotSpec, Template
+from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
 from .standards import STD_V1, CompileStandard
 
 __all__ = [
@@ -22,6 +22,7 @@ __all__ = [
     "STD_V1",
     "CapabilityCompiler",
     "Certificate",
+    "AnswerSpec",
     "Clause",
     "CompileStandard",
     "GenerationReport",

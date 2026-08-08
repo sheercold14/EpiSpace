@@ -75,12 +75,15 @@ def compiler() -> CapabilityCompiler:
 
 def test_answerable_certificate(compiler: CapabilityCompiler) -> None:
     cert = compiler.compile(qualifying_fake(), BINDING)
+    assert SELF_MOTION.schema_version == "scriptgen_spec.v4"
+    assert cert.schema_version == "scriptgen_certificate.v2"
     assert cert.status == "answerable" and cert.reason is None
     assert cert.frame_vars == {"t_seen": 1, "t_gone": 2, "t_q": 12}
     assert cert.answer is not None
-    assert cert.answer.sector == "left"
-    assert cert.answer.azimuth_deg == pytest.approx(105.0)
-    assert cert.answer.margin_deg == pytest.approx(30.0)
+    assert cert.answer.mode == "target_sector"
+    assert cert.answer.label == "left"
+    assert cert.answer.witness["azimuth_deg"] == pytest.approx(105.0)
+    assert cert.answer.witness["margin_deg"] == pytest.approx(30.0)
     assert cert.backend == "render_pixels"
     assert cert.knob_levels == {"delay": 10.0}
     assert [v.tristate for v in cert.target_visibility[:3]] == ["visible", "visible", "invisible"]
@@ -178,9 +181,30 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
 # --- integration: the three rendered gates_bedroom trajectories ---
 
 EXPECTED = {
-    0: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 11},
-    1: {"sector": "left", "t_seen": 1, "t_gone": 2, "t_q": 13},
-    2: {"sector": "right", "t_seen": 1, "t_gone": 2, "t_q": 10},
+    0: {
+        "label": "left",
+        "azimuth_deg": 97.1,
+        "margin_deg": 37.9,
+        "t_seen": 1,
+        "t_gone": 2,
+        "t_q": 11,
+    },
+    1: {
+        "label": "left",
+        "azimuth_deg": 77.4,
+        "margin_deg": 32.4,
+        "t_seen": 1,
+        "t_gone": 2,
+        "t_q": 13,
+    },
+    2: {
+        "label": "right",
+        "azimuth_deg": -84.5,
+        "margin_deg": 39.5,
+        "t_seen": 1,
+        "t_gone": 2,
+        "t_q": 10,
+    },
 }
 
 
@@ -195,9 +219,17 @@ def test_rendered_bundles_compile_answerable(
     expected = EXPECTED[index]
     assert cert.status == "answerable"
     assert cert.mismatch is None
-    assert cert.answer is not None and cert.answer.sector == expected["sector"]
-    assert cert.frame_vars == {k: v for k, v in expected.items() if k != "sector"}
-    assert cert.answer.margin_deg >= STD_V1.sector_margin_deg
+    assert cert.answer is not None and cert.answer.label == expected["label"]
+    assert cert.answer.witness == {
+        "azimuth_deg": expected["azimuth_deg"],
+        "sector": expected["label"],
+        "margin_deg": expected["margin_deg"],
+        "question_frame": expected["t_q"],
+    }
+    assert cert.frame_vars == {
+        key: expected[key] for key in ("t_seen", "t_gone", "t_q")
+    }
+    assert cert.answer.witness["margin_deg"] >= STD_V1.sector_margin_deg
     # Round-trips through JSON as a frozen contract (witness dicts hold Any,
     # so equality is on the serialised form, not tuple-vs-list identity).
     serialized = cert.model_dump_json()

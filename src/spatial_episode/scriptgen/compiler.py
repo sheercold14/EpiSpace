@@ -8,8 +8,8 @@ pixels) it
    (e.g. ``t_seen``) are NEVER trusted, only carried as comparison fields;
 2. re-judges every clause of the script, search and compile phase alike, with
    search tightening OFF (full margins apply at compile time);
-3. derives the answer from the actually rendered camera pose at the question
-   frame, with its azimuth and sector-boundary margin as the witness;
+3. dispatches the spec's declared answer mode with arguments resolved by the
+   same expression machinery as clause arguments;
 4. classifies failures via the spec's declared semantics: an ``abstain``
    clause/frame-var failure makes the gold the abstain option (the evidence is
    gone), an ``invalid`` failure voids the question entirely;
@@ -27,8 +27,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .checker import FrameVarUnresolvable, check_clauses, resolve_frame_vars
-from .geometry import azimuth_deg, sector_margin_deg, sector_of
+from .answers import get_answer_mode
+from .checker import (
+    FrameVarUnresolvable,
+    check_clauses,
+    resolve_args,
+    resolve_frame_vars,
+)
 from .sceneview import ReindexedSceneView, SceneView
 from .spec import ScriptSpec, SpecModel
 from .standards import CompileStandard
@@ -55,13 +60,11 @@ class ClauseOutcome(SpecModel):
 
 
 class AuthoritativeAnswer(SpecModel):
-    """Answer derived from the rendered pose at the question frame."""
+    """Answer produced by one registered mode from rendered evidence."""
 
-    question_frame: int
-    target: str
-    azimuth_deg: float
-    sector: str
-    margin_deg: float
+    mode: str
+    label: str
+    witness: dict[str, float | int | str]
 
 
 class FrameVisibility(SpecModel):
@@ -89,7 +92,7 @@ class GeometryComparison(SpecModel):
 class Certificate(SpecModel):
     """Complete, replayable record of one authoritative compilation."""
 
-    schema_version: Literal["scriptgen_certificate.v1"] = "scriptgen_certificate.v1"
+    schema_version: Literal["scriptgen_certificate.v2"] = "scriptgen_certificate.v2"
     capability: str
     standard_version: str
     backend: str  # visibility kind of the compile backend, e.g. render_pixels
@@ -203,7 +206,13 @@ class CapabilityCompiler:
                 mismatch=_mismatch(self.std, geometry, status, None),
             )
 
-        answer = derive_answer(judged, target, frame_vars)
+        answer = derive_answer(
+            judged,
+            self.std,
+            self.script,
+            binding,
+            frame_vars,
+        )
         essential = (
             self._essential_frames(view, binding, frame_sequence, answer)
             if with_essential
@@ -257,25 +266,33 @@ class CapabilityCompiler:
             reduced = frame_sequence[:drop_at] + frame_sequence[drop_at + 1 :]
             reduced_cert = self.compile(view, binding, frame_sequence=reduced)
             if reduced_cert.status != "answerable" or (
-                reduced_cert.answer is not None and reduced_cert.answer.sector != answer.sector
+                reduced_cert.answer is not None
+                and reduced_cert.answer.label != answer.label
             ):
                 essential.append(frame_sequence[drop_at])
         return tuple(essential)
 
 
 def derive_answer(
-    view: SceneView, target: str, frame_vars: dict[str, int]
+    view: SceneView,
+    std: CompileStandard,
+    script: ScriptSpec,
+    binding: dict[str, str],
+    frame_vars: dict[str, int],
 ) -> AuthoritativeAnswer:
-    """Sector answer from the (rendered) camera pose at the question frame."""
-    t_q = frame_vars.get("t_q", view.frame_count - 1)
-    pose = view.camera_pose(t_q)
-    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(target).xy)
+    """Resolve and dispatch the spec's declared answer algorithm."""
+    env: dict[str, Any] = {**binding, **frame_vars}
+    kwargs = resolve_args(script.answer.args, env, view.frame_count)
+    result = get_answer_mode(script.answer.mode)(view, std, **kwargs)
+    if result.label not in script.templates[0].options:
+        raise ValueError(
+            f"answer mode {script.answer.mode!r} produced label {result.label!r} "
+            f"outside question options {script.templates[0].options!r}"
+        )
     return AuthoritativeAnswer(
-        question_frame=t_q,
-        target=target,
-        azimuth_deg=round(azimuth, 1),
-        sector=sector_of(azimuth),
-        margin_deg=round(sector_margin_deg(azimuth), 1),
+        mode=script.answer.mode,
+        label=result.label,
+        witness=result.witness,
     )
 
 
@@ -322,6 +339,6 @@ def _mismatch(
         )
     if status != "answerable":
         return f"canonical_not_answerable:{status}"
-    if geometry.sector is not None and answer is not None and answer.sector != geometry.sector:
-        return f"sector_disagreement:render={answer.sector},geometry={geometry.sector}"
+    if geometry.sector is not None and answer is not None and answer.label != geometry.sector:
+        return f"sector_disagreement:render={answer.label},geometry={geometry.sector}"
     return None

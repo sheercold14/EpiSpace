@@ -6,7 +6,7 @@ Adding a capability means adding one spec here (and, rarely, one predicate to
 
 from __future__ import annotations
 
-from .spec import Clause, Knob, ScriptSpec, SlotSpec, Template
+from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
 
 # Three-phase structure: SEEN (target clearly visible) -> TRANSITION (target
 # may slide out of frame gradually while the camera turns at a trackable rate)
@@ -91,6 +91,10 @@ SELF_MOTION = ScriptSpec(
             args={"obj": "$target", "frame": "$t_q"},
             phase="search",
         ),
+    ),
+    answer=AnswerSpec(
+        mode="target_sector",
+        args={"obj": "$target", "frame": "$t_q"},
     ),
     # Turn magnitude is not a knob expression: it is recorded in the "turned"
     # clause witness (cum_turn_deg) and bucketed at analysis time.

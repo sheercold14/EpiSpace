@@ -37,6 +37,22 @@ def test_all_four_kinds_built(fake_builder: VariantBuilder) -> None:
     assert tuple(v.kind for v in variants) == INTERVENTION_KINDS
 
 
+def test_only_declared_kinds_are_built() -> None:
+    script = SELF_MOTION.model_copy(
+        update={"variant_expectations": {"drop_filler": "same", "delay": "same"}}
+    )
+    compiler = CapabilityCompiler(script=script, std=STD_V1)
+    view = qualifying_fake()
+    canonical = compiler.compile(view, BINDING, with_essential=True)
+    builder = VariantBuilder(
+        compiler=compiler, view=view, binding=BINDING, canonical=canonical
+    )
+    assert tuple(v.kind for v in builder.build_all(seed=3)) == (
+        "drop_filler",
+        "delay",
+    )
+
+
 def test_permute_destroys_tracking(fake_builder: VariantBuilder) -> None:
     permute = fake_builder.build_all(seed=3)[0]
     assert permute.gold == ABSTAIN
@@ -85,7 +101,7 @@ def test_variants_never_hand_assign_gold(fake_builder: VariantBuilder) -> None:
     for variant in fake_builder.build_all(seed=3):
         if variant.expectation == "same":
             assert variant.certificate.answer is not None
-            assert variant.gold == variant.certificate.answer.sector
+            assert variant.gold == variant.certificate.answer.label
         else:
             assert variant.certificate.status == "abstain"
             assert variant.gold == ABSTAIN
@@ -132,7 +148,7 @@ def test_rendered_bundle_variants(index: int, self_motion_compiler: CapabilityCo
     permute, drop_key, drop_filler, delay = builder.build_all(seed=17)
 
     sector = EXPECTED_SECTORS[index]
-    assert canonical.answer is not None and canonical.answer.sector == sector
+    assert canonical.answer is not None and canonical.answer.label == sector
     assert permute.gold == ABSTAIN and permute.certificate.reason == "clause:trackable"
     assert drop_key.gold == ABSTAIN
     assert drop_filler.gold == sector

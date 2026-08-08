@@ -88,6 +88,13 @@ class Template(SpecModel):
 VariantExpectation = Literal["same", "abstain"]
 
 
+class AnswerSpec(SpecModel):
+    """Declarative selection of one registered answer algorithm."""
+
+    mode: str = Field(min_length=1)
+    args: dict[str, str | int | float | bool]
+
+
 class ScriptSpec(SpecModel):
     """Complete declarative definition of one capability's trajectory needs.
 
@@ -99,11 +106,12 @@ class ScriptSpec(SpecModel):
     the expectation only cross-checks it, and disagreement blocks packaging.
     """
 
-    schema_version: Literal["scriptgen_spec.v3"] = "scriptgen_spec.v3"
+    schema_version: Literal["scriptgen_spec.v4"] = "scriptgen_spec.v4"
     capability: str = Field(min_length=1)
     slots: dict[str, SlotSpec]
     frame_vars: dict[str, str]  # name -> resolver expression
     clauses: tuple[Clause, ...] = Field(min_length=1)
+    answer: AnswerSpec
     knobs: tuple[Knob, ...] = ()
     length: tuple[int, int]  # inclusive frame-count range
     motifs: tuple[str, ...] = Field(min_length=1)

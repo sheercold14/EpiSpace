@@ -142,7 +142,7 @@ def build_family_doc(
             kind="canonical",
             expectation="canonical",
             frame_sequence=canonical.frame_sequence,
-            gold=canonical.answer.sector,
+            gold=canonical.answer.label,
             certificate=canonical,
         ),
     ) + tuple(_episode(family_id, variant) for variant in variants)
@@ -229,7 +229,7 @@ def _audit(
     canonical: Certificate,
 ) -> FamilyChecks:
     same_category = [o for o in layout.objects if o.category == target_category]
-    gold = canonical.answer.sector if canonical.answer else ""
+    gold = canonical.answer.label if canonical.answer else ""
     return FamilyChecks(
         referent_unique=len(same_category) == 1,
         unfilled_placeholders=bool(re.search(r"[{}]", question_text)),

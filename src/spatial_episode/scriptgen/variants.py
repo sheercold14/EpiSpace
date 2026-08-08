@@ -51,7 +51,7 @@ class FamilyMismatch(RuntimeError):
     """Recompiled outcome disagrees with the declared expectation: block."""
 
     def __init__(self, kind: str, expected: str, certificate: Certificate) -> None:
-        actual = certificate.answer.sector if certificate.answer else certificate.status
+        actual = certificate.answer.label if certificate.answer else certificate.status
         super().__init__(
             f"variant {kind}: expected {expected}, compiler produced "
             f"status={certificate.status} answer={actual} reason={certificate.reason}"
@@ -63,7 +63,7 @@ class FamilyMismatch(RuntimeError):
 
 @dataclass(frozen=True)
 class VariantBuilder:
-    """Builds the four intervention variants for one compiled canonical."""
+    """Builds the intervention variants declared by one script."""
 
     compiler: CapabilityCompiler
     view: SceneView
@@ -85,13 +85,17 @@ class VariantBuilder:
         max_tries: int = 8,
     ) -> tuple[Variant, ...]:
         rng = random.Random(seed)
-        variants = (
-            self._verified("permute", self._permute_sequences(rng, max_tries)),
-            self._verified("drop_key", [self._drop_key_sequence()]),
-            self._verified("drop_filler", [self._drop_filler_sequence(drop_count)]),
-            self._verified("delay", [self._delay_sequence(delay_extra)]),
+        builders = {
+            "permute": lambda: self._permute_sequences(rng, max_tries),
+            "drop_key": lambda: [self._drop_key_sequence()],
+            "drop_filler": lambda: [self._drop_filler_sequence(drop_count)],
+            "delay": lambda: [self._delay_sequence(delay_extra)],
+        }
+        return tuple(
+            self._verified(kind, builders[kind]())
+            for kind in INTERVENTION_KINDS
+            if kind in self.compiler.script.variant_expectations
         )
-        return variants
 
     # --- operators (index sequences only; no judgment happens here) ---
 
@@ -99,7 +103,7 @@ class VariantBuilder:
         self, rng: random.Random, max_tries: int
     ) -> list[tuple[int, ...]]:
         """Candidate shuffles of the gone-segment, question frame kept last."""
-        t_gone = self.canonical.frame_vars["t_gone"]
+        t_gone = self.canonical.frame_vars.get("t_gone", 1)
         t_q = self.canonical.frame_vars["t_q"]
         prefix = list(range(0, t_gone))
         middle = list(range(t_gone, t_q))
@@ -124,14 +128,11 @@ class VariantBuilder:
     def _drop_filler_sequence(self, drop_count: int) -> tuple[int, ...]:
         """Greedily remove non-essential frames, re-verifying every removal.
 
-        Anchors (t_seen, t_q) are never dropped even if individually
-        redundant: the sighting and the question moment stay materialised.
+        Every resolved frame variable is an anchor and stays materialised even
+        if it is individually redundant.
         """
         assert self.canonical.essential_frames is not None
-        anchors = {
-            self.canonical.frame_vars["t_seen"],
-            self.canonical.frame_vars["t_q"],
-        }
+        anchors = set(self.canonical.frame_vars.values())
         protected = set(self.canonical.essential_frames) | anchors
         sequence = list(self.canonical.frame_sequence)
         dropped = 0
@@ -142,7 +143,7 @@ class VariantBuilder:
             cert = self.compiler.compile(self.view, self.binding, frame_sequence=reduced)
             if cert.status == "answerable" and (
                 cert.answer is not None
-                and cert.answer.sector == self.canonical.answer.sector  # type: ignore[union-attr]
+                and cert.answer.label == self.canonical.answer.label  # type: ignore[union-attr]
             ):
                 sequence = list(reduced)
                 dropped += 1
@@ -152,7 +153,7 @@ class VariantBuilder:
 
     def _delay_sequence(self, delay_extra: int) -> tuple[int, ...]:
         """Pause mid-gone: repeat one frame, lengthening the invisible span."""
-        t_gone = self.canonical.frame_vars["t_gone"]
+        t_gone = self.canonical.frame_vars.get("t_gone", 1)
         t_q = self.canonical.frame_vars["t_q"]
         pause_at = (t_gone + t_q) // 2
         sequence = list(self.canonical.frame_sequence)
@@ -189,11 +190,11 @@ class VariantBuilder:
 
     def _gold_if_expected(self, expectation: str, cert: Certificate) -> str | None:
         """The variant's gold answer, or None if it defies the expectation."""
-        canonical_sector = self.canonical.answer.sector  # type: ignore[union-attr]
+        canonical_label = self.canonical.answer.label  # type: ignore[union-attr]
         if expectation == "same":
             if cert.status == "answerable" and cert.answer is not None:
-                if cert.answer.sector == canonical_sector:
-                    return cert.answer.sector
+                if cert.answer.label == canonical_label:
+                    return cert.answer.label
             return None
         if expectation == "abstain":
             if cert.status == "abstain":
