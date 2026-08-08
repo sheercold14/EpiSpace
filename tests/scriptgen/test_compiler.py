@@ -14,7 +14,7 @@ import pytest
 from _batchdata import load_plan_record, load_render_view, needs_batch
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler, Certificate
-from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.library import HOMING, NET_TURN, SELF_MOTION, VIEW_SIDE
 from spatial_episode.scriptgen.sceneview import (
     Pose2D,
     ReindexedSceneView,
@@ -65,6 +65,27 @@ def qualifying_fake() -> FakeRenderView:
     return FakeRenderView(yaws=yaws, pixels=pixels)
 
 
+def qualifying_all_modes_fake() -> FakeRenderView:
+    """Extend the original fake with smooth motion for homing/view-side tests."""
+    base = qualifying_fake()
+    positions = (
+        (2.0, -2.0),
+        (2.0, -2.0),
+        (1.5, -1.5),
+        (1.0, -1.0),
+        (0.5, -0.5),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+    )
+    return FakeRenderView(yaws=base.yaws, pixels=base.pixels, positions=positions)
+
+
 BINDING = {"target": "tgt"}
 
 
@@ -92,6 +113,50 @@ def test_answerable_certificate(compiler: CapabilityCompiler) -> None:
         c.name for c in SELF_MOTION.clauses if c.phase != "search_only"
     }
     assert all(o.holds is True for o in cert.clause_outcomes)
+
+
+@pytest.mark.parametrize(
+    ("script", "label", "witness"),
+    [
+        (
+            SELF_MOTION,
+            "left",
+            {
+                "azimuth_deg": 105.0,
+                "sector": "left",
+                "margin_deg": 30.0,
+                "question_frame": 12,
+            },
+        ),
+        (NET_TURN, "right", {"net_turn_deg": -105.0}),
+        (
+            HOMING,
+            "front",
+            {
+                "azimuth_deg": -30.0,
+                "sector": "front",
+                "margin_deg": 15.0,
+                "start_distance_m": 2.83,
+                "question_frame": 12,
+            },
+        ),
+        (
+            VIEW_SIDE,
+            "left_half",
+            {"azimuth_deg": 26.6, "margin_deg": 26.6, "frame": 1},
+        ),
+    ],
+)
+def test_all_declared_answer_modes_compile_on_fake(
+    script, label: str, witness: dict[str, float | int | str]
+) -> None:
+    cert = CapabilityCompiler(script=script, std=STD_V1).compile(
+        qualifying_all_modes_fake(), BINDING
+    )
+    assert cert.status == "answerable"
+    assert cert.answer is not None
+    assert cert.answer.label == label
+    assert cert.answer.witness == witness
 
 
 def test_ambiguous_frame_never_counts_as_seen(compiler: CapabilityCompiler) -> None:
@@ -176,6 +241,19 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
     plan = {"standard_version": "std.v0", "provisional_answer": {"sector": "left"}}
     cert = compiler.compile(qualifying_fake(), BINDING, geometry_plan=plan)
     assert cert.mismatch is not None and cert.mismatch.startswith("standard_version_drift")
+
+
+def test_v3_plan_is_compatible_but_v2_is_not(compiler: CapabilityCompiler) -> None:
+    v3_plan = {"standard_version": "std.v3", "provisional_answer": {"sector": "left"}}
+    compatible = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v3_plan)
+    assert compatible.mismatch is None
+    assert compatible.geometry is not None
+    assert compatible.geometry.standard_version == "std.v3"
+    assert compatible.standard_version == "std.v4"
+
+    v2_plan = {"standard_version": "std.v2", "provisional_answer": {"sector": "left"}}
+    blocked = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v2_plan)
+    assert blocked.mismatch == "standard_version_drift:plan=std.v2,compile=std.v4"
 
 
 # --- integration: the three rendered gates_bedroom trajectories ---

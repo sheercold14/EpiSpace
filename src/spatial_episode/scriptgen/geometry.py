@@ -67,6 +67,11 @@ def cumulative_turn_deg(yaws_deg: list[float]) -> float:
     return sum(abs(wrap_deg(b - a)) for a, b in pairwise(yaws_deg))
 
 
+def net_turn_deg(yaws_deg: list[float]) -> float:
+    """Signed heading change accumulated from wrapped frame-to-frame deltas."""
+    return sum(wrap_deg(b - a) for a, b in pairwise(yaws_deg))
+
+
 def distance_m(a_xy: tuple[float, float], b_xy: tuple[float, float]) -> float:
     return math.hypot(b_xy[0] - a_xy[0], b_xy[1] - a_xy[1])
 

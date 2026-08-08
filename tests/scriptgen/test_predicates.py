@@ -68,6 +68,34 @@ def test_cum_turn_ge() -> None:
     assert verdict.witness["cum_turn_deg"] == 100.0
 
 
+def test_new_answer_qualification_predicates() -> None:
+    view_side_view = _view([Pose2D(0.0, 0.0, 70.0)])
+    view_side = get_predicate("view_side_margin_ge")(
+        view_side_view, STD_V1, obj="sofa", frame=0
+    )
+    assert view_side.holds is True
+    assert view_side.witness["azimuth_deg"] == 20.0
+
+    motion_view = _view(
+        [
+            Pose2D(0.0, 0.0, 170.0),
+            Pose2D(0.0, 1.0, -170.0),
+            Pose2D(0.0, 2.0, -140.0),
+        ]
+    )
+    net_turn = get_predicate("net_turn_margin_ge")(
+        motion_view, STD_V1, frames=[0, 1, 2]
+    )
+    assert net_turn.holds is True
+    assert net_turn.witness["net_turn_deg"] == 50.0
+
+    homing_view = _view([Pose2D(0.0, 0.0, 0.0), Pose2D(0.0, 2.0, 0.0)])
+    far = get_predicate("start_far_enough")(homing_view, STD_V1, frame=1)
+    margin = get_predicate("start_sector_margin_ge")(homing_view, STD_V1, frame=1)
+    assert far.holds is True and far.witness["start_distance_m"] == 2.0
+    assert margin.holds is True and margin.witness["sector"] == "right"
+
+
 def test_partially_in_fov_is_ambiguous() -> None:
     """An object straddling the FOV edge must be ambiguous, never invisible.
 

@@ -10,7 +10,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .geometry import azimuth_deg, sector_margin_deg, sector_of
+from .geometry import (
+    azimuth_deg,
+    distance_m,
+    net_turn_deg,
+    sector_margin_deg,
+    sector_of,
+)
 from .sceneview import SceneView
 from .standards import CompileStandard
 
@@ -73,6 +79,70 @@ def target_sector(
             "azimuth_deg": round(azimuth, 1),
             "sector": label,
             "margin_deg": round(sector_margin_deg(azimuth), 1),
+            "question_frame": frame,
+        },
+    )
+
+
+@answer_mode("view_side")
+def view_side(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    frame: int,
+) -> AnswerResult:
+    """Left or right image half at one declared sighting frame."""
+    del std
+    pose = view.camera_pose(frame)
+    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(obj).xy)
+    label = "left_half" if azimuth > 0.0 else "right_half"
+    return AnswerResult(
+        label=label,
+        witness={
+            "azimuth_deg": round(azimuth, 1),
+            "margin_deg": round(abs(azimuth), 1),
+            "frame": frame,
+        },
+    )
+
+
+@answer_mode("net_turn")
+def net_turn(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    frames: list[int],
+) -> AnswerResult:
+    """Direction of signed, wrapped heading change accumulated over frames."""
+    del std
+    turn = net_turn_deg([view.camera_pose(t).yaw_deg for t in frames])
+    return AnswerResult(
+        label="left" if turn > 0.0 else "right",
+        witness={"net_turn_deg": round(turn, 1)},
+    )
+
+
+@answer_mode("start_sector")
+def start_sector(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    frame: int,
+) -> AnswerResult:
+    """Four-sector direction of the frame-0 position from a later pose."""
+    del std
+    start = view.camera_pose(0)
+    pose = view.camera_pose(frame)
+    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, start.xy)
+    label = sector_of(azimuth)
+    return AnswerResult(
+        label=label,
+        witness={
+            "azimuth_deg": round(azimuth, 1),
+            "sector": label,
+            "margin_deg": round(sector_margin_deg(azimuth), 1),
+            "start_distance_m": round(distance_m(start.xy, pose.xy), 2),
             "question_frame": frame,
         },
     )

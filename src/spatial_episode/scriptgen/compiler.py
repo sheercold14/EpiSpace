@@ -36,7 +36,7 @@ from .checker import (
 )
 from .sceneview import ReindexedSceneView, SceneView
 from .spec import ScriptSpec, SpecModel
-from .standards import CompileStandard
+from .standards import COMPATIBLE_PLAN_STANDARDS, CompileStandard
 
 CompileStatus = Literal["answerable", "abstain", "invalid"]
 
@@ -332,7 +332,12 @@ def _mismatch(
     """
     if geometry is None:
         return None
-    if geometry.standard_version is not None and geometry.standard_version != std.standard_version:
+    compatible_plan_versions = COMPATIBLE_PLAN_STANDARDS.get(std.standard_version, ())
+    if (
+        geometry.standard_version is not None
+        and geometry.standard_version != std.standard_version
+        and geometry.standard_version not in compatible_plan_versions
+    ):
         return (
             "standard_version_drift:"
             f"plan={geometry.standard_version},compile={std.standard_version}"

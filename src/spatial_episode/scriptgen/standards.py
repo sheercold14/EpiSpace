@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v3"
+    standard_version: str = "std.v4"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -58,6 +58,11 @@ class CompileStandard:
     clearance_z_low_m: float = 0.10
     clearance_z_high_m: float = 1.70
 
+    # --- answer boundary margins (std.v4) ---
+    view_side_margin_deg: float = 15.0
+    net_turn_margin_deg: float = 15.0
+    homing_min_distance_m: float = 1.0
+
     # --- search phase tightening ---
     # Search-phase margins are tightened by this factor so that most candidates
     # survive the authoritative post-render re-check.
@@ -65,3 +70,18 @@ class CompileStandard:
 
 
 STD_V1 = CompileStandard()
+
+
+# The lineage is deliberately non-transitive. A prior plan version belongs
+# here only when the current standard is a pure extension of it.
+COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
+    # std.v4 only adds the three answer thresholds below; every v3-era search
+    # promise is judged by unchanged fields and values.
+    "std.v4": ("std.v3",),
+}
+
+STD_V4_ADDED_FIELDS = (
+    "view_side_margin_deg",
+    "net_turn_margin_deg",
+    "homing_min_distance_m",
+)

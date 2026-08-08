@@ -125,6 +125,146 @@ SELF_MOTION = ScriptSpec(
     },
 )
 
+
+NET_TURN = ScriptSpec(
+    capability="path_integration",
+    slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
+    frame_vars={"t_q": "last_frame()"},
+    clauses=(
+        Clause(
+            name="trackable",
+            predicate="step_motion_bounded",
+            args={"frames": "0:$t_q"},
+            phase="search",
+            on_violation="abstain",
+        ),
+        Clause(
+            name="net_turn_margin_ok",
+            predicate="net_turn_margin_ge",
+            args={"frames": "0:$t_q"},
+            phase="search",
+            on_violation="invalid",
+        ),
+    ),
+    answer=AnswerSpec(mode="net_turn", args={"frames": "0:$t_q"}),
+    length=(10, 16),
+    motifs=("walk_and_turn",),
+    templates=(
+        Template(
+            text=(
+                "这段第一人称序列记录了你在房间中的一次行走。"
+                "这段路你的净转向是向左还是向右?"
+                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+            ),
+            options=("left", "right", "无法判断"),
+        ),
+    ),
+    variant_expectations={
+        "permute": "abstain",
+        "drop_filler": "same",
+        "delay": "same",
+    },
+)
+
+
+HOMING = ScriptSpec(
+    capability="homing_probe",
+    slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
+    frame_vars={"t_q": "last_frame()"},
+    clauses=(
+        Clause(
+            name="trackable",
+            predicate="step_motion_bounded",
+            args={"frames": "0:$t_q"},
+            phase="search",
+            on_violation="abstain",
+        ),
+        Clause(
+            name="start_far_enough",
+            predicate="start_far_enough",
+            args={"frame": "$t_q"},
+            phase="search",
+            on_violation="invalid",
+        ),
+        Clause(
+            name="start_sector_margin_ok",
+            predicate="start_sector_margin_ge",
+            args={"frame": "$t_q"},
+            phase="search",
+            on_violation="invalid",
+        ),
+    ),
+    answer=AnswerSpec(mode="start_sector", args={"frame": "$t_q"}),
+    length=(10, 16),
+    motifs=("walk_and_turn",),
+    templates=(
+        Template(
+            text=(
+                "这段第一人称序列记录了你从起点开始的一次行走。"
+                "以最后的位置和朝向为准,出发点现在在你的哪个方向?"
+                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+            ),
+            options=("front", "left", "back", "right", "无法判断"),
+        ),
+    ),
+    variant_expectations={
+        "permute": "abstain",
+        "drop_filler": "same",
+        "delay": "same",
+    },
+)
+
+
+VIEW_SIDE = ScriptSpec(
+    capability="view_side_check",
+    slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
+    frame_vars={
+        "t_seen": "last_visible($target)",
+        "t_gone": "first_invisible_after($target, $t_seen)",
+        "t_q": "last_frame()",
+    },
+    clauses=(
+        Clause(
+            name="seen_early",
+            predicate="visible_somewhere",
+            args={"obj": "$target", "frames": "0:$t_seen"},
+            phase="compile",
+            on_violation="abstain",
+        ),
+        Clause(
+            name="view_side_margin_ok",
+            predicate="view_side_margin_ge",
+            args={"obj": "$target", "frame": "$t_seen"},
+            phase="search",
+            on_violation="invalid",
+        ),
+    ),
+    answer=AnswerSpec(
+        mode="view_side",
+        args={"obj": "$target", "frame": "$t_seen"},
+    ),
+    length=(10, 16),
+    motifs=("walk_and_turn",),
+    templates=(
+        Template(
+            text=(
+                "如果这段第一人称序列提供了足够证据,"
+                "{target}最后出现时位于画面的左半边还是右半边?"
+                "如果序列提供的证据不足以判断,选\"无法判断\"。"
+            ),
+            options=("left_half", "right_half", "无法判断"),
+        ),
+    ),
+    abstain_on_unresolvable=("t_seen",),
+    variant_expectations={
+        "permute": "same",
+        "drop_key": "abstain",
+        "drop_filler": "same",
+        "delay": "same",
+    },
+)
+
 SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
-    SELF_MOTION.capability: SELF_MOTION,
+    script.capability: script
+    for script in (SELF_MOTION, NET_TURN, HOMING, VIEW_SIDE)
 }

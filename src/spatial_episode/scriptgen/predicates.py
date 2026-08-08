@@ -21,6 +21,8 @@ from typing import Any
 from .geometry import (
     azimuth_deg,
     cumulative_turn_deg,
+    distance_m,
+    net_turn_deg,
     sector_margin_deg,
     sector_of,
     segment_intersects_rect,
@@ -370,5 +372,79 @@ def sector_margin_ge(
             "sector": sector_of(azimuth),
             "margin_deg": round(margin, 1),
             "required_deg": round(required, 1),
+        },
+    )
+
+
+@predicate("view_side_margin_ge")
+def view_side_margin_ge(
+    view: SceneView, std: CompileStandard, *, obj: str, frame: int
+) -> Verdict:
+    """An object's image-side azimuth clears the vertical midline."""
+    pose = view.camera_pose(frame)
+    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(obj).xy)
+    margin = abs(azimuth)
+    return Verdict(
+        margin >= std.view_side_margin_deg,
+        {
+            "obj": obj,
+            "frame": frame,
+            "azimuth_deg": round(azimuth, 1),
+            "margin_deg": round(margin, 1),
+            "required_deg": std.view_side_margin_deg,
+        },
+    )
+
+
+@predicate("net_turn_margin_ge")
+def net_turn_margin_ge(
+    view: SceneView, std: CompileStandard, *, frames: Sequence[int]
+) -> Verdict:
+    """Signed net turn clears the zero-degree left/right boundary."""
+    turn = net_turn_deg([view.camera_pose(t).yaw_deg for t in frames])
+    margin = abs(turn)
+    return Verdict(
+        margin >= std.net_turn_margin_deg,
+        {
+            "net_turn_deg": round(turn, 1),
+            "margin_deg": round(margin, 1),
+            "required_deg": std.net_turn_margin_deg,
+        },
+    )
+
+
+@predicate("start_far_enough")
+def start_far_enough(
+    view: SceneView, std: CompileStandard, *, frame: int
+) -> Verdict:
+    """The question pose is far enough from frame 0 for homing to be stable."""
+    distance = distance_m(view.camera_pose(0).xy, view.camera_pose(frame).xy)
+    return Verdict(
+        distance >= std.homing_min_distance_m,
+        {
+            "frame": frame,
+            "start_distance_m": round(distance, 2),
+            "required_m": std.homing_min_distance_m,
+        },
+    )
+
+
+@predicate("start_sector_margin_ge")
+def start_sector_margin_ge(
+    view: SceneView, std: CompileStandard, *, frame: int
+) -> Verdict:
+    """The frame-0 position clears a four-sector boundary at question time."""
+    start = view.camera_pose(0)
+    pose = view.camera_pose(frame)
+    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, start.xy)
+    margin = sector_margin_deg(azimuth)
+    return Verdict(
+        margin >= std.sector_margin_deg,
+        {
+            "frame": frame,
+            "azimuth_deg": round(azimuth, 1),
+            "sector": sector_of(azimuth),
+            "margin_deg": round(margin, 1),
+            "required_deg": std.sector_margin_deg,
         },
     )

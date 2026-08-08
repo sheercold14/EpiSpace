@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler
-from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.library import SELF_MOTION, VIEW_SIDE
 from spatial_episode.scriptgen.standards import STD_V1
 from spatial_episode.scriptgen.variants import (
     INTERVENTION_KINDS,
@@ -19,7 +19,7 @@ from spatial_episode.scriptgen.variants import (
 )
 
 from _batchdata import load_plan_record, load_render_view, needs_batch
-from test_compiler import BINDING, qualifying_fake
+from test_compiler import BINDING, qualifying_all_modes_fake, qualifying_fake
 
 ABSTAIN = SELF_MOTION.templates[0].abstain_option
 
@@ -62,6 +62,20 @@ def test_permute_destroys_tracking(fake_builder: VariantBuilder) -> None:
     assert sorted(permute.frame_sequence) == list(range(13))
     assert permute.frame_sequence[-1] == 12
     assert permute.frame_sequence != tuple(range(13))
+
+
+def test_view_side_permute_keeps_label() -> None:
+    compiler = CapabilityCompiler(script=VIEW_SIDE, std=STD_V1)
+    view = qualifying_all_modes_fake()
+    canonical = compiler.compile(view, BINDING, with_essential=True)
+    builder = VariantBuilder(
+        compiler=compiler, view=view, binding=BINDING, canonical=canonical
+    )
+    permute = builder.build_all(seed=3)[0]
+    assert canonical.answer is not None and canonical.answer.label == "left_half"
+    assert permute.certificate.status == "answerable"
+    assert permute.gold == permute.certificate.answer.label == "left_half"
+    assert permute.frame_sequence[:2] == (0, 1)
 
 
 def test_drop_key_removes_every_sighting(fake_builder: VariantBuilder) -> None:
