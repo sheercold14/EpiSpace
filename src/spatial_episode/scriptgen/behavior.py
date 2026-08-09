@@ -266,8 +266,26 @@ class RenderSceneView:
         layout = layout_from_scene_ir(ir, std=std)
         poses = poses_from_trajectory_plan(root / "trajectory_plan.json")
         runtime_map: dict[str, list[int]] = {}
+        # Runtime instance ids are assigned afresh when a scene is replayed.
+        # Resolve the current bundle registry through scene_ir's stable
+        # source_entity_id. The scene_ir registry remains a legacy fallback.
+        snapshot_path = root / "scene_snapshot.json"
+        if snapshot_path.is_file():
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            stable_entities = {
+                str(entity["source_entity_id"]): str(entity["entity_id"])
+                for entity in ir["entities"]
+            }
+            for runtime_id, source_entity_id in snapshot.get(
+                "runtime_instance_registry", {}
+            ).items():
+                entity_id = stable_entities.get(str(source_entity_id))
+                if entity_id is not None:
+                    runtime_map.setdefault(entity_id, []).append(int(runtime_id))
+        replayed_entities = set(runtime_map)
         for runtime_id, entity_id in ir["runtime_semantic_id_map"].items():
-            runtime_map.setdefault(entity_id, []).append(int(runtime_id))
+            if entity_id not in replayed_entities:
+                runtime_map.setdefault(entity_id, []).append(int(runtime_id))
         return cls(
             layout=layout,
             poses=poses,

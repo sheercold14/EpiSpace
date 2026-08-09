@@ -451,11 +451,15 @@ def _turn_in_place(
 
 
 def _target_final_yaw(
-    camera_xy: tuple[float, float], target_xy: tuple[float, float], rng: random.Random
+    camera_xy: tuple[float, float],
+    target_xy: tuple[float, float],
+    rng: random.Random,
+    *,
+    desired_azimuths: tuple[float, ...] = (100.0, 150.0),
 ) -> float:
     """Balanced left/right/back final gaze with extra back acceptance mass."""
     turn_direction = rng.choice((-1.0, 1.0))
-    desired_azimuth = turn_direction * rng.choice((100.0, 150.0))
+    desired_azimuth = turn_direction * rng.choice(desired_azimuths)
     desired_azimuth += rng.uniform(-8.0, 8.0)
     return wrap_deg(bearing_deg(camera_xy, target_xy) - desired_azimuth)
 
@@ -554,7 +558,10 @@ def stand_and_turn(
     grid = _occupancy_grid(layout)
     start = grid.world_xy(_sample_start(grid, target.xy, rng))
     initial_yaw = bearing_deg(start, target.xy)
-    final_yaw = _target_final_yaw(start, target.xy, rng)
+    # A pure rotation retains more of a large target near the image edge than
+    # the geometry proxy predicts. Use the existing 150-degree proposal tier
+    # so rendered disappearance still leaves enough observable rotation.
+    final_yaw = _target_final_yaw(start, target.xy, rng, desired_azimuths=(150.0,))
     poses = [Pose2D(start[0], start[1], initial_yaw)] * 2
     poses.extend(_turn_in_place(start, initial_yaw, final_yaw, frame_count - 2))
     return tuple(poses)
@@ -716,11 +723,7 @@ def survey(
     layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
 ) -> tuple[Pose2D, ...]:
     """Stationary, rate-limited panorama exposing every bound landmark."""
-    names = tuple(
-        binding[name]
-        for name in ("viewpoint", "facing", "target")
-        if name in binding
-    )
+    names = tuple(binding[name] for name in ("viewpoint", "facing", "target") if name in binding)
     station = _survey_station(layout, names, rng)
     start_yaw = rng.uniform(-180.0, 180.0)
     direction = rng.choice((-1.0, 1.0))
@@ -770,14 +773,12 @@ def _pair_station(
         if abs(separation) > 70.0:
             continue
         yaw = wrap_deg(left_yaw + separation / 2.0)
-        target_in_view = (
-            abs(wrap_deg(bearing_deg(xy, target.xy) - yaw)) <= 45.0
-            and not blocking_occluders(layout, xy, target)
-        )
-        other_in_view = (
-            abs(wrap_deg(bearing_deg(xy, other.xy) - yaw)) <= 45.0
-            and not blocking_occluders(layout, xy, other)
-        )
+        target_in_view = abs(
+            wrap_deg(bearing_deg(xy, target.xy) - yaw)
+        ) <= 45.0 and not blocking_occluders(layout, xy, target)
+        other_in_view = abs(
+            wrap_deg(bearing_deg(xy, other.xy) - yaw)
+        ) <= 45.0 and not blocking_occluders(layout, xy, other)
         if target_in_view and other_in_view:
             continue
         return index, yaw
@@ -838,9 +839,7 @@ def visit_landmarks(
     first_xy = grid.world_xy(stations[0][0])
     poses = [Pose2D(first_xy[0], first_xy[1], stations[0][1])] * 2
     current_yaw = stations[0][1]
-    for transition, ((start_index, _), (end_index, station_yaw)) in enumerate(
-        pairwise(stations)
-    ):
+    for transition, ((start_index, _), (end_index, station_yaw)) in enumerate(pairwise(stations)):
         cells = _connect_cells(grid, start_index, end_index)
         if cells is None:
             return tuple(poses[-1] for _ in range(frame_count))

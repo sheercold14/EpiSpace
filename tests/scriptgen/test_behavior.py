@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from spatial_episode.scriptgen import STD_V1, generate_plans
@@ -155,6 +156,62 @@ def test_render_backend_matches_render_report() -> None:
                 assert in_report, (obj.category, t)
             # state False with in_report True is allowed: the report counts
             # any-pixel visibility, our standard requires the threshold.
+
+
+def test_render_backend_resolves_ids_from_replayed_snapshot(tmp_path: Path) -> None:
+    bundle = tmp_path / "bundle"
+    views = bundle / "views"
+    views.mkdir(parents=True)
+    (bundle / "trajectory_plan.json").write_text(
+        json.dumps(
+            {
+                "views": [
+                    {
+                        "world_from_agent": {
+                            "translation_m": [0.0, 0.0, 0.0],
+                            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0],
+                        }
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (bundle / "scene_snapshot.json").write_text(
+        json.dumps({"runtime_instance_registry": {"91": "chair_source"}}),
+        encoding="utf-8",
+    )
+    scene_ir = tmp_path / "scene_ir.json"
+    scene_ir.write_text(
+        json.dumps(
+            {
+                "scene_id": "scene",
+                "runtime_semantic_id_map": {"17": "target"},
+                "entities": [
+                    {
+                        "entity_id": "target",
+                        "source_entity_id": "chair_source",
+                        "raw_label": "chair",
+                        "obb": {
+                            "center_m": [1.0, 0.0, 0.5],
+                            "half_extents_m": [0.5, 0.5, 0.5],
+                            "world_from_obb": {"rotation_xyzw": [0.0, 0.0, 0.0, 1.0]},
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    np.savez_compressed(
+        views / "view-000.sensors.npz",
+        instance_id=np.array([[91, 91], [0, 91]], dtype=np.uint32),
+    )
+
+    view = RenderSceneView.from_bundle(bundle, STD_V1, scene_ir=scene_ir)
+
+    assert view.entity_runtime_ids["target"] == (91,)
+    assert view.visibility("target", 0).value == 3
 
 
 @needs_bundles

@@ -32,6 +32,13 @@ from .standards import CompileStandard
 
 VisibilityKind = Literal["geom_ratio", "render_pixels"]
 
+_MAX_SCENE_OBJECT_RAY_CACHE = 262_144
+_SCENE_OBJECT_RAY_CACHE: dict[
+    tuple[int, tuple[float, float], str, tuple[float, float] | None], tuple[str, ...]
+] = {}
+_CACHED_RAY_LAYOUTS: dict[int, SceneLayout] = {}
+_CACHED_RAY_OBJECT_IDS: dict[int, frozenset[int]] = {}
+
 
 @dataclass(frozen=True)
 class Pose2D:
@@ -270,6 +277,37 @@ def blocking_occluders(
     target_xy: tuple[float, float] | None = None,
 ) -> tuple[str, ...]:
     """Eye-height obstacles intersecting the ray before the target's near face."""
+    layout_key = id(layout)
+    if _CACHED_RAY_LAYOUTS.get(layout_key) is not layout:
+        _CACHED_RAY_LAYOUTS[layout_key] = layout
+        _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
+            id(candidate) for candidate in layout.objects
+        )
+    if id(target) in _CACHED_RAY_OBJECT_IDS[layout_key]:
+        key = (layout_key, camera_xy, target.name, target_xy)
+        cached = _SCENE_OBJECT_RAY_CACHE.get(key)
+        if cached is not None:
+            return cached
+        result = _blocking_occluders(layout, camera_xy, target, target_xy)
+        if len(_SCENE_OBJECT_RAY_CACHE) >= _MAX_SCENE_OBJECT_RAY_CACHE:
+            _SCENE_OBJECT_RAY_CACHE.clear()
+            _CACHED_RAY_LAYOUTS.clear()
+            _CACHED_RAY_OBJECT_IDS.clear()
+            _CACHED_RAY_LAYOUTS[layout_key] = layout
+            _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
+                id(candidate) for candidate in layout.objects
+            )
+        _SCENE_OBJECT_RAY_CACHE[key] = result
+        return result
+    return _blocking_occluders(layout, camera_xy, target, target_xy)
+
+
+def _blocking_occluders(
+    layout: SceneLayout,
+    camera_xy: tuple[float, float],
+    target: SceneObject,
+    target_xy: tuple[float, float] | None,
+) -> tuple[str, ...]:
     destination = target.xy if target_xy is None else target_xy
     distance = distance_m(camera_xy, destination)
     if distance < 1e-6:

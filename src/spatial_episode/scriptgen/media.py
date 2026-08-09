@@ -67,3 +67,25 @@ def export_bundle_channels(
                 media_dir / f"view-{t:03d}.inst.png",
             )
     return pixels
+
+
+def export_named_view_channels(
+    view_dir: Path,
+    view_ids: Sequence[str],
+    target_runtime_ids: Sequence[int],
+    media_dir: Path,
+) -> list[int]:
+    """Export named auxiliary views without treating them as sequence frames."""
+    media_dir.mkdir(parents=True, exist_ok=True)
+    pixels: list[int] = []
+    for view_id in view_ids:
+        with np.load(view_dir / f"{view_id}.sensors.npz") as arrays:
+            instance = arrays["instance_id"]
+            pixels.append(int(np.isin(instance, target_runtime_ids).sum()))
+            save_channel_png(arrays["rgb"], media_dir / f"{view_id}.rgb.png")
+            save_channel_png(depth_to_image(arrays["depth_m"]), media_dir / f"{view_id}.depth.png")
+            save_channel_png(
+                instance_to_image(instance, target_runtime_ids),
+                media_dir / f"{view_id}.inst.png",
+            )
+    return pixels

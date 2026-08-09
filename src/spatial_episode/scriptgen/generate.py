@@ -15,15 +15,18 @@ from __future__ import annotations
 
 import random
 from collections import Counter
+from collections.abc import Callable, Iterable
 
 from .checker import check_clauses
 from .compiler import derive_answer
 from .motifs import get_motif
 from .plan import GenerationReport, PlannedPose, ProvisionalAnswer, TrajectoryPlan
 from .sceneview import GeometrySceneView, SceneLayout
-from .slotting import enumerate_bindings
+from .slotting import iter_bindings
 from .spec import ScriptSpec
 from .standards import CompileStandard
+
+CandidateFilter = Callable[[GeometrySceneView, dict[str, str]], str | None]
 
 
 def generate_plans(
@@ -34,13 +37,22 @@ def generate_plans(
     seed: int,
     attempts_per_binding: int = 150,
     max_plans: int | None = None,
+    maximum_bindings: int | None = None,
+    candidate_bindings: Iterable[dict[str, str]] | None = None,
+    candidate_filter: CandidateFilter | None = None,
 ) -> GenerationReport:
     rng = random.Random(seed)
-    bindings, slot_rejections = enumerate_bindings(layout, script)
+    if candidate_bindings is None:
+        bindings, slot_rejections = iter_bindings(layout, script, maximum=maximum_bindings)
+    else:
+        bindings = iter(candidate_bindings)
+        slot_rejections = []
     rejection_counts: Counter[str] = Counter()
     plans: list[TrajectoryPlan] = []
+    binding_count = 0
 
     for binding_index, binding in enumerate(bindings):
+        binding_count += 1
         if max_plans is not None and len(plans) >= max_plans:
             break
         plan = _search_binding(
@@ -53,11 +65,12 @@ def generate_plans(
             rng,
             attempts_per_binding,
             rejection_counts,
+            candidate_filter,
         )
         if plan is not None:
             plans.append(plan)
 
-    if not bindings:
+    if binding_count == 0:
         rejection_counts["no_slot_binding"] += 1
     return GenerationReport(
         scene_id=layout.scene_id,
@@ -79,6 +92,7 @@ def _search_binding(
     rng: random.Random,
     attempts: int,
     rejection_counts: Counter[str],
+    candidate_filter: CandidateFilter | None,
 ) -> TrajectoryPlan | None:
     for attempt in range(attempts):
         motif_name = script.motifs[attempt % len(script.motifs)]
@@ -96,6 +110,11 @@ def _search_binding(
         if not report.passed:
             rejection_counts[f"clause:{report.failed_clause}"] += 1
             continue
+        if candidate_filter is not None:
+            rejection = candidate_filter(view, binding)
+            if rejection is not None:
+                rejection_counts[f"candidate_filter:{rejection}"] += 1
+                continue
 
         env = {**binding, **report.frame_vars}
         return TrajectoryPlan(
