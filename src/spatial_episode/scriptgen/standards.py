@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v2"
+    standard_version: str = "std.v3"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.

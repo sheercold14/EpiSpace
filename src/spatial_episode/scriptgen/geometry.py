@@ -58,7 +58,6 @@ def sector_margin_deg(azimuth: float) -> float:
     """Distance in degrees from an azimuth to the nearest sector boundary."""
     a = wrap_deg(azimuth)
     margins = [abs(wrap_deg(a - boundary)) for boundary in _SECTOR_BOUNDARIES_4]
-    margins.append(abs(wrap_deg(a - 180.0)))
     return min(margins)
 
 

@@ -6,9 +6,10 @@ Flow per slot binding:
 2. the checker resolves frame variables and judges every clause on the
    geometry backend (compile-phase clauses are estimated here and re-checked
    authoritatively after rendering),
-3. the first qualifying candidate becomes a :class:`TrajectoryPlan`; failures
-   are tallied by failing clause so scene or script problems surface as a
-   rejection histogram instead of silence.
+3. qualifying candidates are collected until ``plans_per_binding`` plans have
+   been retained or the per-binding attempt budget is exhausted; failures are
+   tallied by failing clause so scene or script problems surface as a rejection
+   histogram instead of silence.
 """
 
 from __future__ import annotations
@@ -33,8 +34,23 @@ def generate_plans(
     *,
     seed: int,
     attempts_per_binding: int = 150,
+    plans_per_binding: int = 10,
     max_plans: int | None = None,
 ) -> GenerationReport:
+    """Generate up to ``plans_per_binding`` accepted plans for every binding.
+
+    ``attempts_per_binding`` is the total candidate budget for one binding,
+    not the number of attempts for each requested plan.  One seeded RNG drives
+    the whole run, so callers do not need to manufacture a seed per trajectory.
+    ``max_plans`` remains an optional global cap across all bindings.
+    """
+    if attempts_per_binding <= 0:
+        raise ValueError("attempts_per_binding must be positive")
+    if plans_per_binding <= 0:
+        raise ValueError("plans_per_binding must be positive")
+    if max_plans is not None and max_plans < 0:
+        raise ValueError("max_plans must be non-negative")
+
     rng = random.Random(seed)
     bindings, slot_rejections = enumerate_bindings(layout, script)
     rejection_counts: Counter[str] = Counter()
@@ -43,7 +59,9 @@ def generate_plans(
     for binding_index, binding in enumerate(bindings):
         if max_plans is not None and len(plans) >= max_plans:
             break
-        plan = _search_binding(
+        remaining = None if max_plans is None else max_plans - len(plans)
+        requested = plans_per_binding if remaining is None else min(plans_per_binding, remaining)
+        binding_plans = _search_binding(
             layout,
             script,
             std,
@@ -52,10 +70,10 @@ def generate_plans(
             seed,
             rng,
             attempts_per_binding,
+            requested,
             rejection_counts,
         )
-        if plan is not None:
-            plans.append(plan)
+        plans.extend(binding_plans)
 
     if not bindings:
         rejection_counts["no_slot_binding"] += 1
@@ -78,9 +96,13 @@ def _search_binding(
     seed: int,
     rng: random.Random,
     attempts: int,
+    requested: int,
     rejection_counts: Counter[str],
-) -> TrajectoryPlan | None:
+) -> list[TrajectoryPlan]:
+    plans: list[TrajectoryPlan] = []
     for attempt in range(attempts):
+        if len(plans) >= requested:
+            break
         motif_name = script.motifs[attempt % len(script.motifs)]
         frame_count = rng.randint(*script.length)
         poses = get_motif(motif_name)(layout, binding, frame_count, rng)
@@ -92,24 +114,39 @@ def _search_binding(
             continue
 
         env = {**binding, **report.frame_vars}
-        return TrajectoryPlan(
-            plan_id=f"{layout.scene_id}.{script.capability}.b{binding_index}.s{seed}.a{attempt}",
-            scene_id=layout.scene_id,
-            capability=script.capability,
-            standard_version=std.standard_version,
-            seed=seed,
-            binding=binding,
-            frame_vars=report.frame_vars,
-            poses=tuple(PlannedPose.from_pose(frame, pose) for frame, pose in enumerate(poses)),
-            knob_levels={knob.name: float(_eval_knob(knob.expr, env)) for knob in script.knobs},
-            clause_witnesses=report.witnesses(),
-            # v1 convention: the questioned slot is named "target".
-            provisional_answer=_provisional_answer(
-                view, binding.get("target", next(iter(binding.values()))), report.frame_vars
-            ),
+        plans.append(
+            TrajectoryPlan(
+                plan_id=(
+                    f"{layout.scene_id}.{script.capability}."
+                    f"b{binding_index}.s{seed}.a{attempt}"
+                ),
+                scene_id=layout.scene_id,
+                capability=script.capability,
+                standard_version=std.standard_version,
+                seed=seed,
+                binding=binding,
+                frame_vars=report.frame_vars,
+                poses=tuple(
+                    PlannedPose.from_pose(frame, pose) for frame, pose in enumerate(poses)
+                ),
+                knob_levels={
+                    knob.name: float(_eval_knob(knob.expr, env)) for knob in script.knobs
+                },
+                clause_witnesses=report.witnesses(),
+                # v1 convention: the questioned slot is named "target".
+                provisional_answer=_provisional_answer(
+                    view,
+                    binding.get("target", next(iter(binding.values()))),
+                    report.frame_vars,
+                ),
+            )
         )
-    rejection_counts["binding_exhausted"] += 1
-    return None
+
+    if not plans:
+        rejection_counts["binding_exhausted"] += 1
+    elif len(plans) < requested:
+        rejection_counts["binding_quota_unfilled"] += requested - len(plans)
+    return plans
 
 
 def _eval_knob(expr: str, env: dict[str, object]) -> int:
