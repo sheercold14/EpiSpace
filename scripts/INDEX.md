@@ -24,6 +24,7 @@ Policy (agreed 2026-08-06):
 | adjudicate_semantic_visual_audit.py / build_semantic_visual_audit_packet.py | semantic-visual audit flow | tests |
 | build_web_candidate_catalog.py / build_web_release_catalog.py | review-web catalogs | tests |
 | build_scriptgen_review.py | scriptgen trajectory review site | docs/scriptgen_engine.md workflow |
+| build_scriptgen_qa.py | raw/streaming QA build, SenseNova audit, and review release | docs/research/scriptgen_raw_streaming_QA数据构造与审计_v1.md |
 
 ## Pilot provenance (`scripts/pilot/`)
 

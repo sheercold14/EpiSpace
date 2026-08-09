@@ -17,6 +17,7 @@ from spatial_episode.contracts.trajectory_v1 import TrajectoryPlanV1
 from spatial_episode.contracts.worker_v1 import WorkerRequestV1, WorkerResultV1
 from spatial_episode.scriptgen.dataset import ScriptgenDatasetV1
 from spatial_episode.scriptgen.family import ScriptgenFamilyV4
+from spatial_episode.scriptgen.qa_dataset import RawQARecord, StreamingQARecord
 
 ContractType: TypeAlias = type[BaseModel]
 
@@ -28,6 +29,8 @@ CONTRACTS: dict[str, ContractType] = {
     "relation_oracle.v1.schema.json": RelationOracleV1,
     "scriptgen_family.v4.schema.json": ScriptgenFamilyV4,
     "scriptgen_dataset.v1.schema.json": ScriptgenDatasetV1,
+    "scriptgen_raw_qa.v1.schema.json": RawQARecord,
+    "scriptgen_streaming_qa.v1.schema.json": StreamingQARecord,
     "trajectory_plan.v1.schema.json": TrajectoryPlanV1,
     "worker_request.v1.schema.json": WorkerRequestV1,
     "worker_result.v1.schema.json": WorkerResultV1,
