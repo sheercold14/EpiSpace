@@ -172,7 +172,7 @@ def check_clauses(
     for clause in script.clauses:
         if clause.phase not in phases:
             continue
-        kwargs = _resolve_clause_args(clause, env, view.frame_count)
+        kwargs = resolve_args(clause.args, env, view.frame_count)
         if tighten_search and clause.predicate == "sector_margin_ge":
             kwargs.setdefault("tighten", clause.phase == "search")
         verdict = get_predicate(clause.predicate)(view, std, **kwargs)
@@ -187,9 +187,14 @@ def check_clauses(
     return ScriptReport(passed=True, frame_vars=frame_vars, results=tuple(results))
 
 
-def _resolve_clause_args(clause: Clause, env: dict[str, Any], frame_count: int) -> dict[str, Any]:
+def resolve_args(
+    args: dict[str, str | int | float | bool],
+    env: dict[str, Any],
+    frame_count: int,
+) -> dict[str, Any]:
+    """Resolve declarative arguments shared by clauses and answer modes."""
     kwargs: dict[str, Any] = {}
-    for key, raw in clause.args.items():
+    for key, raw in args.items():
         if not isinstance(raw, str):
             kwargs[key] = raw
         elif ":" in raw:

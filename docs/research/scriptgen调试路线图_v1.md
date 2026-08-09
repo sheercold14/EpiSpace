@@ -2,9 +2,10 @@
 
 > 两条路线:前半段"生成"(剧本→槽位→候选→免渲染核验→轨迹计划,见文末
 > 附录 G0–G6)与后半段"编译打包"(已渲染 bundle → 权威编译 → 四变体 →
-> family,见第 0–7 站)。对应提交 cceb13d(A)/ 9beee33(B)/ 5a67ecd(C)。
-> 生成段用 seed=17 在 gates_bedroom 真实场景上可逐字节复现 batch 里的
-> plan_0(已验证),所以每站的期望值都和现存数据对得上。
+> family,见第 0–7 站)。生成段用 seed=17 在 gates_bedroom 真实场景上
+> 可逐字节复现 `batch_wallfix/plan_0`(已验证),所以每站的期望值都和
+> std.v3 的家具+墙体通行数据对得上。旧 `batch/` 是 navfix 前的反例;
+> `batch_navfix/` 是尚未把墙加入采样器时的中间批次。
 
 ## 0. 启动配置
 
@@ -18,15 +19,15 @@
   "module": "spatial_episode.scriptgen.family_cli",
   "justMyCode": true,
   "args": [
-    "--bundle", "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch/render_0",
-    "--plan-record", "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch/plan_0.record.json",
+    "--bundle", "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch_wallfix/render_0",
+    "--plan-record", "/data/shichao/data/dataV100/code/OminiGibson/outputs/scripted_demo/batch_wallfix/plan_0.record.json",
     "--scene-ir", "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/t10-target-view-seed17-v1/bundles/gates_bedroom_t10_seed17/scene_ir.json",
     "--out", "/tmp/family_debug/f0", "--seed", "17"
   ]
 }
 ```
 
-输入固定为 render_0:16 帧,目标 armchair(entity `72faab69-…`,
+输入固定为 render_0:12 帧,目标 armchair(entity `72faab69-…`,
 runtime id 988247081),几何侧临时答案 left。
 
 ## 1. 装载:掩码后端就位
@@ -40,31 +41,32 @@ runtime id 988247081),几何侧临时答案 left。
 调试控制台逐帧看权威可见性(这就是"掩码为准"的原始数据):
 
 ```python
-[int(view.visibility("72faab69-77d3-53b7-9c1e-2feeb010c0f2", t).value) for t in range(16)]
+[int(view.visibility("72faab69-77d3-53b7-9c1e-2feeb010c0f2", t).value) for t in range(12)]
 ```
 
-预期 `[51509, 71712, 11579, 4212, 0, 0, ..., 0]`——注意第 2、3 帧仍高于
-可见阈值 900(std.v2 `render_min_visible_pixels`),这是后面 t_seen 漂移的根源。
+预期 `[26228, 46656, 0, 0, ..., 0]`。第 1 帧仍高于可见阈值
+900(std.v3 `render_min_visible_pixels`),所以权威 `t_seen` 比几何计划晚一帧。
 
-## 2. 帧变量重解析:t_seen 0 → 3
+## 2. 帧变量重解析:t_seen 0 → 1
 
 **断点 `checker.py` → `resolve_frame_vars` 的 `return resolved`;
 以及 `compiler.py` → `CapabilityCompiler.compile` 中 `report = check_clauses(...)` 一行。**
 
-- 第一次进入(canonical):`resolved == {"t_seen": 3, "t_gone": 4, "t_q": 15}`;
+- 第一次进入(canonical):`resolved == {"t_seen": 1, "t_gone": 2, "t_q": 11}`;
   对照 plan record 里几何侧的 `{"t_seen": 0, ...}`——渲染后端覆盖几何估计,
   正是决策 #1 与"帧变量需渲后重解析"的落点;
-- `last_visible` 解析器从帧 15 向前扫,停在第一个 tristate 为 True 的帧(3)。
+- `last_visible` 解析器从帧 15 向前扫,停在第一个 tristate 为 True 的帧(1)。
 
 ## 3. 条款重判与权威答案
 
 **断点 `compiler.py` → `derive_answer` 的 return 处。**
 
 - `check_clauses` 以 `phases=("search","compile")、tighten_search=False`
-  重判全部 6 条条款(搜索期的 1.2× 收紧此时关闭,用足额 15° 裕度);
-- `report.passed is True`;witness 里 `turned.cum_turn_deg ≈ 102.5`
-  (从渲染重解析的 t_seen=3 起算,不再是计划记录里的 145.8);
-- `derive_answer` 返回:`azimuth_deg=108.0, sector="left", margin_deg=27.0`,
+  重判 6 条证据/有效性条款;`poses_clear/path_clear` 是生成期
+  `search_only`,不会因置换或删帧变体的呈现顺序而重判;
+- `report.passed is True`;witness 里 `turned.cum_turn_deg = 103.1`
+  (从渲染重解析的 t_seen=1 起算,计划期从 t_seen=0 起算为 135.1);
+- `derive_answer` 返回:`azimuth_deg=97.1, sector="left", margin_deg=37.9`,
   与几何 provisional 一致 → certificate `mismatch is None`。
 
 ## 4. 留一法 essential 帧集
@@ -72,12 +74,10 @@ runtime id 988247081),几何侧临时答案 left。
 **断点 `compiler.py` → `_essential_frames` 的 `essential.append(...)`。**
 
 每次命中即"删掉该帧后编不过或答案变"。render_0 预期恰好命中 3 次,
-`essential == (1, 12, 13)`:
+`essential == (1, 2, 8)`:
 
-- 帧 1:删掉后 0→2 帧的偏航跳变 43.3° > 40°(std.v2 `max_step_turn_deg`),
-  `trackable` 失败;
-- 帧 12、13:两个 32° 转身步合并成 64°,同理;
-- 帧 0、2 反而可删(目击冗余)——留一法语义:单帧冗余 ≠ 类别冗余,
+- 帧 1、2、8:删掉后会合并相邻运动,令 `trackable` 或最终答案失败;
+- 帧 0 反而可删(目击冗余)——留一法语义:单帧冗余 ≠ 类别冗余,
   所以删关键帧算子删的是"整类"目击帧。
 
 ## 5. 四个干预算子(每个 gold 都来自重跑编译器)
@@ -89,10 +89,10 @@ runtime id 988247081),几何侧临时答案 left。
 
 | 变体 | frame_sequence 特征 | 编译器结论 | gold |
 |---|---|---|---|
-| permute | 前缀 0–3 不动,4–14 乱序,15 收尾 | `abstain`,reason=`clause:trackable` | 无法判断 |
-| drop_key | `(4,…,15)`,只剩确凿不可见帧 | `abstain`,reason=`frame_var_unresolvable:t_seen` | 无法判断 |
-| drop_filler | 删 0、2(逐帧删后重编译验证) | `answerable`,sector 仍 left | left |
-| delay | 帧 9 连续出现 5 次(原地停顿) | `answerable`,`knob_levels["delay"]` 11→15 | left |
+| permute | 目击前缀 0–1 不动,2–10 乱序,11 收尾 | `abstain`,reason=`clause:trackable` | 无法判断 |
+| drop_key | `(2,…,11)`,只剩确凿不可见帧 | `abstain`,reason=`frame_var_unresolvable:t_seen` | 无法判断 |
+| drop_filler | 删 0、3(逐帧删后重编译验证) | `answerable`,sector 仍 left | left |
+| delay | 帧 6 连续出现 5 次(原地停顿) | `answerable`,`knob_levels["delay"]` 9→13 | left |
 
 配套细看点:
 
@@ -112,7 +112,7 @@ runtime id 988247081),几何侧临时答案 left。
 - `checks`:referent_unique=True(场景里 armchair 仅一件)、三项泄漏检查全 False
   (题面无未填占位符、无"第 N 帧"、不含 gold token);
 - 落盘后 `/tmp/family_debug/f0/`:`family.json`(单文档,决策 #2)+
-  `media/` 48 张 PNG(16 帧 × rgb/depth/instance,相对路径引用)+ `index.html`。
+  `media/` 36 张 PNG(12 帧 × rgb/depth/instance,相对路径引用)+ `index.html`。
 
 审核页:`cd /tmp/family_debug/f0 && python -m http.server 8000`,浏览器打开
 `http://localhost:8000`——五条 filmstrip(变体序,帧下标注原始帧号、重复帧
@@ -120,8 +120,8 @@ runtime id 988247081),几何侧临时答案 left。
 
 ## 7. 变奏(可选)
 
-- 换输入:`--bundle render_1 --plan-record plan_1.record.json`(左,t_seen 无漂移)
-  或 render_2(右)——三条轨迹金标 left/left/right;
+- 换输入:`--bundle render_1 --plan-record plan_1.record.json`(左)
+  或 render_2(右)——三条轨迹金标 left/left/right,三者 t_seen 均由 0 重解析为 1;
 - 阻断演示:把 launch args 的 plan-record 换成手改过 provisional sector 的副本,
   canonical 在 `family.py` 抛 `FamilyBlocked: canonical mismatch`;
 - 全程无模拟器:整个调试只读 npz/json,不需要 Isaac Sim。
@@ -156,19 +156,21 @@ print(report.plans[0].plan_id, report.rejection_counts)
 ```
 
 launch 配置用 `"program": "/tmp/gen_debug.py"`,解释器选 `.venv`。
-预期输出:`…self_motion_update.b0.s17.a4 {'clause:turned': 1, 'clause:margin_ok': 3}`,
-与 `batch/plan_0.record.json` 的 plan_id 一致,位姿逐字节相同。
+预期输出:`…self_motion_update.b0.s17.a3`
+`{'clause:gap': 1, 'clause:turned': 1, 'clause:margin_ok': 1}`,
+与 `batch_wallfix/plan_0.record.json` 的 plan_id 一致,位姿逐字节相同。
 
 **注意**:生成是共享一个 `random.Random(seed)` 的确定性过程,调试控制台里
 不要执行任何会消耗 rng 的表达式(比如手滑调 motif),否则后续 attempt
-的随机数错位,就复现不出 a4 了。看值可以,取样不行。
+的随机数错位,就复现不出 a3 了。看值可以,取样不行。
 
 ### G1. 场景装载:scene_ir → 可规划布局
 
 **断点 `behavior.py` → `layout_from_scene_ir` 的 return 处。**
 
-gates_bedroom 预期:`objects` 22 件(墙/地板等结构类已剔除)、`occluders`
-4 段(跨相机高度的墙体足印)、`walkable` 由地板足印并集得出,约
+gates_bedroom 预期:`objects` 22 件、`obstacles` 26 件(22 件非结构物
++ 4 段墙的旋转 OBB 与 z 跨度)、`occluders` 4 段、
+`walkable` 由地板足印并集得出,约
 (-0.69, -2.42) ~ (3.11, 4.33)。armchair 尺寸 0.96 m,entity id 72faab69 开头。
 
 ### G2. 槽位:谁有资格当目标物
@@ -196,15 +198,14 @@ seed=17、绑定 armchair 的逐 attempt 实录(帧数是 `rng.randint(10,16)` �
 
 | attempt | 帧数 | 结局 | 见证 |
 |---|---|---|---|
-| 0 | 14 | `turned` 拒 | 累计转身 224.7° > 上限 200°(转过头,答案变瞎猜) |
-| 1 | 11 | `margin_ok` 拒 | 终帧方位角 -176.1°,距 back 扇区边界仅 3.9° |
-| 2 | 14 | `margin_ok` 拒 | -149.4°,同理裕度不足 |
-| 3 | 10 | `margin_ok` 拒 | -165.7°,同理 |
-| 4 | 16 | **通过** | t_seen=0, t_gone=4, t_q=15 → 这就是 plan_0 |
+| 0 | 14 | `gap` 拒 | t_seen=10,t_gone=12,t_q=13,消失后只剩 1 帧 |
+| 1 | 11 | `turned` 拒 | 累计转身 210.4° > 200° |
+| 2 | 11 | `margin_ok` 拒 | back 方位 168.0°,裕度 12.0° < 搜索期 18° |
+| 3 | 12 | **通过** | t_seen=0,t_gone=2,t_q=11;检查 26 障碍/4 墙且 0 碰撞 |
 
 margin_ok 在搜索期带 `tighten=True`,要求 15°×1.2=18° 裕度——所以 -149.4°
 (裕度 14.4°)也被拒,这就是"搜索期收紧,渲后复核才有余量"的机制现场。
-`rejection_counts` 最终是 `{'clause:turned': 1, 'clause:margin_ok': 3}`,
+`rejection_counts` 如上三类各 1,
 拒绝直方图不是装饰,是场景/剧本问题的第一现场。
 
 ### G4. motif:候选是怎么长出来的
@@ -212,33 +213,35 @@ margin_ok 在搜索期带 `tighten=True`,要求 15°×1.2=18° 裕度——所�
 **断点 `motifs.py` → `walk_and_turn` 的 return 处**(配合 G3 的条件断点
 `attempt == 4` 只看成功那次)。
 
-结构:起点在目标 2–4 m 外、朝向目标 → 经中途点走向随机远角 → 到达后
-原地环顾(`look_frames = 16//4 = 4` 帧)转向随机终视线。全程偏航角
-每帧限速 32°(`MAX_TURN_PER_FRAME_DEG`,压在 std.v2 的 40° 上限之下)。
-成功那次的 `walk[0]` 应为 (-0.1875, 0.3139, -86.2°)。注意 motif 只管
-提议、一个约束都不检查——所有判定在下一站。
+结构:先把 26 件障碍(含 4 段墙)的旋转足印按 0.35 m 膨胀并光栅化到
+5 cm 栅格,再求自由空间连通域;
+起点只从目标 2–4 m 环带的自由格采样,终点从远处自由格采样,直线不通时
+用 8 邻域 A* 绕行且禁止斜穿墙角;折线再分配到逐帧位姿,到达后原地环顾
+(`look_frames = 16//4 = 4`)。每帧限速 32°(低于标准 40°)。成功起点为
+`(2.2625, -0.2179, -154.8°)`,终点为 `(0.1625, 2.6321, 169.3°)`。
+motif 的 0.35 m 只是保守提议,最终仍由下一站 std.v3 的 0.30 m 谓词裁决。
 
 ### G5. 免渲染核验:几何后端过条款
 
 **断点 `checker.py` → `resolve_frame_vars` 的 return,和
 `sceneview.py` → `GeometrySceneView.visibility`。**
 
-成功 attempt 的帧变量:`{'t_seen': 0, 't_gone': 4, 't_q': 15}`。
+成功 attempt 的帧变量:`{'t_seen': 0, 't_gone': 2, 't_q': 11}`。
 在 visibility 里能看到几何三态的来历:第 0 帧椅子整体在视锥内、
-尺寸/距离比 0.5873 ≥ 0.10 → 可见;第 1–3 帧椅子只有部分在画面边缘,
-按"部分入画一律模糊"规则落在模糊带(这就是渲后 t_seen 会漂到 3 的原因
-——渲染实测那几帧像素数其实够);第 4 帧起彻底出锥 → 不可见。
-六条条款全过后,`sector_margin_ge` 的见证:方位角 108.0°、left、
-裕度 27.0° ≥ 18°(收紧后的要求)。
+第 0 帧清晰可见;第 1 帧落在几何模糊带,第 2 帧起不可见。渲染实例
+掩码确认第 1 帧仍有 46656 像素,所以渲后
+t_seen 从 0 改为 1。最先执行的两条通行条款见证均为
+`checked_obstacle_count=26, checked_wall_count=4, collision_count=0`;
+`sector_margin_ge` 见证为 97.1°、left、裕度 37.9° ≥ 18°。
 
 ### G6. 计划落成
 
 **断点 `generate.py` → `return TrajectoryPlan(...)`。**
 
-核对四件事:`plan_id` 尾缀 `b0.s17.a4`(绑定 0、seed 17、attempt 4);
-`provisional_answer` = left / 108.0° / 27.0°,字段名就叫 provisional——
-它要等渲染后被编译器重新裁决;`clause_witnesses` 里 turned 是 145.8°
-(从几何 t_seen=0 起算;渲后重解析成 t_seen=3 后同一条款会变 102.5°,
-两个数都对,起算点不同);`knob_levels` delay=11。这份对象序列化后
-就是 `batch/plan_0.record.json`,也是后半段路线图第 1 站的输入——
+核对四件事:`plan_id` 尾缀 `b0.s17.a3`(绑定 0、seed 17、attempt 3);
+`provisional_answer` = left / 97.1° / 37.9°,字段名就叫 provisional——
+它要等渲染后被编译器重新裁决;`clause_witnesses` 里包含 poses/path 两份
+零碰撞见证(含 4 段墙),turned 是 135.1°(渲后 t_seen=1 时为 103.1°);
+`knob_levels` delay=9。这份对象序列化后就是
+`batch_wallfix/plan_0.record.json`,也是后半段路线图第 1 站的输入——
 两条路线在这里接上。

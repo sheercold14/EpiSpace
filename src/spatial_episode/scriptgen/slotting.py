@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from itertools import product
+from itertools import islice, product
 
 from .sceneview import SceneLayout, SceneObject
 from .spec import ScriptSpec, SlotSpec
@@ -29,13 +30,18 @@ def _qualifies(obj: SceneObject, spec: SlotSpec, layout: SceneLayout) -> str | N
     return None
 
 
-def enumerate_bindings(
-    layout: SceneLayout, script: ScriptSpec
-) -> tuple[list[dict[str, str]], list[SlotRejection]]:
-    """All ways to bind scene objects to the script's slots.
+def iter_bindings(
+    layout: SceneLayout,
+    script: ScriptSpec,
+    *,
+    maximum: int | None = None,
+) -> tuple[Iterator[dict[str, str]], list[SlotRejection]]:
+    """Iterate ways to bind scene objects to the script's slots.
 
     Objects are referenced by name in bindings; a binding never assigns the
-    same object to two slots.
+    same object to two slots. The iterator is deliberately lazy: five-slot
+    landmark-chain specs can have millions of raw Cartesian products on a
+    real scene, while generation normally accepts one of the early bindings.
     """
     rejections: list[SlotRejection] = []
     candidates: dict[str, list[str]] = {}
@@ -50,9 +56,18 @@ def enumerate_bindings(
         candidates[slot_name] = names
 
     slot_names = list(script.slots)
-    bindings = [
+    combinations = (
         dict(zip(slot_names, combo, strict=True))
         for combo in product(*(candidates[name] for name in slot_names))
         if len(set(combo)) == len(combo)
-    ]
-    return bindings, rejections
+    )
+    iterator = islice(combinations, maximum) if maximum is not None else combinations
+    return iterator, rejections
+
+
+def enumerate_bindings(
+    layout: SceneLayout, script: ScriptSpec
+) -> tuple[list[dict[str, str]], list[SlotRejection]]:
+    """Materialise every binding for callers that explicitly need a list."""
+    bindings, rejections = iter_bindings(layout, script)
+    return list(bindings), rejections

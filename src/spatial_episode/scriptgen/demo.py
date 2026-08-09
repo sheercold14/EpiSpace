@@ -7,7 +7,7 @@ exercised — slotting, motifs, clauses, plans — without Isaac Sim installed.
 
 from __future__ import annotations
 
-from .sceneview import SceneLayout, SceneObject
+from .sceneview import Obstacle, SceneLayout, SceneObject
 
 DEMO_LAYOUT = SceneLayout(
     scene_id="demo_livingroom_v1",
@@ -16,6 +16,16 @@ DEMO_LAYOUT = SceneLayout(
         SceneObject(name="fridge_main", category="fridge", xy=(8.5, 1.0), size_m=0.9, uid="obj_02"),
         SceneObject(name="tv_main", category="tv", xy=(6.5, 7.5), size_m=1.1, uid="obj_03"),
         SceneObject(name="plant_small", category="plant", xy=(5.0, 4.0), size_m=0.2, uid="obj_04"),
+    ),
+    obstacles=(
+        Obstacle(
+            label="walls",
+            center_xy=(4.6, 4.25),
+            half_extents_xy=(0.2, 1.75),
+            yaw_deg=0.0,
+            z_low=0.0,
+            z_high=3.0,
+        ),
     ),
     # A partition wall between living room and kitchen.
     occluders=(((4.4, 2.5), (4.8, 6.0)),),

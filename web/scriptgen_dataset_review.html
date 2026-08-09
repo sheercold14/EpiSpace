@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scriptgen 数据集 Review</title>
+<style>
+:root{--bg:#f4f5f7;--panel:#fff;--line:#dfe2e7;--text:#17191c;--muted:#666d78;
+--blue:#2457c5;--green:#18753c;--red:#b42318;--amber:#9a5b00}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
+header{height:64px;padding:10px 20px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+h1{font-size:17px;margin:0}.summary{color:var(--muted);font-variant-numeric:tabular-nums}
+.layout{display:grid;grid-template-columns:340px minmax(0,1fr);height:calc(100vh - 64px)}
+aside{background:#fff;border-right:1px solid var(--line);overflow:auto}.filters{position:sticky;top:0;background:#fff;padding:12px;border-bottom:1px solid var(--line);z-index:2}
+.filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filter-grid select,.filter-grid input{width:100%;height:32px;border:1px solid #cfd3da;border-radius:5px;background:#fff;padding:0 7px}
+#jobs{padding:7px}.job{padding:9px 10px;border:1px solid transparent;border-radius:6px;cursor:pointer;margin-bottom:4px}.job:hover{background:#f4f7fd}.job.active{border-color:#8aa9ec;background:#edf3ff}
+.job-top{display:flex;justify-content:space-between;gap:8px}.job-id{font-weight:650;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sub{font-size:12px;color:var(--muted);margin-top:3px}
+.chip{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;white-space:nowrap}.accepted{background:#dff3e6;color:var(--green)}.failed{background:#fde5e2;color:var(--red)}.skip{background:#f3ead6;color:var(--amber)}
+main{overflow:auto;padding:16px 18px 50px}.empty{height:100%;display:grid;place-items:center;color:var(--muted)}section{background:#fff;border:1px solid var(--line);border-radius:8px;margin-bottom:14px;padding:14px 16px}h2{font-size:14px;margin:0 0 10px}
+.meta{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:9px}.kv{background:#f7f8fa;border-radius:5px;padding:7px 9px}.kv b{display:block;font-size:11px;color:var(--muted);font-weight:500}.kv span{font-size:12px;word-break:break-all}
+.toolbar{display:flex;gap:6px;margin-bottom:9px}.toolbar button{border:1px solid #cfd3da;background:#fff;border-radius:5px;padding:4px 10px;cursor:pointer}.toolbar button.active{border-color:var(--blue);color:var(--blue);background:#edf3ff}
+.film{display:flex;gap:7px;overflow-x:auto;padding-bottom:6px}.frame{flex:0 0 152px}.frame img{width:152px;height:152px;object-fit:cover;border-radius:5px;background:#202126;display:block}.frame .caption{font-size:11px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+.split{display:grid;grid-template-columns:minmax(350px,1.2fr) minmax(300px,1fr);gap:14px}.path{width:100%;height:320px;background:#fafbfc;border:1px solid var(--line);border-radius:5px}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:6px 7px;border-bottom:1px solid #eceef1;vertical-align:top}th{color:var(--muted);font-weight:600}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.aux-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}.aux{border:1px solid var(--line);border-radius:6px;padding:8px}.aux img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:#202126}.aux.bad{border-color:#e39a92;background:#fff7f6}.aux .caption{font-size:11px;margin-top:5px}.failure{color:var(--red);white-space:pre-wrap}
+@media(max-width:900px){.layout{grid-template-columns:1fr;height:auto}aside{max-height:42vh;border-right:0;border-bottom:1px solid var(--line)}main{min-height:58vh}.meta{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div><h1>Scriptgen 数据集 Review</h1><div id="collection" class="sub"></div></div><div id="summary" class="summary"></div></header>
+<div class="layout">
+<aside><div class="filters"><div class="filter-grid">
+<select id="capability"><option value="">全部题型</option></select>
+<select id="motif"><option value="">全部剧本</option></select>
+<select id="scene"><option value="">全部场景</option></select>
+<select id="status"><option value="">全部状态</option><option>accepted</option><option>failed</option></select>
+<input id="label" placeholder="金标筛选"><input id="search" placeholder="job / scene 搜索">
+</div></div><div id="jobs"></div></aside>
+<main id="detail"><div class="empty">选择一条轨迹查看</div></main>
+</div>
+<script>
+let dataset, datasetText="", visible=[], selected=null, channel="rgb";
+const REFRESH_MS=5000;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function boot(){document.querySelectorAll(".filters select,.filters input").forEach(x=>x.addEventListener("input",apply));await refresh();setInterval(()=>refresh().catch(()=>{}),REFRESH_MS)}
+async function refresh(){const response=await fetch("dataset.json",{cache:"no-cache"});if(!response.ok)throw new Error(`dataset.json: HTTP ${response.status}`);const text=await response.text();if(text===datasetText)return;const next=JSON.parse(text),oldSelected=selected;dataset=next;datasetText=text;
+document.querySelector("#collection").textContent=`${dataset.collection_id} · ${dataset.standard_version}`;
+document.querySelector("#summary").textContent=`${dataset.requested_capability_count} 题型 × ${dataset.requested_per_capability} · 计划 ${dataset.planned_trajectory_count} · 合格 ${dataset.accepted_trajectory_count} · 失败 ${dataset.failed_trajectory_count}`;
+fill("capability","全部题型",dataset.trajectories.map(x=>x.capability));fill("motif","全部剧本",dataset.trajectories.map(x=>x.motif));fill("scene","全部场景",dataset.trajectories.map(x=>x.scene_key));
+if(oldSelected)selected=dataset.trajectories.find(x=>x.job_id===oldSelected.job_id)||null;apply();if(selected&&JSON.stringify(oldSelected)!==JSON.stringify(selected))drawDetail()}
+function fill(id,label,vals){const e=document.querySelector(`#${id}`),value=e.value;e.innerHTML=`<option value="">${label}</option>`+[...new Set(vals)].sort().map(v=>`<option>${esc(v)}</option>`).join("");if([...e.options].some(o=>o.value===value))e.value=value}
+function apply(){const v=id=>document.querySelector(`#${id}`).value.trim().toLowerCase();
+visible=dataset.trajectories.filter(x=>(!v("capability")||x.capability.toLowerCase()===v("capability"))&&(!v("motif")||x.motif.toLowerCase()===v("motif"))&&(!v("scene")||x.scene_key.toLowerCase()===v("scene"))&&(!v("status")||x.status===v("status"))&&(!v("label")||(x.primary_label||"").toLowerCase().includes(v("label")))&&(!v("search")||`${x.job_id} ${x.scene_key} ${x.scene_model}`.toLowerCase().includes(v("search"))));drawList();if(selected&&!visible.some(x=>x.job_id===selected.job_id)){selected=null;document.querySelector("#detail").innerHTML='<div class="empty">选择一条轨迹查看</div>'}}
+function drawList(){document.querySelector("#jobs").innerHTML=visible.map(x=>`<div class="job ${selected?.job_id===x.job_id?"active":""}" data-job="${esc(x.job_id)}"><div class="job-top"><span class="job-id">${esc(x.capability)} · r${x.replicate}</span><span class="chip ${x.status}">${x.status}</span></div><div class="sub">${esc(x.motif)} · ${esc(x.scene_key)} · ${x.frame_count} 帧${x.primary_label?` · ${esc(x.primary_label)}`:""}</div></div>`).join("");document.querySelectorAll(".job").forEach(e=>e.onclick=()=>{selected=dataset.trajectories.find(x=>x.job_id===e.dataset.job);channel="rgb";drawList();drawDetail()})}
+function drawDetail(){const x=selected;if(!x)return;if(x.status==="failed"){document.querySelector("#detail").innerHTML=`<section><h2>${esc(x.job_id)}</h2><div class="failure">${esc(x.failure_reason)}</div></section>`;return}
+const meta=[["题型",x.capability],["剧本",x.motif],["replicate",x.replicate],["金标",x.primary_label],["场景",x.scene_key],["场景模型",x.scene_model],["帧数",x.frame_count],["辅助视角",x.auxiliary_view_count],["plan_id",x.plan_id],["scene_id",x.scene_id]];
+document.querySelector("#detail").innerHTML=`<section><h2>${esc(x.job_id)}</h2><div class="meta">${meta.map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("")}</div></section>
+<section><h2>轨迹画面</h2><div class="toolbar">${["rgb","depth","instance"].map(c=>`<button data-channel="${c}" class="${channel===c?"active":""}">${c}</button>`).join("")}</div><div id="film" class="film"></div></section>
+<div class="split"><section><h2>路径</h2><canvas id="path" class="path"></canvas></section><section><h2>题型与金标</h2><table><thead><tr><th>题型</th><th>角色</th><th>结果</th><th></th></tr></thead><tbody>${x.questions.map(q=>`<tr><td>${esc(q.capability)}</td><td>${esc(q.role)}</td><td>${q.label?`<span class="chip accepted">${esc(q.label)}</span>`:`<span class="chip skip">${esc(q.skip_reason)}</span>`}</td><td>${q.review?`<a href="${esc(q.review)}" target="_blank">family</a>`:""}</td></tr>`).join("")}</tbody></table></section></div>
+${x.auxiliary_views.length?`<section><h2>想象视点：几何 / 渲染核对</h2><div class="toolbar" id="auxbar">${["rgb","depth","instance"].map(c=>`<button data-aux-channel="${c}" class="${channel===c?"active":""}">${c}</button>`).join("")}</div><div id="aux" class="aux-grid"></div></section>`:""}`;
+document.querySelectorAll("[data-channel]").forEach(b=>b.onclick=()=>{channel=b.dataset.channel;drawDetail()});document.querySelectorAll("[data-aux-channel]").forEach(b=>b.onclick=()=>{channel=b.dataset.auxChannel;drawDetail()});drawFilm(x);drawPath(x.frames);drawAux(x)}
+function drawFilm(x){document.querySelector("#film").innerHTML=x.frames.map(f=>`<div class="frame"><a href="${esc(f[channel])}" target="_blank"><img loading="lazy" src="${esc(f[channel])}"></a><div class="caption">#${f.frame} · (${f.x.toFixed(2)}, ${f.y.toFixed(2)}) · yaw ${f.yaw_deg.toFixed(1)}°</div></div>`).join("")}
+function drawPath(frames){const c=document.querySelector("#path"),r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=r.width*d;c.height=r.height*d;const g=c.getContext("2d");g.scale(d,d);const pad=28,xv=frames.map(f=>f.x),yv=frames.map(f=>f.y),minx=Math.min(...xv),maxx=Math.max(...xv),miny=Math.min(...yv),maxy=Math.max(...yv),sx=(r.width-2*pad)/Math.max(maxx-minx,.5),sy=(r.height-2*pad)/Math.max(maxy-miny,.5),s=Math.min(sx,sy),p=f=>[pad+(f.x-minx)*s,r.height-pad-(f.y-miny)*s];g.strokeStyle="#2457c5";g.lineWidth=2;g.beginPath();frames.forEach((f,i)=>{const [x,y]=p(f);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();frames.forEach((f,i)=>{const [x,y]=p(f);g.fillStyle=i===0?"#18753c":i===frames.length-1?"#b42318":"#2457c5";g.beginPath();g.arc(x,y,3.5,0,Math.PI*2);g.fill();g.fillStyle="#555";g.font="10px system-ui";g.fillText(String(i),x+5,y-5)})}
+function drawAux(x){const e=document.querySelector("#aux");if(!e)return;e.innerHTML=x.auxiliary_views.map(a=>`<div class="aux ${a.matches?"":"bad"}"><a href="${esc(a[channel])}" target="_blank"><img loading="lazy" src="${esc(a[channel])}"></a><div class="caption">yaw +${a.yaw_offset_deg}° · 几何 ${a.geometry_label} · 渲染 ${a.render_label} · ${a.target_pixels}px · ${a.matches?"一致":"不一致"}</div></div>`).join("")}
+boot().catch(e=>document.querySelector("#detail").innerHTML=`<div class="failure">${esc(e.stack||e)}</div>`);
+</script>
+</body>
+</html>

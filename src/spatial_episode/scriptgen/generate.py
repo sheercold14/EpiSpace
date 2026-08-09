@@ -16,15 +16,18 @@ from __future__ import annotations
 
 import random
 from collections import Counter
+from collections.abc import Callable, Iterable
 
 from .checker import check_clauses
-from .geometry import azimuth_deg, sector_margin_deg, sector_of
+from .compiler import derive_answer
 from .motifs import get_motif
 from .plan import GenerationReport, PlannedPose, ProvisionalAnswer, TrajectoryPlan
 from .sceneview import GeometrySceneView, SceneLayout
-from .slotting import enumerate_bindings
+from .slotting import iter_bindings
 from .spec import ScriptSpec
 from .standards import CompileStandard
+
+CandidateFilter = Callable[[GeometrySceneView, dict[str, str]], str | None]
 
 
 def generate_plans(
@@ -36,6 +39,9 @@ def generate_plans(
     attempts_per_binding: int = 150,
     plans_per_binding: int = 10,
     max_plans: int | None = None,
+    maximum_bindings: int | None = None,
+    candidate_bindings: Iterable[dict[str, str]] | None = None,
+    candidate_filter: CandidateFilter | None = None,
 ) -> GenerationReport:
     """Generate up to ``plans_per_binding`` accepted plans for every binding.
 
@@ -52,11 +58,17 @@ def generate_plans(
         raise ValueError("max_plans must be non-negative")
 
     rng = random.Random(seed)
-    bindings, slot_rejections = enumerate_bindings(layout, script)
+    if candidate_bindings is None:
+        bindings, slot_rejections = iter_bindings(layout, script, maximum=maximum_bindings)
+    else:
+        bindings = iter(candidate_bindings)
+        slot_rejections = []
     rejection_counts: Counter[str] = Counter()
     plans: list[TrajectoryPlan] = []
+    binding_count = 0
 
     for binding_index, binding in enumerate(bindings):
+        binding_count += 1
         if max_plans is not None and len(plans) >= max_plans:
             break
         remaining = None if max_plans is None else max_plans - len(plans)
@@ -72,10 +84,11 @@ def generate_plans(
             attempts_per_binding,
             requested,
             rejection_counts,
+            candidate_filter,
         )
         plans.extend(binding_plans)
 
-    if not bindings:
+    if binding_count == 0:
         rejection_counts["no_slot_binding"] += 1
     return GenerationReport(
         scene_id=layout.scene_id,
@@ -98,6 +111,7 @@ def _search_binding(
     attempts: int,
     requested: int,
     rejection_counts: Counter[str],
+    candidate_filter: CandidateFilter | None,
 ) -> list[TrajectoryPlan]:
     plans: list[TrajectoryPlan] = []
     for attempt in range(attempts):
@@ -108,10 +122,21 @@ def _search_binding(
         poses = get_motif(motif_name)(layout, binding, frame_count, rng)
         view = GeometrySceneView(layout=layout, poses=poses, std=std)
 
-        report = check_clauses(view, script, binding, std)
+        report = check_clauses(
+            view,
+            script,
+            binding,
+            std,
+            phases=("search", "search_only", "compile"),
+        )
         if not report.passed:
             rejection_counts[f"clause:{report.failed_clause}"] += 1
             continue
+        if candidate_filter is not None:
+            rejection = candidate_filter(view, binding)
+            if rejection is not None:
+                rejection_counts[f"candidate_filter:{rejection}"] += 1
+                continue
 
         env = {**binding, **report.frame_vars}
         plans.append(
@@ -133,10 +158,11 @@ def _search_binding(
                     knob.name: float(_eval_knob(knob.expr, env)) for knob in script.knobs
                 },
                 clause_witnesses=report.witnesses(),
-                # v1 convention: the questioned slot is named "target".
                 provisional_answer=_provisional_answer(
                     view,
-                    binding.get("target", next(iter(binding.values()))),
+                    std,
+                    script,
+                    binding,
                     report.frame_vars,
                 ),
             )
@@ -156,15 +182,22 @@ def _eval_knob(expr: str, env: dict[str, object]) -> int:
 
 
 def _provisional_answer(
-    view: GeometrySceneView, target: str, frame_vars: dict[str, int]
+    view: GeometrySceneView,
+    std: CompileStandard,
+    script: ScriptSpec,
+    binding: dict[str, str],
+    frame_vars: dict[str, int],
 ) -> ProvisionalAnswer:
-    t_q = frame_vars.get("t_q", view.frame_count - 1)
-    pose = view.camera_pose(t_q)
-    azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(target).xy)
+    answer = derive_answer(
+        view,
+        std,
+        script,
+        binding,
+        frame_vars,
+        template=script.templates[0],
+    )
     return ProvisionalAnswer(
-        question_frame=t_q,
-        target=target,
-        azimuth_deg=round(azimuth, 1),
-        sector=sector_of(azimuth),
-        margin_deg=round(sector_margin_deg(azimuth), 1),
+        mode=answer.mode,
+        label=answer.label,
+        witness=answer.witness,
     )

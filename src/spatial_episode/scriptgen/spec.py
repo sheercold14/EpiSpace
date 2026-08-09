@@ -55,7 +55,7 @@ class Clause(SpecModel):
     name: str = Field(min_length=1)
     predicate: str = Field(min_length=1)
     args: dict[str, str | int | float | bool]
-    phase: Literal["search", "compile"] = "compile"
+    phase: Literal["search", "compile", "search_only"] = "compile"
     on_violation: Literal["abstain", "invalid"] = "invalid"
 
 
@@ -88,10 +88,18 @@ class Template(SpecModel):
 VariantExpectation = Literal["same", "abstain"]
 
 
+class AnswerSpec(SpecModel):
+    """Declarative selection of one registered answer algorithm."""
+
+    mode: str = Field(min_length=1)
+    args: dict[str, str | int | float | bool]
+
+
 class ScriptSpec(SpecModel):
     """Complete declarative definition of one capability's trajectory needs.
 
-    v2 adds the family contract: ``abstain_on_unresolvable`` names the frame
+    v5 adds the declared ``intervention_window`` used by order and delay
+    operators. The family contract's ``abstain_on_unresolvable`` names frame
     variables whose failure to resolve means the evidence is gone (gold =
     abstain) rather than the question being malformed, and
     ``variant_expectations`` declares, per intervention kind, what the
@@ -99,15 +107,17 @@ class ScriptSpec(SpecModel):
     the expectation only cross-checks it, and disagreement blocks packaging.
     """
 
-    schema_version: Literal["scriptgen_spec.v2"] = "scriptgen_spec.v2"
+    schema_version: Literal["scriptgen_spec.v5"] = "scriptgen_spec.v5"
     capability: str = Field(min_length=1)
     slots: dict[str, SlotSpec]
     frame_vars: dict[str, str]  # name -> resolver expression
     clauses: tuple[Clause, ...] = Field(min_length=1)
+    answer: AnswerSpec
     knobs: tuple[Knob, ...] = ()
     length: tuple[int, int]  # inclusive frame-count range
     motifs: tuple[str, ...] = Field(min_length=1)
     templates: tuple[Template, ...] = Field(min_length=1)
+    intervention_window: str = Field(min_length=3)
     abstain_on_unresolvable: tuple[str, ...] = ()
     variant_expectations: dict[str, VariantExpectation] = {}
 
@@ -123,4 +133,10 @@ class ScriptSpec(SpecModel):
         names = [clause.name for clause in self.clauses]
         if len(names) != len(set(names)):
             raise ValueError("clause names must be unique")
+        return self
+
+    @model_validator(mode="after")
+    def intervention_window_is_range(self) -> ScriptSpec:
+        if ":" not in self.intervention_window:
+            raise ValueError("intervention_window must be an inclusive frame range")
         return self

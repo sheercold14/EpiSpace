@@ -11,15 +11,49 @@ Layers (see docs/scriptgen_engine.md):
 
 from .compiler import CapabilityCompiler, Certificate
 from .generate import generate_plans
-from .library import SCRIPT_LIBRARY, SELF_MOTION
+from .library import (
+    CROSS_VIEW_CLOSER,
+    CROSS_VIEW_RELATION,
+    CROSS_VIEW_SCRIPTS,
+    EXISTENCE_SUFFICIENCY,
+    HOMING,
+    MULTI_TURN,
+    NET_TURN,
+    NET_TURN_MAGNITUDE,
+    OCCLUDED_MOTION,
+    PURE_ROTATION,
+    PURE_TRANSLATION,
+    REFERENCE_FRAME_DEEP,
+    REFERENCE_FRAME_SCRIPTS,
+    REFERENCE_FRAME_SHALLOW,
+    SCRIPT_LIBRARY,
+    SELF_MOTION,
+    VIEW_SIDE,
+)
 from .plan import GenerationReport, TrajectoryPlan
-from .spec import Clause, Knob, ScriptSpec, SlotSpec, Template
+from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
 from .standards import STD_V1, CompileStandard
 
 __all__ = [
+    "CROSS_VIEW_CLOSER",
+    "CROSS_VIEW_RELATION",
+    "CROSS_VIEW_SCRIPTS",
+    "EXISTENCE_SUFFICIENCY",
+    "HOMING",
+    "MULTI_TURN",
+    "NET_TURN",
+    "NET_TURN_MAGNITUDE",
+    "OCCLUDED_MOTION",
+    "PURE_ROTATION",
+    "PURE_TRANSLATION",
+    "REFERENCE_FRAME_DEEP",
+    "REFERENCE_FRAME_SCRIPTS",
+    "REFERENCE_FRAME_SHALLOW",
     "SCRIPT_LIBRARY",
     "SELF_MOTION",
     "STD_V1",
+    "VIEW_SIDE",
+    "AnswerSpec",
     "CapabilityCompiler",
     "Certificate",
     "Clause",

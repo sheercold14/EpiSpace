@@ -6,9 +6,9 @@ From one rendered bundle to a complete, audited family site:
         --bundle <render dir> --plan-record <plan record json> \
         --scene-ir <scene_ir.json> --out <output dir>
 
-Output: ``<out>/family.json`` (canonical + 4 variants + certificates, one
-document), ``<out>/media/`` (per-frame rgb/depth/instance PNGs) and
-``<out>/index.html`` (the family review page; serve with any static server).
+By default the command preserves the single-family output. With ``--group``
+it builds every qualifying diagnostic family, sharing one media directory and
+recording opportunity skips in ``group.json``.
 """
 
 from __future__ import annotations
@@ -17,13 +17,18 @@ import argparse
 import json
 from pathlib import Path
 
-from .family import ScriptgenFamilyV1, build_family_site
+from .family import (
+    ScriptgenFamilyV4,
+    ScriptgenQuestionGroupV1,
+    build_family_site,
+    build_question_group,
+)
 from .standards import STD_V1
 
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
-        description="Build a family (canonical + 4 recompiled variants) from a rendered bundle."
+        description="Build one family or a diagnostic question group from a rendered bundle."
     )
     result.add_argument("--bundle", type=Path, required=True, help="Rendered bundle directory.")
     result.add_argument(
@@ -33,10 +38,19 @@ def parser() -> argparse.ArgumentParser:
         "--scene-ir", type=Path, required=True, help="scene_ir.json geometry truth."
     )
     result.add_argument("--out", type=Path, required=True, help="Output directory.")
-    result.add_argument("--seed", type=int, default=17, help="Variant sampling seed.")
     result.add_argument(
-        "--drop-count", type=int, default=2, help="Frames removed by drop_filler."
+        "--group",
+        action="store_true",
+        help="Build the declared question group instead of only the plan capability.",
     )
+    result.add_argument(
+        "--template-index",
+        type=int,
+        default=0,
+        help="Question template to package in single-family mode.",
+    )
+    result.add_argument("--seed", type=int, default=17, help="Variant sampling seed.")
+    result.add_argument("--drop-count", type=int, default=2, help="Frames removed by drop_filler.")
     result.add_argument(
         "--delay-extra", type=int, default=4, help="Pause frames inserted by delay."
     )
@@ -45,6 +59,32 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = parser().parse_args()
+    if args.group:
+        group_path = build_question_group(
+            args.bundle,
+            args.plan_record,
+            args.scene_ir,
+            args.out,
+            STD_V1,
+            seed=args.seed,
+            drop_count=args.drop_count,
+            delay_extra=args.delay_extra,
+        )
+        group = ScriptgenQuestionGroupV1.model_validate_json(group_path.read_text(encoding="utf-8"))
+        print(
+            json.dumps(
+                {
+                    "question_group_id": group.question_group_id,
+                    "standard": group.standard_version,
+                    "questions": [question.model_dump() for question in group.questions],
+                    "group": str(group_path),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
     family_path = build_family_site(
         args.bundle,
         args.plan_record,
@@ -54,15 +94,16 @@ def main() -> int:
         seed=args.seed,
         drop_count=args.drop_count,
         delay_extra=args.delay_extra,
+        template_index=args.template_index,
     )
-    doc = ScriptgenFamilyV1.model_validate_json(family_path.read_text(encoding="utf-8"))
+    doc = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
     print(
         json.dumps(
             {
                 "family_id": doc.family_id,
                 "capability": doc.capability,
                 "standard": doc.standard_version,
-                "episodes": {e.kind: e.gold for e in doc.episodes},
+                "episodes": {e.kind: e.label for e in doc.episodes},
                 "checks": doc.checks.model_dump(),
                 "family": str(family_path),
                 "review": str(family_path.parent / "index.html"),

@@ -7,9 +7,11 @@ import random
 from spatial_episode.scriptgen.geometry import (
     azimuth_deg,
     cumulative_turn_deg,
+    point_in_rotated_rect,
     sector_margin_deg,
     sector_of,
     segment_intersects_rect,
+    segment_intersects_rotated_rect,
     wrap_deg,
 )
 
@@ -87,3 +89,11 @@ def test_segment_rect_intersection() -> None:
     rect = ((4.4, 2.5), (4.8, 6.0))
     assert segment_intersects_rect((0.0, 4.0), (9.0, 4.0), *rect)
     assert not segment_intersects_rect((0.0, 8.0), (9.0, 8.0), *rect)
+
+
+def test_rotated_rect_point_and_segment_intersection() -> None:
+    center, half_extents, yaw = (0.0, 0.0), (1.0, 0.25), 45.0
+    assert point_in_rotated_rect((0.5, 0.5), center, half_extents, yaw)
+    assert not point_in_rotated_rect((0.5, -0.5), center, half_extents, yaw)
+    assert segment_intersects_rotated_rect((-1.0, -1.0), (1.0, 1.0), center, half_extents, yaw)
+    assert not segment_intersects_rotated_rect((-1.0, 1.0), (1.0, 3.0), center, half_extents, yaw)

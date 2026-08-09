@@ -11,9 +11,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import pytest
+from _batchdata import load_plan_record, load_render_view, needs_batch
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler, Certificate
-from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.library import (
+    HOMING,
+    NET_TURN,
+    SCRIPT_LIBRARY,
+    SELF_MOTION,
+    VIEW_SIDE,
+)
 from spatial_episode.scriptgen.sceneview import (
     Pose2D,
     ReindexedSceneView,
@@ -21,8 +28,6 @@ from spatial_episode.scriptgen.sceneview import (
     VisibilityObservation,
 )
 from spatial_episode.scriptgen.standards import STD_V1
-
-from _batchdata import load_plan_record, load_render_view, needs_batch
 
 TARGET = SceneObject(name="tgt", category="armchair", xy=(0.0, 2.0), size_m=0.8, uid="tgt")
 
@@ -66,6 +71,27 @@ def qualifying_fake() -> FakeRenderView:
     return FakeRenderView(yaws=yaws, pixels=pixels)
 
 
+def qualifying_all_modes_fake() -> FakeRenderView:
+    """Extend the original fake with smooth motion for homing/view-side tests."""
+    base = qualifying_fake()
+    positions = (
+        (2.0, -2.0),
+        (2.0, -2.0),
+        (1.5, -1.5),
+        (1.0, -1.0),
+        (0.5, -0.5),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 0.0),
+    )
+    return FakeRenderView(yaws=base.yaws, pixels=base.pixels, positions=positions)
+
+
 BINDING = {"target": "tgt"}
 
 
@@ -76,18 +102,68 @@ def compiler() -> CapabilityCompiler:
 
 def test_answerable_certificate(compiler: CapabilityCompiler) -> None:
     cert = compiler.compile(qualifying_fake(), BINDING)
+    assert SELF_MOTION.schema_version == "scriptgen_spec.v5"
+    assert cert.schema_version == "scriptgen_certificate.v3"
+    assert cert.template_index == 0
     assert cert.status == "answerable" and cert.reason is None
     assert cert.frame_vars == {"t_seen": 1, "t_gone": 2, "t_q": 12}
     assert cert.answer is not None
-    assert cert.answer.sector == "left"
-    assert cert.answer.azimuth_deg == pytest.approx(105.0)
-    assert cert.answer.margin_deg == pytest.approx(30.0)
+    assert cert.answer.mode == "target_sector"
+    assert cert.answer.label == "left"
+    assert cert.answer.witness["azimuth_deg"] == pytest.approx(105.0)
+    assert cert.answer.witness["margin_deg"] == pytest.approx(30.0)
     assert cert.backend == "render_pixels"
     assert cert.knob_levels == {"delay": 10.0}
     assert [v.tristate for v in cert.target_visibility[:3]] == ["visible", "visible", "invisible"]
-    # Every clause was judged and every judgment holds.
-    assert {o.name for o in cert.clause_outcomes} == {c.name for c in SELF_MOTION.clauses}
+    # Search-only path validity belongs to acquisition, not reindexed evidence.
+    assert {o.name for o in cert.clause_outcomes} == {
+        c.name for c in SELF_MOTION.clauses if c.phase != "search_only"
+    }
     assert all(o.holds is True for o in cert.clause_outcomes)
+
+
+@pytest.mark.parametrize(
+    ("script", "label", "witness"),
+    [
+        (
+            SELF_MOTION,
+            "left",
+            {
+                "azimuth_deg": 105.0,
+                "sector": "left",
+                "margin_deg": 30.0,
+                "question_frame": 12,
+            },
+        ),
+        (NET_TURN, "right", {"net_turn_deg": -105.0}),
+        (
+            HOMING,
+            "front",
+            {
+                "azimuth_deg": -30.0,
+                "sector": "front",
+                "margin_deg": 15.0,
+                "start_distance_m": 2.83,
+                "question_frame": 12,
+            },
+        ),
+        (
+            VIEW_SIDE,
+            "left_half",
+            {"azimuth_deg": 26.6, "margin_deg": 26.6, "frame": 1},
+        ),
+    ],
+)
+def test_all_declared_answer_modes_compile_on_fake(
+    script, label: str, witness: dict[str, float | int | str]
+) -> None:
+    cert = CapabilityCompiler(script=script, std=STD_V1).compile(
+        qualifying_all_modes_fake(), BINDING
+    )
+    assert cert.status == "answerable"
+    assert cert.answer is not None
+    assert cert.answer.label == label
+    assert cert.answer.witness == witness
 
 
 def test_ambiguous_frame_never_counts_as_seen(compiler: CapabilityCompiler) -> None:
@@ -105,9 +181,7 @@ def test_ambiguous_frame_never_counts_as_seen(compiler: CapabilityCompiler) -> N
 
 def test_unseen_target_is_abstain(compiler: CapabilityCompiler) -> None:
     fake = qualifying_fake()
-    cert = compiler.compile(
-        FakeRenderView(yaws=fake.yaws, pixels=(0,) * len(fake.yaws)), BINDING
-    )
+    cert = compiler.compile(FakeRenderView(yaws=fake.yaws, pixels=(0,) * len(fake.yaws)), BINDING)
     assert cert.status == "abstain"
     assert cert.reason == "frame_var_unresolvable:t_seen"
     assert cert.answer is None
@@ -165,7 +239,17 @@ def test_geometry_disagreement_sets_mismatch(compiler: CapabilityCompiler) -> No
     }
     cert = compiler.compile(qualifying_fake(), BINDING, geometry_plan=plan)
     assert cert.status == "answerable"
-    assert cert.mismatch == "sector_disagreement:render=left,geometry=right"
+    assert cert.mismatch == "label_disagreement:render=left,geometry=right"
+
+
+def test_every_library_spec_has_mandatory_traversal_clauses() -> None:
+    for script in SCRIPT_LIBRARY.values():
+        traversal = script.clauses[:2]
+        assert [(clause.name, clause.predicate, clause.phase) for clause in traversal] == [
+            ("poses_clear", "poses_clear", "search_only"),
+            ("path_clear", "path_clear", "search_only"),
+        ]
+        assert all(clause.args == {"frames": "0:$t_q"} for clause in traversal)
 
 
 def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
@@ -174,12 +258,46 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
     assert cert.mismatch is not None and cert.mismatch.startswith("standard_version_drift")
 
 
+def test_v3_plan_is_compatible_but_v2_is_not(compiler: CapabilityCompiler) -> None:
+    v3_plan = {"standard_version": "std.v3", "provisional_answer": {"sector": "left"}}
+    compatible = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v3_plan)
+    assert compatible.mismatch is None
+    assert compatible.geometry is not None
+    assert compatible.geometry.standard_version == "std.v3"
+    assert compatible.standard_version == "std.v9"
+
+    v2_plan = {"standard_version": "std.v2", "provisional_answer": {"sector": "left"}}
+    blocked = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v2_plan)
+    assert blocked.mismatch == "standard_version_drift:plan=std.v2,compile=std.v9"
+
+
 # --- integration: the three rendered gates_bedroom trajectories ---
 
 EXPECTED = {
-    0: {"sector": "left", "t_seen": 3, "t_gone": 4, "t_q": 15},
-    1: {"sector": "left", "t_seen": 0, "t_gone": 1, "t_q": 11},
-    2: {"sector": "right", "t_seen": 0, "t_gone": 1, "t_q": 9},
+    0: {
+        "label": "left",
+        "azimuth_deg": 97.1,
+        "margin_deg": 37.9,
+        "t_seen": 1,
+        "t_gone": 2,
+        "t_q": 11,
+    },
+    1: {
+        "label": "left",
+        "azimuth_deg": 77.4,
+        "margin_deg": 32.4,
+        "t_seen": 1,
+        "t_gone": 2,
+        "t_q": 13,
+    },
+    2: {
+        "label": "right",
+        "azimuth_deg": -84.5,
+        "margin_deg": 39.5,
+        "t_seen": 1,
+        "t_gone": 2,
+        "t_q": 10,
+    },
 }
 
 
@@ -194,9 +312,15 @@ def test_rendered_bundles_compile_answerable(
     expected = EXPECTED[index]
     assert cert.status == "answerable"
     assert cert.mismatch is None
-    assert cert.answer is not None and cert.answer.sector == expected["sector"]
-    assert cert.frame_vars == {k: v for k, v in expected.items() if k != "sector"}
-    assert cert.answer.margin_deg >= STD_V1.sector_margin_deg
+    assert cert.answer is not None and cert.answer.label == expected["label"]
+    assert cert.answer.witness == {
+        "azimuth_deg": expected["azimuth_deg"],
+        "sector": expected["label"],
+        "margin_deg": expected["margin_deg"],
+        "question_frame": expected["t_q"],
+    }
+    assert cert.frame_vars == {key: expected[key] for key in ("t_seen", "t_gone", "t_q")}
+    assert cert.answer.witness["margin_deg"] >= STD_V1.sector_margin_deg
     # Round-trips through JSON as a frozen contract (witness dicts hold Any,
     # so equality is on the serialised form, not tuple-vs-list identity).
     serialized = cert.model_dump_json()
@@ -207,11 +331,9 @@ def test_rendered_bundles_compile_answerable(
 def test_render_overrides_geometry_frame_vars(
     self_motion_compiler: CapabilityCompiler,
 ) -> None:
-    """render_0: geometry said t_seen=0, the masks say frame 3 is still clear."""
+    """render_0: geometry picks frame 0, masks keep the target clear through frame 1."""
     plan = load_plan_record(0)
-    cert = self_motion_compiler.compile(
-        load_render_view(0), plan["binding"], geometry_plan=plan
-    )
+    cert = self_motion_compiler.compile(load_render_view(0), plan["binding"], geometry_plan=plan)
     assert plan["frame_vars"]["t_seen"] == 0
-    assert cert.frame_vars["t_seen"] == 3
+    assert cert.frame_vars["t_seen"] == 1
     assert cert.geometry is not None and cert.geometry.frame_vars["t_seen"] == 0

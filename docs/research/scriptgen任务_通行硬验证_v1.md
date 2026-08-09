@@ -26,7 +26,7 @@
 
 ## 2. 完成标准(一句话)
 
-生成器只产出人能实际走出来的轨迹:每帧位姿和相邻帧连线都不进家具的
+生成器只产出人能实际走出来的轨迹:每帧位姿和相邻帧连线都不进家具或墙的
 躯干高度带足印;旧的三条非法轨迹被新谓词拒绝(回归测试为证);
 数据重造后全部测试绿、family 一条命令照常出活。
 
@@ -63,8 +63,9 @@ phases 传 `("search","search_only","compile")`;`compiler.py` 保持
 (生成期照常记录),审计链不断。
 
 **裁决乙:高度带数据放 layout,阈值判断放谓词。** `layout_from_scene_ir`
-不接触 standards:它把每件非结构物体的旋转足印和 z 跨度原样存进
-layout 的新字段 `obstacles`;"哪些障碍落在躯干高度带内"由谓词拿着
+不接触 standards:它把每件非结构物体及结构墙的旋转足印和 z 跨度原样
+存进 layout 的新字段 `obstacles`;墙只参与碰撞、不成为问题目标。
+"哪些障碍落在躯干高度带内"由谓词拿着
 std.v3 的阈值现场过滤。这样适配器保持无阈值,换标准不用重建 layout。
 
 ## 5. 任务分解
@@ -90,11 +91,12 @@ dataclass:`label`(raw_label)、`center_xy`、`half_extents_xy`、
 `yaw_deg`(足印旋转)、`z_low`、`z_high`。用**旋转矩形**,不用 AABB
 ——斜摆的床用 AABB 会封掉半个房间,拒绝率虚高。
 
-`behavior.py` 的 `layout_from_scene_ir`:从每个非结构 entity 的 OBB
-提取上述字段填入(z 跨度可沿用现有 `_z_span` 的保守算法)。
+`behavior.py` 的 `layout_from_scene_ir`:从每个非结构 entity 以及 walls
+entity 的 OBB 提取上述字段填入(z 跨度可沿用现有 `_z_span` 的保守算法)。
 occluders 逻辑不动——遮挡与通行是两回事,两个列表并存。
 
-验收:gates_bedroom 装载出 22 个 obstacles(高度带过滤前的全量;
+验收:gates_bedroom 装载出 26 个 obstacles(22 件非结构物+4段墙;
+高度带过滤前的全量;
 过滤是谓词的事),现有测试不红。
 
 ### T3 几何与谓词(1–1.5 小时)
@@ -168,10 +170,10 @@ coffee_table 与 sofa。这是本次 bug 的病历,永久留档。
 **顺序敏感:std.v3 会让旧 plan record 在编译器的版本核对处被阻断,
 这是设计使然。所以 T1–T6 代码全就位后一口气做完本步,中间不停。**
 
-1. 用新引擎重新生成三份计划(seed 17/23/41,场景同前)。注意:
+1. 用新引擎重新生成三份计划(最终 seed 17/23/4,场景同前)。注意:
    motif 的随机数用法变了,plan_id 的 attempt 后缀和位姿都会不同,
    这是预期;
-2. 渲染进**新目录** `outputs/scripted_demo/batch_navfix/`,旧 batch/
+2. 渲染进**新目录** `outputs/scripted_demo/batch_wallfix/`,旧 batch/
    原样保留(T6 的回归测试和历史证据都指着它);渲染命令见交接文档 §9,
    此步需要 behavior-spatialep 环境和 GPU,若执行方没有,产好
    plan.views.json 和命令行后移交人工执行;
@@ -204,10 +206,16 @@ coffee_table 与 sofa。这是本次 bug 的病历,永久留档。
 
 ## 7. 最终验收清单
 
-- [ ] `pytest tests/scriptgen -q` 全绿(新渲染数据在位时);
-- [ ] 回归测试证明旧 plan_0 被新谓词拒绝;
-- [ ] `git diff` 中 standards.py 仅含 std.v3 四个新常量与版本号;
-- [ ] episode3d、scripts/pilot 无任何改动;
-- [ ] 变体测试全绿(置换仍是 abstain 且死于 trackable,证明裁决甲落实);
-- [ ] family_cli 对 batch_navfix/render_0 一条命令出 family.json + 审核页;
-- [ ] 生成吞吐手测 ≥1000 候选/秒,记录在提交信息里。
+- [x] `pytest tests/scriptgen -q` 全绿(新渲染数据在位时):67 passed;
+- [x] 回归测试证明旧 plan_0–2 均被新谓词拒绝;
+- [x] `git diff` 中 standards.py 仅含 std.v3 三个新数值字段、分节注释与版本号;
+- [x] episode3d、scripts/pilot 无任何改动;
+- [x] 变体测试全绿(置换仍是 abstain 且死于 trackable,证明裁决甲落实);
+- [x] family_cli 对 batch_wallfix/render_0–2 均产出 family.json + 审核页;
+- [x] wall-aware 生成吞吐手测 1063 候选/秒(400次生成、2259候选)。
+
+最终执行数据位于 `OminiGibson/outputs/scripted_demo/batch_wallfix/`:三条计划
+采用 seed 17/23/4,共 37 帧,权威答案为 left/left/right。每条均检查
+26 个障碍(含4段墙),poses/path 碰撞计数均为 0,三份渲染报告均为 success;
+审核包位于 `family_{0,1,2}/`。`batch_navfix/` 是墙进入障碍层前的中间批次;
+旧 `batch/` 未改动,仅作为 navfix 前的负例病历。

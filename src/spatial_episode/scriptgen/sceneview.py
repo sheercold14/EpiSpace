@@ -22,10 +22,22 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-from .geometry import azimuth_deg, distance_m, segment_intersects_rect
+from .geometry import (
+    azimuth_deg,
+    distance_m,
+    segment_intersects_rect,
+    segment_intersects_rotated_rect,
+)
 from .standards import CompileStandard
 
 VisibilityKind = Literal["geom_ratio", "render_pixels"]
+
+_MAX_SCENE_OBJECT_RAY_CACHE = 262_144
+_SCENE_OBJECT_RAY_CACHE: dict[
+    tuple[int, tuple[float, float], str, tuple[float, float] | None], tuple[str, ...]
+] = {}
+_CACHED_RAY_LAYOUTS: dict[int, SceneLayout] = {}
+_CACHED_RAY_OBJECT_IDS: dict[int, frozenset[int]] = {}
 
 
 @dataclass(frozen=True)
@@ -73,6 +85,20 @@ class SceneObject:
     xy: tuple[float, float]
     size_m: float
     uid: str
+    yaw_deg: float = 0.0
+
+
+@dataclass(frozen=True)
+class Obstacle:
+    """One oriented obstacle footprint with its conservative vertical span."""
+
+    label: str
+    center_xy: tuple[float, float]
+    half_extents_xy: tuple[float, float]
+    yaw_deg: float
+    z_low: float
+    z_high: float
+    entity_id: str | None = None
 
 
 class SceneView(Protocol):
@@ -81,6 +107,9 @@ class SceneView(Protocol):
     @property
     def frame_count(self) -> int: ...
 
+    @property
+    def layout(self) -> SceneLayout: ...
+
     def camera_pose(self, t: int) -> Pose2D: ...
 
     def object(self, name: str) -> SceneObject: ...
@@ -88,6 +117,8 @@ class SceneView(Protocol):
     def objects(self) -> list[SceneObject]: ...
 
     def visibility(self, name: str, t: int) -> VisibilityObservation: ...
+
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -100,7 +131,9 @@ class SceneLayout:
 
     scene_id: str
     objects: tuple[SceneObject, ...]
+    obstacles: tuple[Obstacle, ...] = ()
     occluders: tuple[tuple[tuple[float, float], tuple[float, float]], ...] = ()
+    occlusion_obstacles: tuple[Obstacle, ...] = ()
     walkable_min: tuple[float, float] = (0.0, 0.0)
     walkable_max: tuple[float, float] = (10.0, 10.0)
 
@@ -136,6 +169,10 @@ class ReindexedSceneView:
     def frame_count(self) -> int:
         return len(self.frames)
 
+    @property
+    def layout(self) -> SceneLayout:
+        return self.base.layout
+
     def camera_pose(self, t: int) -> Pose2D:
         return self.base.camera_pose(self.frames[t])
 
@@ -147,6 +184,9 @@ class ReindexedSceneView:
 
     def visibility(self, name: str, t: int) -> VisibilityObservation:
         return self.base.visibility(name, self.frames[t])
+
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
+        return self.base.occluders_between(name, self.frames[t])
 
 
 @dataclass(frozen=True)
@@ -197,7 +237,23 @@ class GeometrySceneView:
             ambiguous = (self.std.geom_max_invisible_ratio + self.std.geom_min_visible_ratio) / 2.0
             return VisibilityObservation("geom_ratio", ambiguous, 1.0)
         unoccluded = self._unoccluded_ratio(pose.xy, obj)
+        if unoccluded == 0.0:
+            return VisibilityObservation("geom_ratio", 0.0, 0.0)
         return VisibilityObservation("geom_ratio", obj.size_m / dist, unoccluded)
+
+    def visibility_from_pose(self, name: str, pose: Pose2D) -> VisibilityObservation:
+        """Query static scene truth from a constructed pose outside the sequence."""
+        probe = GeometrySceneView(
+            layout=self.layout,
+            poses=(pose,),
+            std=self.std,
+            ray_samples=self.ray_samples,
+        )
+        return probe.visibility(name, 0)
+
+    def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
+        target = self.layout.object(name)
+        return blocking_occluders(self.layout, self.poses[t].xy, target)
 
     def _unoccluded_ratio(self, camera_xy: tuple[float, float], obj: SceneObject) -> float:
         """Fraction of sample rays towards the object that clear all occluders."""
@@ -208,10 +264,76 @@ class GeometrySceneView:
         clear = 0
         for offset in offsets:
             target = (obj.xy[0] + offset, obj.xy[1])
-            blocked = any(
-                segment_intersects_rect(camera_xy, target, rect_min, rect_max)
-                for rect_min, rect_max in self.layout.occluders
-            )
-            if not blocked:
+            if not blocking_occluders(self.layout, camera_xy, obj, target_xy=target):
                 clear += 1
         return clear / self.ray_samples
+
+
+def blocking_occluders(
+    layout: SceneLayout,
+    camera_xy: tuple[float, float],
+    target: SceneObject,
+    *,
+    target_xy: tuple[float, float] | None = None,
+) -> tuple[str, ...]:
+    """Eye-height obstacles intersecting the ray before the target's near face."""
+    layout_key = id(layout)
+    if _CACHED_RAY_LAYOUTS.get(layout_key) is not layout:
+        _CACHED_RAY_LAYOUTS[layout_key] = layout
+        _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
+            id(candidate) for candidate in layout.objects
+        )
+    if id(target) in _CACHED_RAY_OBJECT_IDS[layout_key]:
+        key = (layout_key, camera_xy, target.name, target_xy)
+        cached = _SCENE_OBJECT_RAY_CACHE.get(key)
+        if cached is not None:
+            return cached
+        result = _blocking_occluders(layout, camera_xy, target, target_xy)
+        if len(_SCENE_OBJECT_RAY_CACHE) >= _MAX_SCENE_OBJECT_RAY_CACHE:
+            _SCENE_OBJECT_RAY_CACHE.clear()
+            _CACHED_RAY_LAYOUTS.clear()
+            _CACHED_RAY_OBJECT_IDS.clear()
+            _CACHED_RAY_LAYOUTS[layout_key] = layout
+            _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
+                id(candidate) for candidate in layout.objects
+            )
+        _SCENE_OBJECT_RAY_CACHE[key] = result
+        return result
+    return _blocking_occluders(layout, camera_xy, target, target_xy)
+
+
+def _blocking_occluders(
+    layout: SceneLayout,
+    camera_xy: tuple[float, float],
+    target: SceneObject,
+    target_xy: tuple[float, float] | None,
+) -> tuple[str, ...]:
+    destination = target.xy if target_xy is None else target_xy
+    distance = distance_m(camera_xy, destination)
+    if distance < 1e-6:
+        return ()
+    stop = max(0.0, distance - target.size_m / 2.0)
+    fraction = stop / distance
+    ray_end = (
+        camera_xy[0] + (destination[0] - camera_xy[0]) * fraction,
+        camera_xy[1] + (destination[1] - camera_xy[1]) * fraction,
+    )
+
+    blocked: list[str] = []
+    if layout.occlusion_obstacles:
+        for obstacle in layout.occlusion_obstacles:
+            if obstacle.entity_id == target.uid:
+                continue
+            if segment_intersects_rotated_rect(
+                camera_xy,
+                ray_end,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
+            ):
+                blocked.append(obstacle.entity_id or obstacle.label)
+    else:
+        for index, (rect_min, rect_max) in enumerate(layout.occluders):
+            if segment_intersects_rect(camera_xy, ray_end, rect_min, rect_max):
+                blocked.append(f"legacy_occluder:{index}")
+    return tuple(blocked)

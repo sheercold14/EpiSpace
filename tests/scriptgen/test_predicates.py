@@ -5,6 +5,7 @@ from __future__ import annotations
 from spatial_episode.scriptgen.predicates import get_predicate
 from spatial_episode.scriptgen.sceneview import (
     GeometrySceneView,
+    Obstacle,
     Pose2D,
     SceneLayout,
     SceneObject,
@@ -67,6 +68,34 @@ def test_cum_turn_ge() -> None:
     assert verdict.witness["cum_turn_deg"] == 100.0
 
 
+def test_new_answer_qualification_predicates() -> None:
+    view_side_view = _view([Pose2D(0.0, 0.0, 70.0)])
+    view_side = get_predicate("view_side_margin_ge")(
+        view_side_view, STD_V1, obj="sofa", frame=0
+    )
+    assert view_side.holds is True
+    assert view_side.witness["azimuth_deg"] == 20.0
+
+    motion_view = _view(
+        [
+            Pose2D(0.0, 0.0, 170.0),
+            Pose2D(0.0, 1.0, -170.0),
+            Pose2D(0.0, 2.0, -140.0),
+        ]
+    )
+    net_turn = get_predicate("net_turn_margin_ge")(
+        motion_view, STD_V1, frames=[0, 1, 2]
+    )
+    assert net_turn.holds is True
+    assert net_turn.witness["net_turn_deg"] == 50.0
+
+    homing_view = _view([Pose2D(0.0, 0.0, 0.0), Pose2D(0.0, 2.0, 0.0)])
+    far = get_predicate("start_far_enough")(homing_view, STD_V1, frame=1)
+    margin = get_predicate("start_sector_margin_ge")(homing_view, STD_V1, frame=1)
+    assert far.holds is True and far.witness["start_distance_m"] == 2.0
+    assert margin.holds is True and margin.witness["sector"] == "right"
+
+
 def test_partially_in_fov_is_ambiguous() -> None:
     """An object straddling the FOV edge must be ambiguous, never invisible.
 
@@ -81,3 +110,45 @@ def test_partially_in_fov_is_ambiguous() -> None:
     # Fully outside (azimuth 90) stays definitely invisible.
     far_out = Pose2D(0.0, 0.0, 0.0)
     assert _view([far_out]).visibility("sofa", 0).tristate(STD_V1) is False
+
+
+def _clearance_view(poses: list[Pose2D], *, z_low: float = 0.0, z_high: float = 1.0):
+    obstacle = Obstacle(
+        label="table",
+        center_xy=(0.0, 0.0),
+        half_extents_xy=(0.5, 0.25),
+        yaw_deg=45.0,
+        z_low=z_low,
+        z_high=z_high,
+    )
+    layout = SceneLayout(scene_id="clearance", objects=(), obstacles=(obstacle,))
+    return GeometrySceneView(layout=layout, poses=tuple(poses), std=STD_V1)
+
+
+def test_poses_clear_rejects_pose_inside_rotated_obstacle() -> None:
+    view = _clearance_view([Pose2D(0.0, 0.0, 0.0)])
+    verdict = get_predicate("poses_clear")(view, STD_V1, frames=[0])
+    assert verdict.holds is False
+    assert verdict.witness["worst_collision"]["obstacle"] == "table"
+    assert verdict.witness["worst_collision"]["penetration_depth_m"] > 0.0
+
+
+def test_path_clear_rejects_segment_crossing_rotated_obstacle() -> None:
+    view = _clearance_view([Pose2D(-2.0, 0.0, 0.0), Pose2D(2.0, 0.0, 0.0)])
+    verdict = get_predicate("path_clear")(view, STD_V1, frames=[0, 1])
+    assert verdict.holds is False
+    assert verdict.witness["worst_collision"] == {"frames": [0, 1], "obstacle": "table"}
+
+
+def test_clearance_ignores_obstacle_outside_body_height_band() -> None:
+    view = _clearance_view(
+        [Pose2D(-2.0, 0.0, 0.0), Pose2D(0.0, 0.0, 0.0)], z_low=2.0, z_high=2.5
+    )
+    assert get_predicate("poses_clear")(view, STD_V1, frames=[0, 1]).holds is True
+    assert get_predicate("path_clear")(view, STD_V1, frames=[0, 1]).holds is True
+
+
+def test_clear_trajectory_passes_both_clearance_predicates() -> None:
+    view = _clearance_view([Pose2D(-2.0, 2.0, 0.0), Pose2D(2.0, 2.0, 0.0)])
+    assert get_predicate("poses_clear")(view, STD_V1, frames=[0, 1]).holds is True
+    assert get_predicate("path_clear")(view, STD_V1, frames=[0, 1]).holds is True

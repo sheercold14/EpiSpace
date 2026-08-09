@@ -103,7 +103,8 @@ async function main() {
   document.getElementById("title").textContent = d.family_id;
   document.getElementById("meta").textContent =
     `场景 ${d.scene_id} · 能力 ${d.capability} · 标准 ${d.standard_version}` +
-    ` · 目标物 ${d.target.category} · ${d.frames.length} 原始帧 · ${d.episodes.length} 成员`;
+    ` · 角色 ${d.role} · 目标物 ${d.target.category}` +
+    ` · ${d.frames.length} 原始帧 · ${d.episodes.length} 成员`;
   document.getElementById("stdver").textContent = d.standard_version;
 
   drawQuestion(d);
@@ -141,6 +142,8 @@ function drawMeta(d) {
   const canonical = d.episodes.find(e => e.kind === "canonical");
   const rows = [
     ["family_id", d.family_id],
+    ["question_group_id", d.question_group_id],
+    ["role", d.role],
     ["plan_id", d.plan_id],
     ["目标 entity", d.target.entity_id],
     ["目标类别", d.target.category],
@@ -166,7 +169,7 @@ function drawEpisode(d, episode) {
   div.className = "episode";
 
   const answer = cert.answer
-    ? `方位角 ${cert.answer.azimuth_deg}° · 裕度 ${cert.answer.margin_deg}°` : "";
+    ? `${cert.answer.mode} ${JSON.stringify(cert.answer.witness)}` : "";
   const reason = cert.reason ? `原因 ${cert.reason}` : "";
   const knobs = Object.entries(cert.knob_levels || {})
     .map(([k, v]) => `${k}=${v}`).join(" ");
@@ -174,7 +177,7 @@ function drawEpisode(d, episode) {
   div.innerHTML = `<h3>
       <span class="chip kind">${ZH_KIND[episode.kind] ?? episode.kind}</span>
       <span class="chip status-${cert.status}">${cert.status}</span>
-      <span class="chip gold">金标:${episode.gold}</span>
+      <span class="chip gold">金标:${episode.label}</span>
       <span class="chip expect">预期:${episode.expectation}</span>
       <span style="font-size:12px;color:#5a5e66">${answer} ${reason} ${knobs}
         · ${episode.frame_sequence.length} 帧</span>

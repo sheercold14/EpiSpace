@@ -7,19 +7,20 @@ three rendered trajectories and assert the recompiled golds.
 
 from __future__ import annotations
 
+import random
+
 import pytest
+from _batchdata import load_plan_record, load_render_view, needs_batch
+from test_compiler import BINDING, qualifying_all_modes_fake, qualifying_fake
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler
-from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.library import HOMING, NET_TURN, SELF_MOTION, VIEW_SIDE
 from spatial_episode.scriptgen.standards import STD_V1
 from spatial_episode.scriptgen.variants import (
     INTERVENTION_KINDS,
     FamilyMismatch,
     VariantBuilder,
 )
-
-from _batchdata import load_plan_record, load_render_view, needs_batch
-from test_compiler import BINDING, qualifying_fake
 
 ABSTAIN = SELF_MOTION.templates[0].abstain_option
 
@@ -37,6 +38,47 @@ def test_all_four_kinds_built(fake_builder: VariantBuilder) -> None:
     assert tuple(v.kind for v in variants) == INTERVENTION_KINDS
 
 
+def test_only_declared_kinds_are_built() -> None:
+    script = SELF_MOTION.model_copy(
+        update={"variant_expectations": {"drop_filler": "same", "delay": "same"}}
+    )
+    compiler = CapabilityCompiler(script=script, std=STD_V1)
+    view = qualifying_fake()
+    canonical = compiler.compile(view, BINDING, with_essential=True)
+    builder = VariantBuilder(compiler=compiler, view=view, binding=BINDING, canonical=canonical)
+    assert tuple(v.kind for v in builder.build_all(seed=3)) == (
+        "drop_filler",
+        "delay",
+    )
+
+
+def test_every_existing_spec_declares_its_intervention_window() -> None:
+    assert SELF_MOTION.intervention_window == "$t_gone:$t_q-1"
+    assert VIEW_SIDE.intervention_window == "$t_gone:$t_q-1"
+    assert NET_TURN.intervention_window == "1:$t_q-1"
+    assert HOMING.intervention_window == "1:$t_q-1"
+
+
+def test_operators_touch_only_the_declared_window() -> None:
+    script = SELF_MOTION.model_copy(update={"intervention_window": "2:4"})
+    compiler = CapabilityCompiler(script=script, std=STD_V1)
+    view = qualifying_fake()
+    canonical = compiler.compile(view, BINDING, with_essential=True)
+    builder = VariantBuilder(compiler=compiler, view=view, binding=BINDING, canonical=canonical)
+
+    candidate = builder._permute_sequences(random.Random(3), 64)[0]
+    assert candidate[:2] == canonical.frame_sequence[:2]
+    assert candidate[5:] == canonical.frame_sequence[5:]
+    assert sorted(candidate[2:5]) == list(canonical.frame_sequence[2:5])
+
+    delayed = builder._delay_sequence(2)
+    assert delayed == (
+        canonical.frame_sequence[:4]
+        + (canonical.frame_sequence[3],) * 2
+        + canonical.frame_sequence[4:]
+    )
+
+
 def test_permute_destroys_tracking(fake_builder: VariantBuilder) -> None:
     permute = fake_builder.build_all(seed=3)[0]
     assert permute.gold == ABSTAIN
@@ -46,6 +88,18 @@ def test_permute_destroys_tracking(fake_builder: VariantBuilder) -> None:
     assert sorted(permute.frame_sequence) == list(range(13))
     assert permute.frame_sequence[-1] == 12
     assert permute.frame_sequence != tuple(range(13))
+
+
+def test_view_side_permute_keeps_label() -> None:
+    compiler = CapabilityCompiler(script=VIEW_SIDE, std=STD_V1)
+    view = qualifying_all_modes_fake()
+    canonical = compiler.compile(view, BINDING, with_essential=True)
+    builder = VariantBuilder(compiler=compiler, view=view, binding=BINDING, canonical=canonical)
+    permute = builder.build_all(seed=3)[0]
+    assert canonical.answer is not None and canonical.answer.label == "left_half"
+    assert permute.certificate.status == "answerable"
+    assert permute.gold == permute.certificate.answer.label == "left_half"
+    assert permute.frame_sequence[:2] == (0, 1)
 
 
 def test_drop_key_removes_every_sighting(fake_builder: VariantBuilder) -> None:
@@ -64,9 +118,7 @@ def test_drop_filler_keeps_answer(fake_builder: VariantBuilder) -> None:
     # Anchors survive: the sighting frame and the question frame.
     assert 1 in drop_filler.frame_sequence and 12 in drop_filler.frame_sequence
     # Essential frames survive by construction.
-    assert set(fake_builder.canonical.essential_frames or ()) <= set(
-        drop_filler.frame_sequence
-    )
+    assert set(fake_builder.canonical.essential_frames or ()) <= set(drop_filler.frame_sequence)
 
 
 def test_delay_grows_knob_only(fake_builder: VariantBuilder) -> None:
@@ -85,7 +137,7 @@ def test_variants_never_hand_assign_gold(fake_builder: VariantBuilder) -> None:
     for variant in fake_builder.build_all(seed=3):
         if variant.expectation == "same":
             assert variant.certificate.answer is not None
-            assert variant.gold == variant.certificate.answer.sector
+            assert variant.gold == variant.certificate.answer.label
         else:
             assert variant.certificate.status == "abstain"
             assert variant.gold == ABSTAIN
@@ -132,15 +184,11 @@ def test_rendered_bundle_variants(index: int, self_motion_compiler: CapabilityCo
     permute, drop_key, drop_filler, delay = builder.build_all(seed=17)
 
     sector = EXPECTED_SECTORS[index]
-    assert canonical.answer is not None and canonical.answer.sector == sector
+    assert canonical.answer is not None and canonical.answer.label == sector
     assert permute.gold == ABSTAIN and permute.certificate.reason == "clause:trackable"
     assert drop_key.gold == ABSTAIN
     assert drop_filler.gold == sector
     assert delay.gold == sector
-    assert (
-        delay.certificate.knob_levels["delay"] == canonical.knob_levels["delay"] + 4
-    )
+    assert delay.certificate.knob_levels["delay"] == canonical.knob_levels["delay"] + 4
     # drop_key kept only definitely-invisible frames.
-    assert all(
-        row.tristate == "invisible" for row in drop_key.certificate.target_visibility
-    )
+    assert all(row.tristate == "invisible" for row in drop_key.certificate.target_visibility)
