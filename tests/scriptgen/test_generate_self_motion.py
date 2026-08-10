@@ -73,6 +73,37 @@ def test_generation_is_deterministic() -> None:
     assert a.model_dump() == b.model_dump()
 
 
+def test_collects_multiple_successes_for_one_binding() -> None:
+    report = generate_plans(
+        DEMO_LAYOUT,
+        SELF_MOTION,
+        STD_V1,
+        seed=17,
+        attempts_per_binding=150,
+        plans_per_binding=3,
+        max_plans=3,
+    )
+    assert len(report.plans) == 3, f"only got {len(report.plans)}; {report.rejection_counts}"
+    assert len({plan.binding["target"] for plan in report.plans}) == 1
+    assert len({plan.plan_id for plan in report.plans}) == 3
+
+
+def test_attempt_budget_is_shared_by_requested_plans() -> None:
+    report = generate_plans(
+        DEMO_LAYOUT,
+        SELF_MOTION,
+        STD_V1,
+        seed=17,
+        attempts_per_binding=2,
+        plans_per_binding=10,
+    )
+    plans_by_binding: dict[str, int] = {}
+    for plan in report.plans:
+        target = plan.binding["target"]
+        plans_by_binding[target] = plans_by_binding.get(target, 0) + 1
+    assert all(count <= 2 for count in plans_by_binding.values())
+
+
 def test_generation_dispatches_each_declared_answer_mode() -> None:
     for script in (NET_TURN, HOMING):
         report = generate_plans(DEMO_LAYOUT, script, STD_V1, seed=17)

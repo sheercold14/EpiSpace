@@ -43,6 +43,12 @@ def test_sector_margin_at_center_and_boundary() -> None:
     assert sector_margin_deg(0.0) == 45.0
     assert sector_margin_deg(45.0) == 0.0
     assert sector_margin_deg(-135.0) == 0.0
+    # +180 and -180 are the same direction and both lie at the center of the
+    # back sector; wrapping there must not create a false class boundary.
+    assert sector_margin_deg(180.0) == 45.0
+    assert sector_margin_deg(-180.0) == 45.0
+    assert sector_margin_deg(179.0) == 44.0
+    assert sector_margin_deg(-179.0) == 44.0
 
 
 def test_sector_rotation_equivariance_property() -> None:

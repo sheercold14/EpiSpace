@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v8"
+    standard_version: str = "std.v9"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -113,6 +113,10 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     "std.v7": ("std.v6", "std.v5", "std.v4", "std.v3"),
     # std.v8 adds only evidence-coverage fields.
     "std.v8": ("std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
+    # std.v9 removes the false +/-180-degree boundary at the center of the
+    # back sector. This only relaxes false rejections: every plan accepted by
+    # v3-v8 remains valid under the corrected margin geometry.
+    "std.v9": ("std.v8", "std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
 }
 
 STD_V4_ADDED_FIELDS = (

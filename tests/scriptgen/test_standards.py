@@ -36,7 +36,7 @@ STD_V3_FIELDS = {
 }
 
 
-def test_std_v8_declares_its_compatible_lineage() -> None:
+def test_std_v9_declares_its_compatible_lineage() -> None:
     actual = {field.name for field in fields(CompileStandard)}
     assert actual == (
         STD_V3_FIELDS
@@ -52,4 +52,5 @@ def test_std_v8_declares_its_compatible_lineage() -> None:
         "std.v6": ("std.v5", "std.v4", "std.v3"),
         "std.v7": ("std.v6", "std.v5", "std.v4", "std.v3"),
         "std.v8": ("std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
+        "std.v9": ("std.v8", "std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
     }

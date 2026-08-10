@@ -264,11 +264,11 @@ def test_v3_plan_is_compatible_but_v2_is_not(compiler: CapabilityCompiler) -> No
     assert compatible.mismatch is None
     assert compatible.geometry is not None
     assert compatible.geometry.standard_version == "std.v3"
-    assert compatible.standard_version == "std.v8"
+    assert compatible.standard_version == "std.v9"
 
     v2_plan = {"standard_version": "std.v2", "provisional_answer": {"sector": "left"}}
     blocked = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v2_plan)
-    assert blocked.mismatch == "standard_version_drift:plan=std.v2,compile=std.v8"
+    assert blocked.mismatch == "standard_version_drift:plan=std.v2,compile=std.v9"
 
 
 # --- integration: the three rendered gates_bedroom trajectories ---

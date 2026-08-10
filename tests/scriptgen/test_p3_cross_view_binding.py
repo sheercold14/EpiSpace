@@ -126,7 +126,7 @@ def _case(chain_length: int):
 
 
 def test_p3_registry_standard_and_library_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v8"
+    assert STD_V1.standard_version == "std.v9"
     assert STD_V1.landmark_chain_lengths == (1, 2, 3)
     assert {"pair_relation", "closer_of"} <= set(registered_answer_modes())
     assert {

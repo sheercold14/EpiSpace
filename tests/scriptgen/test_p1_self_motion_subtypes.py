@@ -55,7 +55,7 @@ def _view(plan) -> GeometrySceneView:
 
 
 def test_p1_registry_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v8"
+    assert STD_V1.standard_version == "std.v9"
     assert "net_turn_magnitude" in registered_answer_modes()
     assert {
         "displacement_below",
@@ -144,7 +144,13 @@ def test_net_turn_magnitude_answer_and_margin_are_declared() -> None:
 def test_walk_and_turn_meets_preregistered_balance_gate() -> None:
     counts: Counter[str] = Counter()
     for seed in range(40):
-        report = generate_plans(DEMO_LAYOUT, SELF_MOTION, STD_V1, seed=seed)
+        report = generate_plans(
+            DEMO_LAYOUT,
+            SELF_MOTION,
+            STD_V1,
+            seed=seed,
+            plans_per_binding=1,
+        )
         counts.update(plan.provisional_answer.label for plan in report.plans)
     total = sum(counts.values())
     assert total == 120
