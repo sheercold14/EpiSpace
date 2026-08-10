@@ -20,6 +20,12 @@ from .qa_dataset import (
 REFLECTION_SCHEMA = "scriptgen.qa_batch_reflection.v1"
 REVIEW_SCHEMA = "scriptgen.qa_review.v1"
 REVIEW_TEMPLATE = Path(__file__).resolve().parents[3] / "web" / "scriptgen_qa_review.html"
+CASE_REVIEW_REPORT = (
+    Path(__file__).resolve().parents[3]
+    / "docs"
+    / "research"
+    / "scriptgen_QA案例评审与生成策略复盘_v1.md"
+)
 
 
 def _ratio(numerator: int, denominator: int) -> float | None:
@@ -472,5 +478,8 @@ def build_research_review(*, dataset_root: Path) -> dict[str, Any]:
     )
     if not REVIEW_TEMPLATE.is_file():
         raise FileNotFoundError(f"missing QA review template: {REVIEW_TEMPLATE}")
+    if not CASE_REVIEW_REPORT.is_file():
+        raise FileNotFoundError(f"missing QA case review report: {CASE_REVIEW_REPORT}")
     shutil.copyfile(REVIEW_TEMPLATE, dataset_root / "index.html")
+    shutil.copyfile(CASE_REVIEW_REPORT, dataset_root / "case_review_report.md")
     return review

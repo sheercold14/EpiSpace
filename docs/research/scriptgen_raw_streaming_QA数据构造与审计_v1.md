@@ -1,5 +1,7 @@
 # Scriptgen Raw / Streaming QA 数据构造与审计 v1
 
+配套的网页案例索引、测量效度分析与下一轮策略见 [Scriptgen QA 案例评审与生成策略复盘 v1](scriptgen_QA案例评审与生成策略复盘_v1.md)。
+
 ## 研究问题与边界
 
 本轮把 `scriptgen_current_2x_v1` 中已经通过编译器校验的题目族，导出为两种可直接用于 VLM 训练和评测的数据：单条独立的 raw QA，以及共享同一轨迹历史、逐步释放图像的 streaming QA。所有金标都来自现有 family episode 或同一 `CapabilityCompiler` 对轨迹前缀的重新编译；SenseNova 只用于冻结诊断，不能生成、修改或否决金标。
