@@ -65,6 +65,21 @@ the package. The EpiSpace worker script then selects the archive from
 GPUs with remote backfill enabled, and uploads the completed result. Worker 0
 uses shard index `0`; worker 1 uses index `1`.
 
+For the current Behavior-51 deployment, the convenience launcher supplies the
+OSS prefix, four-GPU defaults, persistent work root, log file, and detached tmux
+session. Run index `0` on the first machine and index `1` on the second:
+
+```bash
+cd /home/wmq/project/EpiSpace
+bash scripts/launch_behavior51_remote_shard.sh 0
+# On the other machine:
+bash scripts/launch_behavior51_remote_shard.sh 1
+```
+
+Use `tmux attach -t epispace-s0` / `epispace-s1` or follow
+`/home/wmq/epispace-distributed/logs/shard-INDEX.log`. The lower-level command
+below remains available when paths or the OSS task root need customization.
+
 ```bash
 OSS_PREFIX=oss://YOUR_BUCKET/epispace/behavior51_coverage_v1
 export OSS_REGION=cn-shanghai  # replace when the bucket is in another region
