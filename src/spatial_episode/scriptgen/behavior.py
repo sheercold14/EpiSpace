@@ -32,6 +32,7 @@ import numpy as np
 
 from .sceneview import (
     Obstacle,
+    OcclusionObservation,
     Pose2D,
     SceneLayout,
     SceneObject,
@@ -173,8 +174,12 @@ def layout_from_scene_ir(
                 entity_id=entity["entity_id"],
             )
             obstacles.append(obstacle)
+            # Keep every potential blocker with its full vertical span. The
+            # target-specific 3-D ray test decides whether it actually reaches
+            # the sightline; a global eye-height cutoff loses valid downward
+            # occlusions by beds and bookcases.
+            occlusion_obstacles.append(obstacle)
             if z_high >= std.camera_height_m:
-                occlusion_obstacles.append(obstacle)
                 occluders.append(_footprint_aabb(obb))
         if label in STRUCTURAL_LABELS:
             continue
@@ -187,6 +192,8 @@ def layout_from_scene_ir(
                 size_m=2.0 * max(hx, hy),
                 uid=entity["entity_id"],
                 yaw_deg=_yaw_deg(obb),
+                center_z=float(obb["center_m"][2]),
+                half_height=float(obb["half_extents_m"][2]),
             )
         )
 
@@ -210,6 +217,9 @@ def layout_from_scene_ir(
         occlusion_obstacles=tuple(occlusion_obstacles),
         walkable_min=walkable_min,
         walkable_max=walkable_max,
+        camera_height_m=std.camera_height_m,
+        geom_occlusion_vertical_margin_m=std.geom_occlusion_vertical_margin_m,
+        geom_occlusion_footprint_margin_ratio=std.geom_occlusion_footprint_margin_ratio,
     )
 
 
@@ -244,7 +254,13 @@ class RenderSceneView:
     std: CompileStandard
     bundle_root: Path
     entity_runtime_ids: dict[str, tuple[int, ...]]
+    runtime_entity_ids: dict[int, str] = field(default_factory=dict)
+    entity_categories: dict[str, str] = field(default_factory=dict)
+    entity_source_ids: dict[str, str] = field(default_factory=dict)
+    sensor_contract: dict[str, Any] = field(default_factory=dict)
+    camera_heights_m: tuple[float, ...] = ()
     _mask_cache: dict[int, np.ndarray] = field(default_factory=dict, compare=False)
+    _depth_cache: dict[int, np.ndarray] = field(default_factory=dict, compare=False)
 
     @classmethod
     def from_bundle(
@@ -286,12 +302,38 @@ class RenderSceneView:
         for runtime_id, entity_id in ir["runtime_semantic_id_map"].items():
             if entity_id not in replayed_entities:
                 runtime_map.setdefault(entity_id, []).append(int(runtime_id))
+        runtime_to_entity = {
+            runtime_id: entity_id
+            for entity_id, runtime_ids in runtime_map.items()
+            for runtime_id in runtime_ids
+        }
+        entity_categories = {
+            str(entity["entity_id"]): str(entity["raw_label"]) for entity in ir["entities"]
+        }
+        entity_source_ids = {
+            str(entity["entity_id"]): str(entity.get("source_entity_id", entity["entity_id"]))
+            for entity in ir["entities"]
+        }
+        report_path = root / "render_report.json"
+        report = (
+            json.loads(report_path.read_text(encoding="utf-8"))
+            if report_path.is_file()
+            else {}
+        )
         return cls(
             layout=layout,
             poses=poses,
             std=std,
             bundle_root=root,
             entity_runtime_ids={k: tuple(v) for k, v in runtime_map.items()},
+            runtime_entity_ids=runtime_to_entity,
+            entity_categories=entity_categories,
+            entity_source_ids=entity_source_ids,
+            sensor_contract=dict(report.get("sensor_contract", {})),
+            camera_heights_m=tuple(
+                float(row.get("camera_height_m", std.camera_height_m))
+                for row in report.get("views", ())
+            ),
         )
 
     @property
@@ -316,8 +358,166 @@ class RenderSceneView:
         return VisibilityObservation("render_pixels", float(pixels), 1.0)
 
     def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
+        return self.occlusion(name, t).occluder_ids
+
+    def occlusion(self, name: str, t: int) -> OcclusionObservation:
+        """Attribute an invisible target to a nearer rendered instance.
+
+        The target centre is projected into the calibrated image. A small
+        central patch must contain one dominant, resolvable foreground entity
+        whose linear depth is safely in front of the target centre. Ambiguous
+        or unmapped evidence is never promoted to an occlusion claim.
+        """
+        target_visibility = self.visibility(name, t)
+        target_state = target_visibility.tristate(self.std)
+        base: dict[str, Any] = {
+            "backend": "render_instance_depth",
+            "target_entity_id": name,
+            "target_source_entity_id": self.entity_source_ids.get(name, name),
+            "frame": t,
+            "target_pixels": int(target_visibility.value),
+        }
+        if target_state is True:
+            return OcclusionObservation(
+                "render_instance_depth", "clear", (), {**base, "reason": "target_visible"}
+            )
+        if target_state is None:
+            return OcclusionObservation(
+                "render_instance_depth",
+                "ambiguous",
+                (),
+                {**base, "reason": "target_visibility_ambiguous"},
+            )
+
+        instance = self._instance_mask(t)
+        depth = self._depth_map(t)
+        height, width = instance.shape
+        pose = self.poses[t]
         target = self.layout.object(name)
-        return blocking_occluders(self.layout, self.poses[t].xy, target)
+        dx, dy = target.xy[0] - pose.x, target.xy[1] - pose.y
+        yaw = math.radians(pose.yaw_deg)
+        forward = math.cos(yaw) * dx + math.sin(yaw) * dy
+        right = math.sin(yaw) * dx - math.cos(yaw) * dy
+        camera_height = (
+            self.camera_heights_m[t]
+            if t < len(self.camera_heights_m)
+            else self.layout.camera_height_m
+        )
+        up = target.center_z - camera_height
+        if forward <= 1e-6:
+            return OcclusionObservation(
+                "render_instance_depth",
+                "clear",
+                (),
+                {**base, "reason": "target_behind_camera", "forward_depth_m": forward},
+            )
+        horizontal_fov = float(
+            self.sensor_contract.get("horizontal_fov_deg", 2.0 * self.std.fov_half_angle_deg)
+        )
+        focal_px = width / (2.0 * math.tan(math.radians(horizontal_fov) / 2.0))
+        u = (width - 1) / 2.0 + focal_px * right / forward
+        v = (height - 1) / 2.0 - focal_px * up / forward
+        radius = self.std.occlusion_center_patch_radius_px
+        center_x, center_y = int(round(u)), int(round(v))
+        base.update(
+            {
+                "projected_target_center_px": [round(u, 3), round(v, 3)],
+                "expected_target_depth_m": round(forward, 4),
+                "patch_radius_px": radius,
+            }
+        )
+        if not (
+            radius <= center_x < width - radius and radius <= center_y < height - radius
+        ):
+            return OcclusionObservation(
+                "render_instance_depth",
+                "clear",
+                (),
+                {**base, "reason": "target_projection_outside_image"},
+            )
+
+        patch_ids = instance[
+            center_y - radius : center_y + radius + 1,
+            center_x - radius : center_x + radius + 1,
+        ]
+        patch_depth = depth[
+            center_y - radius : center_y + radius + 1,
+            center_x - radius : center_x + radius + 1,
+        ]
+        target_runtime_ids = set(self.entity_runtime_ids.get(name, ()))
+        foreground = (
+            np.isfinite(patch_depth)
+            & (patch_depth > 0.0)
+            & (patch_depth <= forward - self.std.occlusion_min_depth_margin_m)
+            & (patch_ids > 1)
+            & ~np.isin(patch_ids, tuple(target_runtime_ids))
+        )
+        supported_ids, supported_counts = np.unique(patch_ids[foreground], return_counts=True)
+        ranked = sorted(
+            (
+                (int(count), int(runtime_id))
+                for runtime_id, count in zip(supported_ids, supported_counts, strict=True)
+            ),
+            reverse=True,
+        )
+        if not ranked or ranked[0][0] < self.std.occlusion_min_support_pixels:
+            return OcclusionObservation(
+                "render_instance_depth",
+                "ambiguous",
+                (),
+                {
+                    **base,
+                    "reason": "insufficient_foreground_support",
+                    "support_pixels": ranked[0][0] if ranked else 0,
+                    "minimum_support_pixels": self.std.occlusion_min_support_pixels,
+                },
+            )
+        winner_count, winner_runtime_id = ranked[0]
+        runner_count = ranked[1][0] if len(ranked) > 1 else 0
+        dominance = float("inf") if runner_count == 0 else winner_count / runner_count
+        if runner_count and dominance < self.std.occlusion_min_dominance_ratio:
+            return OcclusionObservation(
+                "render_instance_depth",
+                "ambiguous",
+                (),
+                {
+                    **base,
+                    "reason": "competing_foreground_instances",
+                    "winner_support_pixels": winner_count,
+                    "runner_support_pixels": runner_count,
+                    "dominance_ratio": round(dominance, 4),
+                },
+            )
+        occluder = self.runtime_entity_ids.get(winner_runtime_id)
+        if occluder is None:
+            return OcclusionObservation(
+                "render_instance_depth",
+                "ambiguous",
+                (),
+                {
+                    **base,
+                    "reason": "foreground_runtime_id_unresolved",
+                    "occluder_runtime_instance_id": winner_runtime_id,
+                },
+            )
+        winner_depths = patch_depth[foreground & (patch_ids == winner_runtime_id)]
+        observed_depth = float(np.median(winner_depths))
+        witness = {
+            **base,
+            "reason": None,
+            "occluder_entity_id": occluder,
+            "occluder_source_entity_id": self.entity_source_ids.get(occluder, occluder),
+            "occluder_category": self.entity_categories.get(occluder, "unknown"),
+            "occluder_runtime_instance_id": winner_runtime_id,
+            "observed_occluder_depth_m": round(observed_depth, 4),
+            "depth_margin_m": round(forward - observed_depth, 4),
+            "minimum_depth_margin_m": self.std.occlusion_min_depth_margin_m,
+            "support_pixels": winner_count,
+            "runner_support_pixels": runner_count,
+            "dominance_ratio": None if runner_count == 0 else round(dominance, 4),
+            "minimum_dominance_ratio": self.std.occlusion_min_dominance_ratio,
+        }
+        return OcclusionObservation("render_instance_depth", "occluded", (occluder,), witness)
 
     def _instance_mask(self, t: int) -> np.ndarray:
         if t not in self._mask_cache:
@@ -325,3 +525,10 @@ class RenderSceneView:
             with np.load(path) as arrays:
                 self._mask_cache[t] = arrays["instance_id"]
         return self._mask_cache[t]
+
+    def _depth_map(self, t: int) -> np.ndarray:
+        if t not in self._depth_cache:
+            path = self.bundle_root / "views" / f"view-{t:03d}.sensors.npz"
+            with np.load(path) as arrays:
+                self._depth_cache[t] = arrays["depth_m"]
+        return self._depth_cache[t]

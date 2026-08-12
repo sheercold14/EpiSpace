@@ -24,13 +24,21 @@ from .geometry import (
     bearing_deg,
     distance_m,
     point_in_rotated_rect,
+    rotated_rect_penetration_depth,
+    segment_rotated_rect_interval,
     wrap_deg,
 )
 from .sceneview import Pose2D, SceneLayout, blocking_occluders
 
-Motif = Callable[[SceneLayout, dict[str, str], int, random.Random], tuple[Pose2D, ...]]
+Motif = Callable[
+    [SceneLayout, dict[str, str], int, random.Random], tuple[Pose2D, ...] | None
+]
 
 _MOTIFS: dict[str, Motif] = {}
+
+
+class MotifUnavailable(RuntimeError):
+    """A scene cannot supply the geometry required by a trajectory motif."""
 
 
 def motif(name: str) -> Callable[[Motif], Motif]:
@@ -333,6 +341,8 @@ def _sample_start(grid: _OccupancyGrid, target_xy: tuple[float, float], rng: ran
         if 2.0 <= distance_m(grid.world_xy(index), target_xy) <= 4.0
     ]
     pool = annulus or list(grid.free_cells)
+    if not pool:
+        raise MotifUnavailable("occupancy_grid_has_no_free_cells")
     return pool[rng.randrange(len(pool))]
 
 
@@ -369,7 +379,7 @@ def _propose_route(
 ) -> list[tuple[float, float]]:
     grid = _occupancy_grid(layout)
     if not grid.free_cells:
-        return [layout.walkable_min, layout.walkable_min]
+        raise MotifUnavailable("occupancy_grid_has_no_free_cells")
     start = _sample_start(grid, target_xy, rng)
     for _ in range(8):
         end = _sample_end(grid, start, rng)
@@ -628,79 +638,164 @@ def walk_multi_turn(
     return tuple(poses)
 
 
-def _occluded_endpoint(
-    layout: SceneLayout, target_xy: tuple[float, float], rng: random.Random
-) -> tuple[float, float] | None:
+@lru_cache(maxsize=128)
+def _occluded_endpoints(layout: SceneLayout, target_name: str) -> tuple[int, ...]:
+    """Free cells from which the bound target is geometrically invisible.
+
+    The expensive scan is cached per immutable scene/target pair.  It uses
+    the same height-aware rays and visibility thresholds as the checker, so a
+    motif cannot nominate an endpoint that later turns out to be on the
+    occluder's near side after grid snapping.
+    """
     grid = _occupancy_grid(layout)
-    candidates: list[tuple[tuple[float, float], float]] = []
-    if layout.occlusion_obstacles:
-        candidates.extend(
-            (obstacle.center_xy, math.hypot(*obstacle.half_extents_xy))
-            for obstacle in layout.occlusion_obstacles
-        )
-    else:
-        candidates.extend(
-            (
-                ((low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0),
-                math.hypot((high[0] - low[0]) / 2.0, (high[1] - low[1]) / 2.0),
-            )
-            for low, high in layout.occluders
-        )
-    rng.shuffle(candidates)
-    for center, extent in candidates:
-        length = distance_m(target_xy, center)
-        if length < 0.5:
+    target = layout.object(target_name)
+    from .standards import STD_V1
+
+    candidates: list[int] = []
+    for index in grid.free_cells:
+        xy = grid.world_xy(index)
+        distance = distance_m(xy, target.xy)
+        if not 0.75 <= distance <= STD_V1.max_view_distance_m:
             continue
-        unit = ((center[0] - target_xy[0]) / length, (center[1] - target_xy[1]) / length)
-        for clearance in (0.8, 1.1, 1.4):
-            proposed = (
-                center[0] + unit[0] * (extent + clearance),
-                center[1] + unit[1] * (extent + clearance),
+        pose = Pose2D(xy[0], xy[1], bearing_deg(xy, target.xy))
+        from .sceneview import GeometrySceneView
+
+        observation = GeometrySceneView(layout, (pose,), STD_V1).visibility(target_name, 0)
+        if observation.tristate(STD_V1) is False and blocking_occluders(layout, xy, target):
+            candidates.append(index)
+    return tuple(candidates)
+
+
+def _occluded_route(
+    layout: SceneLayout, target_name: str, rng: random.Random
+) -> list[tuple[float, float]] | None:
+    grid = _occupancy_grid(layout)
+    target = layout.object(target_name)
+    endpoints = list(_occluded_endpoints(layout, target_name))
+    obstacle_by_id = {
+        obstacle.entity_id: obstacle
+        for obstacle in layout.occlusion_obstacles
+        if obstacle.entity_id is not None
+    }
+
+    def endpoint_score(index: int) -> float:
+        xy = grid.world_xy(index)
+        target_distance = distance_m(xy, target.xy)
+        scores: list[float] = []
+        for blocker_id in blocking_occluders(layout, xy, target):
+            obstacle = obstacle_by_id.get(blocker_id)
+            if obstacle is None:
+                continue
+            interval = segment_rotated_rect_interval(
+                xy,
+                target.xy,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
             )
-            index = grid.nearest_index(proposed)
-            if grid.is_free(index):
-                return grid.world_xy(index)
+            if interval is None:
+                continue
+            enter, leave = interval
+            midpoint = (enter + leave) / 2.0
+            crossing = (
+                xy[0] + (target.xy[0] - xy[0]) * midpoint,
+                xy[1] + (target.xy[1] - xy[1]) * midpoint,
+            )
+            penetration = rotated_rect_penetration_depth(
+                crossing,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
+            ) / max(min(obstacle.half_extents_xy), 1e-9)
+            chord_m = (leave - enter) * target_distance
+            # Conservative angular cover: use the blocker's smaller footprint
+            # dimension, so a long but edge-on bed is not overrated.
+            angular_cover = (
+                (2.0 * min(obstacle.half_extents_xy))
+                / max(distance_m(xy, obstacle.center_xy), 1e-9)
+            ) / (target.size_m / max(target_distance, 1e-9))
+            scores.append(4.0 * penetration + angular_cover + chord_m)
+        return max(scores, default=0.0)
+
+    # Geometry offers many valid cells; start with the one whose blocker is
+    # deepest on the target ray and has the strongest angular coverage.
+    endpoints.sort(key=endpoint_score, reverse=True)
+    for end_index in endpoints[:128]:
+        end_xy = grid.world_xy(end_index)
+        if not blocking_occluders(layout, end_xy, target):
+            continue
+        for _ in range(64):
+            start_index = _sample_start(grid, target.xy, rng)
+            start_xy = grid.world_xy(start_index)
+            if grid.component_ids[start_index] != grid.component_ids[end_index]:
+                continue
+            if distance_m(start_xy, end_xy) < 1.0:
+                continue
+            if blocking_occluders(layout, start_xy, target):
+                continue
+            cells = _connect_cells(grid, start_index, end_index)
+            if cells is None:
+                continue
+            # Stop at the first robustly blocked cell on the connected route.
+            # Continuing all the way to the OBB-score maximum can walk around
+            # a non-convex mesh (notably a swivel-chair back) and expose the
+            # target again even though the fitted box still intersects the
+            # ray.  The first clear->blocked transition is also the intended
+            # causal event for an occlusion episode.
+            boundary = next(
+                (
+                    position
+                    for position, cell in enumerate(cells[1:], start=1)
+                    if blocking_occluders(layout, grid.world_xy(cell), target)
+                    and distance_m(start_xy, grid.world_xy(cell)) >= 1.0
+                ),
+                None,
+            )
+            if boundary is None:
+                continue
+            route_cells = _simplify_route(grid, cells[: boundary + 1])
+            route = [grid.world_xy(index) for index in route_cells]
+            if len(route) >= 2:
+                return route
     return None
 
 
 @motif("walk_to_occlusion")
 def walk_to_occlusion(
     layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
-) -> tuple[Pose2D, ...]:
-    """T5: finish facing a target from behind an eye-height occluder."""
+) -> tuple[Pose2D, ...] | None:
+    """Track a target while walking behind a verified occluder.
+
+    Unlike the generic walk motif, this camera keeps its optical axis on the
+    target throughout the translation.  The target therefore disappears
+    because an obstacle enters the line of sight, not because the camera first
+    looks away and later swings back.  A short terminal hold supplies a clean,
+    monotonic invisible suffix for the memory question.
+    """
     target = layout.object(binding["target"])
-    grid = _occupancy_grid(layout)
-    endpoint = _occluded_endpoint(layout, target.xy, rng)
-    if endpoint is None:
-        start = grid.world_xy(_sample_start(grid, target.xy, rng))
-        return tuple(
-            Pose2D(start[0], start[1], bearing_deg(start, target.xy)) for _ in range(frame_count)
-        )
-
-    end_index = grid.nearest_index(endpoint)
-    route: list[tuple[float, float]] | None = None
-    for _ in range(64):
-        start_index = _sample_start(grid, target.xy, rng)
-        start_xy = grid.world_xy(start_index)
-        if grid.component_ids[start_index] != grid.component_ids[end_index]:
-            continue
-        if blocking_occluders(layout, start_xy, target):
-            continue
-        cells = _connect_cells(grid, start_index, end_index)
-        if cells is None:
-            continue
-        route = [grid.world_xy(index) for index in _simplify_route(grid, cells)]
-        break
+    route = _occluded_route(layout, binding["target"], rng)
     if route is None:
-        route = [endpoint, endpoint]
+        return None
 
-    look_frames = 5
+    # Once hidden, retain a small, trackable left/right head sweep.  This
+    # records non-trivial ego-motion after disappearance (the capability being
+    # tested) while keeping the occluded target inside the 90-degree frustum.
+    # Its ordered 21-degree steps are valid; suitable permutations create a
+    # 42-degree discontinuity and are therefore machine-verifiable negatives.
+    sweep_sign = rng.choice((-1.0, 1.0))
+    sweep_offsets = (0.0, 21.0 * sweep_sign, 0.0, -21.0 * sweep_sign, 0.0)
     initial_yaw = bearing_deg(route[0], target.xy)
-    walk = list(_walk_polyline(route, initial_yaw, frame_count - look_frames))
-    end = walk[-1]
-    final_yaw = bearing_deg(end.xy, target.xy)
-    walk.extend(_turn_in_place(end.xy, end.yaw_deg, final_yaw, look_frames))
-    return tuple(walk)
+    translated = _walk_polyline(route, initial_yaw, frame_count - len(sweep_offsets))
+    tracked = [
+        Pose2D(pose.x, pose.y, bearing_deg(pose.xy, target.xy)) for pose in translated
+    ]
+    end = tracked[-1]
+    final_bearing = bearing_deg(end.xy, target.xy)
+    tracked.extend(
+        Pose2D(end.x, end.y, wrap_deg(final_bearing + offset))
+        for offset in sweep_offsets
+    )
+    return tuple(tracked)
 
 
 def _survey_station(

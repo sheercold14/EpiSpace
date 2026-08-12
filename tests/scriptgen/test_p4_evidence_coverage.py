@@ -53,7 +53,7 @@ def _canonical():
 
 
 def test_p4_registry_standard_and_library_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v9"
+    assert STD_V1.standard_version == "std.v10"
     assert STD_V1.coverage_ratio_levels == (0.50, 0.70, 0.85)
     assert STD_V1.coverage_hidden_object_size_m == 1.0
     assert "existence_sufficiency" in registered_answer_modes()

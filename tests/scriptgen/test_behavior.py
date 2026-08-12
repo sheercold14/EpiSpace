@@ -7,6 +7,7 @@ cleanly when the sweep outputs are not present on this machine.
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 
 import numpy as np
@@ -22,8 +23,17 @@ from spatial_episode.scriptgen.behavior import (
     yaw_deg_from_quaternion_xyzw,
 )
 from spatial_episode.scriptgen.library import SELF_MOTION
+from spatial_episode.scriptgen.geometry import bearing_deg, wrap_deg
+from spatial_episode.scriptgen.motifs import walk_to_occlusion
 from spatial_episode.scriptgen.predicates import get_predicate
-from spatial_episode.scriptgen.sceneview import GeometrySceneView, Pose2D
+from spatial_episode.scriptgen.sceneview import (
+    GeometrySceneView,
+    Obstacle,
+    Pose2D,
+    SceneLayout,
+    SceneObject,
+    blocking_occluders,
+)
 
 SWEEP_ROOT = Path(
     "/data/shichao/data/dataV100/code/OminiGibson/outputs/sweeps/"
@@ -104,7 +114,7 @@ def test_walls_are_collision_obstacles_but_not_question_objects() -> None:
     assert crossing.witness["worst_collision"]["obstacle"] == "walls"
 
 
-def test_eye_height_occluders_are_selected_by_height_not_label() -> None:
+def test_potential_occluders_keep_vertical_spans_for_target_specific_rays() -> None:
     scene_ir = {
         "scene_id": "height-occluder",
         "entities": [
@@ -114,7 +124,237 @@ def test_eye_height_occluders_are_selected_by_height_not_label() -> None:
         ],
     }
     layout = layout_from_scene_ir(scene_ir)
-    assert {obstacle.entity_id for obstacle in layout.occlusion_obstacles} == {"tall"}
+    assert {obstacle.entity_id for obstacle in layout.occlusion_obstacles} == {"tall", "low"}
+
+
+def test_downward_sightline_can_be_blocked_below_camera_height() -> None:
+    target = SceneObject(
+        "target", "desk", (4.0, 0.0), 1.0, "target", center_z=0.5, half_height=0.5
+    )
+    layout = SceneLayout(
+        "height-aware",
+        (target,),
+        obstacles=(
+            Obstacle("bookcase", (2.0, 0.0), (0.4, 0.5), 0.0, 0.0, 1.48, "bookcase"),
+            Obstacle("coffee_table", (1.0, 0.0), (0.4, 0.5), 0.0, 0.0, 0.5, "table"),
+        ),
+        occlusion_obstacles=(
+            Obstacle("bookcase", (2.0, 0.0), (0.4, 0.5), 0.0, 0.0, 1.48, "bookcase"),
+            Obstacle("coffee_table", (1.0, 0.0), (0.4, 0.5), 0.0, 0.0, 0.5, "table"),
+        ),
+    )
+
+    assert blocking_occluders(layout, (0.0, 0.0), target) == ("bookcase",)
+
+
+def test_ray_cache_survives_concurrent_eviction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Planner and QA threads may evict the shared cache concurrently."""
+    import sys
+    from concurrent.futures import ThreadPoolExecutor
+
+    from spatial_episode.scriptgen import sceneview
+
+    layouts = []
+    for index in range(8):
+        target = SceneObject(
+            f"target-{index}",
+            "desk",
+            (4.0, 0.0),
+            1.0,
+            f"target-{index}",
+            center_z=0.5,
+            half_height=0.5,
+        )
+        blocker = Obstacle(
+            f"blocker-{index}",
+            (2.0, 0.0),
+            (0.4, 0.5),
+            0.0,
+            0.0,
+            1.5,
+            f"blocker-{index}",
+        )
+        layouts.append(
+            SceneLayout(
+                f"scene-{index}",
+                (target,),
+                obstacles=(blocker,),
+                occlusion_obstacles=(blocker,),
+            )
+        )
+
+    monkeypatch.setattr(sceneview, "_MAX_SCENE_OBJECT_RAY_CACHE", 1)
+    with sceneview._SCENE_OBJECT_RAY_CACHE_LOCK:
+        sceneview._SCENE_OBJECT_RAY_CACHE.clear()
+        sceneview._CACHED_RAY_LAYOUTS.clear()
+        sceneview._CACHED_RAY_OBJECT_IDS.clear()
+
+    def exercise(index: int) -> tuple[str, ...]:
+        layout = layouts[index % len(layouts)]
+        target = layout.objects[0]
+        result: tuple[str, ...] = ()
+        for step in range(100):
+            result = blocking_occluders(
+                layout,
+                (step / 10_000.0, 0.0),
+                target,
+            )
+        return result
+
+    previous_interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = tuple(pool.map(exercise, range(32)))
+    finally:
+        sys.setswitchinterval(previous_interval)
+        with sceneview._SCENE_OBJECT_RAY_CACHE_LOCK:
+            sceneview._SCENE_OBJECT_RAY_CACHE.clear()
+            sceneview._CACHED_RAY_LAYOUTS.clear()
+            sceneview._CACHED_RAY_OBJECT_IDS.clear()
+
+    assert all(
+        result == (f"blocker-{index % len(layouts)}",)
+        for index, result in enumerate(results)
+    )
+
+
+def test_geometry_occlusion_rejects_a_ray_that_only_clips_an_inflated_obb_top() -> None:
+    target = SceneObject(
+        "target", "desk", (4.0, 0.0), 1.0, "target", center_z=0.5, half_height=0.5
+    )
+    shallow_clip = Obstacle(
+        "bed", (1.5, 0.0), (0.2, 0.5), 0.0, 0.0, 1.3, "bed"
+    )
+    layout = SceneLayout(
+        "inflated-top",
+        (target,),
+        obstacles=(shallow_clip,),
+        occlusion_obstacles=(shallow_clip,),
+    )
+
+    # At the near face the downward ray is only 0.125 m below the fitted OBB
+    # top.  That is weaker than std.v10's 0.15 m mesh-robustness margin.
+    assert blocking_occluders(layout, (0.0, 0.0), target) == ()
+
+
+def test_walk_to_occlusion_ends_at_a_verified_blocked_free_pose() -> None:
+    target = SceneObject(
+        "target", "desk", (3.0, 0.0), 1.0, "target", center_z=0.5, half_height=0.5
+    )
+    blocker = SceneObject(
+        "blocker", "bed", (1.5, 0.0), 1.6, "blocker", center_z=0.5, half_height=0.5
+    )
+    layout = SceneLayout(
+        "occluded-route",
+        (target, blocker),
+        obstacles=(
+            Obstacle("desk", (3.0, 0.0), (0.5, 0.5), 0.0, 0.0, 1.0, "target"),
+            Obstacle("bed", (1.5, 0.0), (0.8, 0.8), 0.0, 0.0, 1.0, "blocker"),
+        ),
+        occlusion_obstacles=(
+            Obstacle("desk", (3.0, 0.0), (0.5, 0.5), 0.0, 0.0, 1.0, "target"),
+            Obstacle("bed", (1.5, 0.0), (0.8, 0.8), 0.0, 0.0, 1.0, "blocker"),
+        ),
+        walkable_min=(-4.0, -4.0),
+        walkable_max=(4.0, 4.0),
+    )
+
+    poses = walk_to_occlusion(layout, {"target": "target"}, 16, random.Random(17))
+
+    assert poses is not None
+    assert len(poses) == 16
+    assert poses[0].xy != poses[-1].xy
+    assert blocking_occluders(layout, poses[0].xy, target) == ()
+    assert blocking_occluders(layout, poses[-1].xy, target) == ("blocker",)
+    assert len({pose.xy for pose in poses[-5:]}) == 1
+    for pose in poses[:-5]:
+        assert abs(wrap_deg(pose.yaw_deg - bearing_deg(pose.xy, target.xy))) < 1e-9
+    final_bearing = bearing_deg(poses[-1].xy, target.xy)
+    assert {
+        round(wrap_deg(pose.yaw_deg - final_bearing), 6) for pose in poses[-5:]
+    } == {-21.0, 0.0, 21.0}
+
+
+def _render_occlusion_view(
+    tmp_path: Path,
+    *,
+    patch_ids: np.ndarray,
+    patch_depth: np.ndarray,
+    runtime_entity_ids: dict[int, str],
+) -> RenderSceneView:
+    bundle = tmp_path / "render-occlusion"
+    views = bundle / "views"
+    views.mkdir(parents=True)
+    instance = np.zeros((64, 64), dtype=np.uint32)
+    depth = np.full((64, 64), 30.0, dtype=np.float32)
+    instance[28:37, 28:37] = patch_ids
+    depth[28:37, 28:37] = patch_depth
+    np.savez_compressed(views / "view-000.sensors.npz", instance_id=instance, depth_m=depth)
+    target = SceneObject(
+        "target", "desk", (4.0, 0.0), 1.0, "target", center_z=1.5, half_height=0.5
+    )
+    return RenderSceneView(
+        layout=SceneLayout("render", (target,)),
+        poses=(Pose2D(0.0, 0.0, 0.0),),
+        std=STD_V1,
+        bundle_root=bundle,
+        entity_runtime_ids={"target": (91,)},
+        runtime_entity_ids=runtime_entity_ids,
+        entity_categories={entity: "bookcase" for entity in runtime_entity_ids.values()},
+        sensor_contract={"horizontal_fov_deg": 90.0},
+    )
+
+
+def test_render_occlusion_attribution_uses_instance_and_depth(tmp_path: Path) -> None:
+    view = _render_occlusion_view(
+        tmp_path,
+        patch_ids=np.full((9, 9), 42, dtype=np.uint32),
+        patch_depth=np.full((9, 9), 2.0, dtype=np.float32),
+        runtime_entity_ids={42: "bookcase"},
+    )
+
+    evidence = view.occlusion("target", 0)
+
+    assert evidence.status == "occluded"
+    assert evidence.occluder_ids == ("bookcase",)
+    assert evidence.witness["backend"] == "render_instance_depth"
+    assert evidence.witness["support_pixels"] == 81
+    assert evidence.witness["depth_margin_m"] == 2.0
+
+
+def test_render_occlusion_attribution_rejects_competing_instances(tmp_path: Path) -> None:
+    identifiers = np.full((9, 9), 42, dtype=np.uint32)
+    identifiers[:, 5:] = 43
+    view = _render_occlusion_view(
+        tmp_path,
+        patch_ids=identifiers,
+        patch_depth=np.full((9, 9), 2.0, dtype=np.float32),
+        runtime_entity_ids={42: "bookcase", 43: "chair"},
+    )
+
+    evidence = view.occlusion("target", 0)
+
+    assert evidence.status == "ambiguous"
+    assert evidence.witness["reason"] == "competing_foreground_instances"
+
+
+def test_render_occlusion_attribution_rejects_foreground_behind_target(
+    tmp_path: Path,
+) -> None:
+    view = _render_occlusion_view(
+        tmp_path,
+        patch_ids=np.full((9, 9), 42, dtype=np.uint32),
+        patch_depth=np.full((9, 9), 4.1, dtype=np.float32),
+        runtime_entity_ids={42: "bookcase"},
+    )
+
+    evidence = view.occlusion("target", 0)
+
+    assert evidence.status == "ambiguous"
+    assert evidence.witness["reason"] == "insufficient_foreground_support"
 
 
 @needs_bundles

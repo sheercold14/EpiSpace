@@ -43,6 +43,9 @@ The quickstart is simulator-free. Full trajectory rendering lives in the separat
 OminiGibson acquisition repository (single source of truth for simulator code);
 EpiSpace only reads the bundles it produces.
 
+For resumable 51-scene source acquisition and binding-level episode coverage,
+see [docs/binding_coverage_batch.md](docs/binding_coverage_batch.md).
+
 ## Repository map
 
 | Path | Purpose |

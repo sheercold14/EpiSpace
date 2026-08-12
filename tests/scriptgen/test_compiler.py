@@ -258,17 +258,13 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
     assert cert.mismatch is not None and cert.mismatch.startswith("standard_version_drift")
 
 
-def test_v3_plan_is_compatible_but_v2_is_not(compiler: CapabilityCompiler) -> None:
-    v3_plan = {"standard_version": "std.v3", "provisional_answer": {"sector": "left"}}
-    compatible = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v3_plan)
-    assert compatible.mismatch is None
-    assert compatible.geometry is not None
-    assert compatible.geometry.standard_version == "std.v3"
-    assert compatible.standard_version == "std.v9"
-
-    v2_plan = {"standard_version": "std.v2", "provisional_answer": {"sector": "left"}}
-    blocked = compiler.compile(qualifying_fake(), BINDING, geometry_plan=v2_plan)
-    assert blocked.mismatch == "standard_version_drift:plan=std.v2,compile=std.v9"
+def test_v10_requires_regeneration_of_prior_plan_standards(
+    compiler: CapabilityCompiler,
+) -> None:
+    for version in ("std.v9", "std.v3", "std.v2"):
+        plan = {"standard_version": version, "provisional_answer": {"sector": "left"}}
+        blocked = compiler.compile(qualifying_fake(), BINDING, geometry_plan=plan)
+        assert blocked.mismatch == f"standard_version_drift:plan={version},compile=std.v10"
 
 
 # --- integration: the three rendered gates_bedroom trajectories ---

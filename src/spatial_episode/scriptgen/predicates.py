@@ -488,7 +488,13 @@ def turn_segments_between(
 
 @predicate("occluded_in_view")
 def occluded_in_view(view: SceneView, std: CompileStandard, *, obj: str, frame: int) -> Verdict:
-    """Target centre is in-frustum but a declared eye-height obstacle blocks it."""
+    """Target is hidden by an identified blocker in the active backend."""
+    if hasattr(view, "occlusion"):
+        observation = view.occlusion(obj, frame)
+        return Verdict(
+            True if observation.status == "occluded" else None if observation.status == "ambiguous" else False,
+            dict(observation.witness),
+        )
     pose = view.camera_pose(frame)
     target = view.object(obj)
     azimuth = abs(azimuth_deg(pose.xy, pose.yaw_deg, target.xy))

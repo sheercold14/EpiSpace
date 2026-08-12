@@ -19,18 +19,21 @@ top:
 from __future__ import annotations
 
 import math
+import threading
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from .geometry import (
     azimuth_deg,
     distance_m,
+    rotated_rect_penetration_depth,
     segment_intersects_rect,
-    segment_intersects_rotated_rect,
+    segment_rotated_rect_interval,
 )
 from .standards import CompileStandard
 
 VisibilityKind = Literal["geom_ratio", "render_pixels"]
+OcclusionStatus = Literal["occluded", "clear", "ambiguous"]
 
 _MAX_SCENE_OBJECT_RAY_CACHE = 262_144
 _SCENE_OBJECT_RAY_CACHE: dict[
@@ -38,6 +41,7 @@ _SCENE_OBJECT_RAY_CACHE: dict[
 ] = {}
 _CACHED_RAY_LAYOUTS: dict[int, SceneLayout] = {}
 _CACHED_RAY_OBJECT_IDS: dict[int, frozenset[int]] = {}
+_SCENE_OBJECT_RAY_CACHE_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,16 @@ class VisibilityObservation:
 
 
 @dataclass(frozen=True)
+class OcclusionObservation:
+    """Backend-tagged evidence that attributes a hidden target to a blocker."""
+
+    kind: Literal["geometry_ray_3d", "render_instance_depth"]
+    status: OcclusionStatus
+    occluder_ids: tuple[str, ...]
+    witness: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class SceneObject:
     """Static object ground truth exposed to the engine."""
 
@@ -86,6 +100,8 @@ class SceneObject:
     size_m: float
     uid: str
     yaw_deg: float = 0.0
+    center_z: float = 0.75
+    half_height: float = 0.75
 
 
 @dataclass(frozen=True)
@@ -120,6 +136,8 @@ class SceneView(Protocol):
 
     def occluders_between(self, name: str, t: int) -> tuple[str, ...]: ...
 
+    def occlusion(self, name: str, t: int) -> OcclusionObservation: ...
+
 
 @dataclass(frozen=True)
 class SceneLayout:
@@ -136,6 +154,9 @@ class SceneLayout:
     occlusion_obstacles: tuple[Obstacle, ...] = ()
     walkable_min: tuple[float, float] = (0.0, 0.0)
     walkable_max: tuple[float, float] = (10.0, 10.0)
+    camera_height_m: float = 1.5
+    geom_occlusion_vertical_margin_m: float = 0.15
+    geom_occlusion_footprint_margin_ratio: float = 0.35
 
     def object(self, name: str) -> SceneObject:
         for obj in self.objects:
@@ -188,6 +209,9 @@ class ReindexedSceneView:
     def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
         return self.base.occluders_between(name, self.frames[t])
 
+    def occlusion(self, name: str, t: int) -> OcclusionObservation:
+        return self.base.occlusion(name, self.frames[t])
+
 
 @dataclass(frozen=True)
 class GeometrySceneView:
@@ -237,9 +261,8 @@ class GeometrySceneView:
             ambiguous = (self.std.geom_max_invisible_ratio + self.std.geom_min_visible_ratio) / 2.0
             return VisibilityObservation("geom_ratio", ambiguous, 1.0)
         unoccluded = self._unoccluded_ratio(pose.xy, obj)
-        if unoccluded == 0.0:
-            return VisibilityObservation("geom_ratio", 0.0, 0.0)
-        return VisibilityObservation("geom_ratio", obj.size_m / dist, unoccluded)
+        projected_visible_ratio = (obj.size_m / dist) * unoccluded
+        return VisibilityObservation("geom_ratio", projected_visible_ratio, unoccluded)
 
     def visibility_from_pose(self, name: str, pose: Pose2D) -> VisibilityObservation:
         """Query static scene truth from a constructed pose outside the sequence."""
@@ -254,6 +277,27 @@ class GeometrySceneView:
     def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
         target = self.layout.object(name)
         return blocking_occluders(self.layout, self.poses[t].xy, target)
+
+    def occlusion(self, name: str, t: int) -> OcclusionObservation:
+        pose = self.poses[t]
+        target = self.layout.object(name)
+        azimuth = abs(azimuth_deg(pose.xy, pose.yaw_deg, target.xy))
+        blockers = blocking_occluders(self.layout, pose.xy, target)
+        in_frustum = azimuth <= self.std.fov_half_angle_deg
+        return OcclusionObservation(
+            kind="geometry_ray_3d",
+            status="occluded" if in_frustum and blockers else "clear",
+            occluder_ids=blockers,
+            witness={
+                "backend": "geometry_ray_3d",
+                "target_entity_id": name,
+                "frame": t,
+                "azimuth_deg": round(azimuth, 3),
+                "fov_half_angle_deg": self.std.fov_half_angle_deg,
+                "in_frustum": in_frustum,
+                "blocked_by": list(blockers),
+            },
+        )
 
     def _unoccluded_ratio(self, camera_xy: tuple[float, float], obj: SceneObject) -> float:
         """Fraction of sample rays towards the object that clear all occluders."""
@@ -278,26 +322,38 @@ def blocking_occluders(
 ) -> tuple[str, ...]:
     """Eye-height obstacles intersecting the ray before the target's near face."""
     layout_key = id(layout)
-    if _CACHED_RAY_LAYOUTS.get(layout_key) is not layout:
-        _CACHED_RAY_LAYOUTS[layout_key] = layout
-        _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
-            id(candidate) for candidate in layout.objects
-        )
-    if id(target) in _CACHED_RAY_OBJECT_IDS[layout_key]:
-        key = (layout_key, camera_xy, target.name, target_xy)
-        cached = _SCENE_OBJECT_RAY_CACHE.get(key)
-        if cached is not None:
-            return cached
-        result = _blocking_occluders(layout, camera_xy, target, target_xy)
-        if len(_SCENE_OBJECT_RAY_CACHE) >= _MAX_SCENE_OBJECT_RAY_CACHE:
-            _SCENE_OBJECT_RAY_CACHE.clear()
-            _CACHED_RAY_LAYOUTS.clear()
-            _CACHED_RAY_OBJECT_IDS.clear()
+    with _SCENE_OBJECT_RAY_CACHE_LOCK:
+        if _CACHED_RAY_LAYOUTS.get(layout_key) is not layout:
             _CACHED_RAY_LAYOUTS[layout_key] = layout
             _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
                 id(candidate) for candidate in layout.objects
             )
-        _SCENE_OBJECT_RAY_CACHE[key] = result
+        cacheable = id(target) in _CACHED_RAY_OBJECT_IDS.get(layout_key, ())
+        key = (layout_key, camera_xy, target.name, target_xy)
+        cached = _SCENE_OBJECT_RAY_CACHE.get(key) if cacheable else None
+    if cached is not None:
+        return cached
+    if cacheable:
+        result = _blocking_occluders(layout, camera_xy, target, target_xy)
+        # Geometry evaluation is intentionally outside the lock. Duplicate
+        # computation is harmless, while serialising every ray would make the
+        # planner and authoritative question builder block each other. Cache
+        # eviction and the three related dictionaries remain one atomic unit.
+        with _SCENE_OBJECT_RAY_CACHE_LOCK:
+            if _CACHED_RAY_LAYOUTS.get(layout_key) is not layout:
+                _CACHED_RAY_LAYOUTS[layout_key] = layout
+                _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
+                    id(candidate) for candidate in layout.objects
+                )
+            if len(_SCENE_OBJECT_RAY_CACHE) >= _MAX_SCENE_OBJECT_RAY_CACHE:
+                _SCENE_OBJECT_RAY_CACHE.clear()
+                _CACHED_RAY_LAYOUTS.clear()
+                _CACHED_RAY_OBJECT_IDS.clear()
+                _CACHED_RAY_LAYOUTS[layout_key] = layout
+                _CACHED_RAY_OBJECT_IDS[layout_key] = frozenset(
+                    id(candidate) for candidate in layout.objects
+                )
+            _SCENE_OBJECT_RAY_CACHE[key] = result
         return result
     return _blocking_occluders(layout, camera_xy, target, target_xy)
 
@@ -320,18 +376,57 @@ def _blocking_occluders(
     )
 
     blocked: list[str] = []
-    if layout.occlusion_obstacles:
-        for obstacle in layout.occlusion_obstacles:
+    # Real scene layouts carry every collision obstacle with a vertical span.
+    # Whether one is an occluder is target- and viewpoint-dependent: a shelf
+    # slightly below eye height can still intersect a downward sightline to a
+    # low target.  ``occlusion_obstacles`` remains a compatibility field for
+    # hand-authored layouts that do not expose the complete obstacle set.
+    height_aware = layout.occlusion_obstacles
+    if height_aware:
+        for obstacle in height_aware:
             if obstacle.entity_id == target.uid:
                 continue
-            if segment_intersects_rotated_rect(
+            interval = segment_rotated_rect_interval(
                 camera_xy,
-                ray_end,
+                destination,
                 obstacle.center_xy,
                 obstacle.half_extents_xy,
                 obstacle.yaw_deg,
-            ):
-                blocked.append(obstacle.entity_id or obstacle.label)
+            )
+            if interval is None:
+                continue
+            enter, leave = interval
+            enter = max(0.0, enter)
+            leave = min(fraction, leave)
+            if enter > leave:
+                continue
+            midpoint = (enter + leave) / 2.0
+            crossing_xy = (
+                camera_xy[0] + (destination[0] - camera_xy[0]) * midpoint,
+                camera_xy[1] + (destination[1] - camera_xy[1]) * midpoint,
+            )
+            penetration = rotated_rect_penetration_depth(
+                crossing_xy,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
+            )
+            footprint_scale = min(obstacle.half_extents_xy)
+            if penetration < footprint_scale * layout.geom_occlusion_footprint_margin_ratio:
+                continue
+            target_z = target.center_z
+            z_enter = layout.camera_height_m + (target_z - layout.camera_height_m) * enter
+            z_leave = layout.camera_height_m + (target_z - layout.camera_height_m) * leave
+            ray_z_low, ray_z_high = sorted((z_enter, z_leave))
+            # OBBs are fitted around the complete articulated mesh and are
+            # intentionally conservative.  Requiring the complete footprint
+            # crossing to sit below the box top by a calibrated margin avoids
+            # treating a ray that merely clips an inflated top corner as a
+            # guaranteed rendered occlusion.
+            reliable_z_high = obstacle.z_high - layout.geom_occlusion_vertical_margin_m
+            if ray_z_high < obstacle.z_low or ray_z_high > reliable_z_high:
+                continue
+            blocked.append(obstacle.entity_id or obstacle.label)
     else:
         for index, (rect_min, rect_max) in enumerate(layout.occluders):
             if segment_intersects_rect(camera_xy, ray_end, rect_min, rect_max):

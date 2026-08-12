@@ -1,0 +1,110 @@
+# EpiSpace coverage render shards
+
+This workflow distributes a data-only coverage snapshot to independent
+OmniGibson workers. EpiSpace and the custom `omnigibson_episode` backend are
+synchronized separately with Git. Every package records both exact commits,
+and a worker refuses to run a different checkout.
+
+Each worker renders existing candidates, runs authoritative instance-mask
+validation, constructs question groups, and by default performs on-demand
+geometry backfill up to the manifest's 150-attempt ceiling. A worker only
+rewrites its private, scene-disjoint shard manifest.
+
+Scenes, rather than individual cells, are the shard unit. A successful episode
+may credit several capability cells in the same scene, so scene-level sharding
+keeps all status writes disjoint.
+
+## 1. Preview while the local pipeline is still running
+
+```bash
+cd /home/wmq/project/EpiSpace
+python scripts/coverage_render_shards.py build \
+  --manifest outputs/behavior51_coverage_v1/coverage.plan.json \
+  --output outputs/behavior51_coverage_shards_v1 \
+  --num-shards 2 \
+  --preview
+```
+
+Preview is read-only. A formal build deliberately fails while a process or a
+status row is still running against the master manifest.
+
+## 2. Freeze at a candidate boundary and build two packages
+
+Stop the local coverage pipeline only after its current candidate exits. Then:
+
+```bash
+python scripts/coverage_render_shards.py build \
+  --manifest outputs/behavior51_coverage_v1/coverage.plan.json \
+  --output outputs/behavior51_coverage_shards_v1 \
+  --num-shards 2
+```
+
+The command creates two data-only `.tar.zst` archives and SHA-256 sidecars. The
+archives contain plans, recipes, scene IR and status, but no Python source. Do
+not restart the local master pipeline after this snapshot; doing so would
+overlap the remote scene assignments and invalidate the merge base.
+
+## 3. Upload packages to OSS
+
+```bash
+OSS_PREFIX=oss://YOUR_BUCKET/epispace/behavior51_coverage_v1
+export OSS_REGION=cn-shanghai  # replace when the bucket is in another region
+OSSUTIL_BIN=/home/wmq/.local/bin/ossutil \
+  bash scripts/upload_coverage_render_shards_to_oss.sh \
+  outputs/behavior51_coverage_shards_v1 "${OSS_PREFIX}/input"
+```
+
+No credentials or source code are embedded in any package. Each machine uses
+its own ossutil configuration or `OSS_...` environment variables.
+
+## 4. Run one archive on each four-GPU worker
+
+First clone or fast-forward both code repositories to the commits recorded by
+the package. The EpiSpace worker script then selects the archive from
+`distribution.json`, checks its SHA-256, verifies both Git HEADs, runs all four
+GPUs with remote backfill enabled, and uploads the completed result. Worker 0
+uses shard index `0`; worker 1 uses index `1`.
+
+```bash
+OSS_PREFIX=oss://YOUR_BUCKET/epispace/behavior51_coverage_v1
+export OSS_REGION=cn-shanghai  # replace when the bucket is in another region
+cd /home/wmq/project/EpiSpace
+EPISPACE_OG_ROOT=/home/wmq/project/bench/OminiGibson \
+EPISPACE_DATA_ROOT=/home/wmq/project/bench/BEHAVIOR-1K/datasets \
+EPISPACE_CONDA_ENV=behavior \
+EPISPACE_GPU_IDS="0 1 2 3" \
+EPISPACE_WORKERS=4 \
+EPISPACE_REMOTE_BACKFILL=1 \
+  bash scripts/run_behavior51_shard_from_oss.sh \
+  "${OSS_PREFIX}" SHARD_INDEX /home/wmq/epispace-distributed
+```
+
+Rerunning the worker command resumes safely: its status and any newly generated
+plans are retained, while an interrupted candidate is reset from `running` to
+`pending`. Set `EPISPACE_REMOTE_BACKFILL=0` only for a strictly render-only
+diagnostic pass.
+
+## 5. Download and merge on the master machine
+
+Download each `SHARD_NAME` reported by `shard.complete.json`:
+
+```bash
+bash scripts/sync_coverage_shard_results_from_oss.sh \
+  "${OSS_PREFIX}/results" SHARD_NAME \
+  outputs/behavior51_coverage_shard_results_v1
+```
+
+After both are present:
+
+```bash
+python scripts/coverage_render_shards.py merge \
+  --manifest outputs/behavior51_coverage_v1/coverage.plan.json \
+  --results \
+    outputs/behavior51_coverage_shard_results_v1/SHARD_NAME_0 \
+    outputs/behavior51_coverage_shard_results_v1/SHARD_NAME_1
+```
+
+Merge verifies the base manifest/status hashes, disjoint scene assignments,
+final manifest/status hashes, and newly accepted bundle/group evidence. It
+copies remotely generated plans and recipes back with local paths, writes
+pre-merge backups, and maintains an idempotent merge ledger.

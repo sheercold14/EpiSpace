@@ -43,11 +43,183 @@ def parser() -> argparse.ArgumentParser:
     replace = commands.add_parser("replace-failed")
     replace.add_argument("--manifest", type=Path, required=True)
     replace.add_argument("--dataset", type=Path, required=True)
+    one = commands.add_parser("run-one")
+    one.add_argument("--scene-ir", type=Path, required=True)
+    one.add_argument("--source-recipe", type=Path, required=True)
+    one.add_argument("--output-root", type=Path, required=True)
+    one.add_argument("--capability", required=True, choices=sorted(SCRIPT_LIBRARY))
+    one.add_argument("--seed", type=int, default=17)
+    one.add_argument("--attempts-per-binding", type=int, default=150)
+    one.add_argument("--candidate-plans", type=int, default=10)
+    one.add_argument("--max-render-candidates", type=int, default=10)
+    one.add_argument("--og-root", type=Path, required=True)
+    one.add_argument("--conda-env", default="behavior")
+    one.add_argument("--data-root", type=Path, required=True)
+    one.add_argument("--gpu-id", type=int, default=0)
+    one.add_argument("--timeout-minutes", type=int, default=20)
+    one.add_argument("--overwrite", action="store_true")
+    sources = commands.add_parser("prepare-scenes")
+    sources.add_argument("--scene-set", choices=("all",), default="all")
+    sources.add_argument("--scenes", nargs="+")
+    sources.add_argument("--source-root", type=Path, required=True)
+    sources.add_argument("--source-id", default="behavior51_sources_v1")
+    sources.add_argument("--og-root", type=Path, required=True)
+    sources.add_argument("--conda-env", default="behavior")
+    sources.add_argument("--data-root", type=Path, required=True)
+    sources.add_argument("--gpu-ids", type=int, nargs="+", required=True)
+    sources.add_argument("--workers", type=int)
+    sources.add_argument("--accept-eula", action="store_true")
+    coverage_plan = commands.add_parser("coverage-plan")
+    coverage_plan.add_argument("--source-index", type=Path, required=True)
+    coverage_plan.add_argument("--output-root", type=Path, required=True)
+    coverage_plan.add_argument("--collection-id", default="behavior51_coverage_v1")
+    coverage_plan.add_argument("--accepted-per-binding", type=int, default=10)
+    coverage_plan.add_argument("--attempts-per-binding", type=int, default=150)
+    coverage_plan.add_argument("--initial-attempts-per-binding", type=int, default=30)
+    coverage_plan.add_argument("--maximum-multislot-bindings", type=int, default=128)
+    coverage_plan.add_argument("--limit-bindings-per-capability", type=int)
+    coverage_plan.add_argument("--capabilities", nargs="+", choices=sorted(SCRIPT_LIBRARY))
+    coverage_plan.add_argument("--scenes", nargs="+")
+    coverage_plan.add_argument("--initialize-only", action="store_true")
+    coverage_run = commands.add_parser("coverage-run")
+    coverage_run.add_argument("--manifest", type=Path, required=True)
+    coverage_run.add_argument("--og-root", type=Path, required=True)
+    coverage_run.add_argument("--conda-env", default="behavior")
+    coverage_run.add_argument("--data-root", type=Path, required=True)
+    coverage_run.add_argument("--gpu-ids", type=int, nargs="+", required=True)
+    coverage_run.add_argument("--workers", type=int)
+    coverage_run.add_argument("--timeout-minutes", type=int, default=20)
+    coverage_run.add_argument("--limit-cells", type=int)
+    coverage_run.add_argument(
+        "--cell-ids-file",
+        type=Path,
+        help="JSON list, or an object containing a cell_ids list, to render",
+    )
+    coverage_run.add_argument(
+        "--no-backfill",
+        action="store_true",
+        help="render and validate existing candidates without changing the plan manifest",
+    )
+    coverage_pipeline = commands.add_parser("coverage-pipeline")
+    coverage_pipeline.add_argument("--manifest", type=Path, required=True)
+    coverage_pipeline.add_argument("--og-root", type=Path, required=True)
+    coverage_pipeline.add_argument("--conda-env", default="behavior")
+    coverage_pipeline.add_argument("--data-root", type=Path, required=True)
+    coverage_pipeline.add_argument("--gpu-ids", type=int, nargs="+", required=True)
+    coverage_pipeline.add_argument("--workers", type=int)
+    coverage_pipeline.add_argument("--timeout-minutes", type=int, default=20)
+    coverage_package = commands.add_parser("coverage-package")
+    coverage_package.add_argument("--manifest", type=Path, required=True)
     return result
 
 
 def main() -> int:
     args = parser().parse_args()
+    if args.command == "prepare-scenes":
+        if not args.accept_eula:
+            raise ValueError("prepare-scenes requires --accept-eula")
+        from .source_inventory import prepare_sources
+
+        path = prepare_sources(
+            source_root=args.source_root,
+            og_root=args.og_root,
+            data_root=args.data_root,
+            conda_env=args.conda_env,
+            gpu_ids=tuple(args.gpu_ids),
+            workers=args.workers,
+            scenes=tuple(args.scenes) if args.scenes else None,
+            source_id=args.source_id,
+        )
+        print(path)
+        return 0
+    if args.command == "coverage-plan":
+        from .binding_coverage import plan_coverage
+
+        path = plan_coverage(
+            source_index_path=args.source_index,
+            output_root=args.output_root,
+            collection_id=args.collection_id,
+            accepted_per_binding=args.accepted_per_binding,
+            attempts_per_binding=args.attempts_per_binding,
+            initial_attempts_per_binding=args.initial_attempts_per_binding,
+            maximum_multislot_bindings=args.maximum_multislot_bindings,
+            limit_bindings_per_capability=args.limit_bindings_per_capability,
+            capabilities=tuple(args.capabilities) if args.capabilities else None,
+            scene_keys=tuple(args.scenes) if args.scenes else None,
+            initialize_only=args.initialize_only,
+        )
+        print(path)
+        return 0
+    if args.command == "coverage-pipeline":
+        from .binding_coverage import run_coverage_pipeline
+
+        path = run_coverage_pipeline(
+            args.manifest,
+            og_root=args.og_root,
+            conda_env=args.conda_env,
+            data_root=args.data_root,
+            gpu_ids=tuple(args.gpu_ids),
+            workers=args.workers,
+            timeout_minutes=args.timeout_minutes,
+        )
+        print(path)
+        return 0
+    if args.command == "coverage-run":
+        from .binding_coverage import run_coverage
+
+        cell_ids = None
+        if args.cell_ids_file is not None:
+            cell_id_payload = json.loads(args.cell_ids_file.read_text(encoding="utf-8"))
+            if isinstance(cell_id_payload, dict):
+                cell_id_payload = cell_id_payload.get("cell_ids")
+            if not isinstance(cell_id_payload, list) or not all(
+                isinstance(cell_id, str) for cell_id in cell_id_payload
+            ):
+                raise ValueError(
+                    "--cell-ids-file must contain a JSON string list or {\"cell_ids\": [...]}"
+                )
+            cell_ids = tuple(cell_id_payload)
+        path = run_coverage(
+            args.manifest,
+            og_root=args.og_root,
+            conda_env=args.conda_env,
+            data_root=args.data_root,
+            gpu_ids=tuple(args.gpu_ids),
+            workers=args.workers,
+            timeout_minutes=args.timeout_minutes,
+            limit_cells=args.limit_cells,
+            cell_ids=cell_ids,
+            allow_backfill=not args.no_backfill,
+        )
+        print(path)
+        return 0
+    if args.command == "coverage-package":
+        from .binding_coverage import package_coverage
+
+        dataset, report = package_coverage(args.manifest)
+        print(json.dumps({"dataset": str(dataset), "report": str(report)}, indent=2))
+        return 0
+    if args.command == "run-one":
+        from .single import run_one
+
+        path = run_one(
+            scene_ir=args.scene_ir,
+            source_recipe=args.source_recipe,
+            output_root=args.output_root,
+            capability=args.capability,
+            seed=args.seed,
+            attempts_per_binding=args.attempts_per_binding,
+            candidate_plans=args.candidate_plans,
+            max_render_candidates=args.max_render_candidates,
+            og_root=args.og_root,
+            conda_env=args.conda_env,
+            data_root=args.data_root,
+            gpu_id=args.gpu_id,
+            timeout_minutes=args.timeout_minutes,
+            overwrite=args.overwrite,
+        )
+        print(path)
+        return 0
     if args.command == "plan":
         path = plan_collection(
             args.scene_root,

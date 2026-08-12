@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable
 
 from .checker import check_clauses
 from .compiler import derive_answer
-from .motifs import get_motif
+from .motifs import MotifUnavailable, get_motif
 from .plan import GenerationReport, PlannedPose, ProvisionalAnswer, TrajectoryPlan
 from .sceneview import GeometrySceneView, SceneLayout
 from .slotting import iter_bindings
@@ -119,7 +119,14 @@ def _search_binding(
             break
         motif_name = script.motifs[attempt % len(script.motifs)]
         frame_count = rng.randint(*script.length)
-        poses = get_motif(motif_name)(layout, binding, frame_count, rng)
+        try:
+            poses = get_motif(motif_name)(layout, binding, frame_count, rng)
+        except MotifUnavailable:
+            rejection_counts[f"motif:{motif_name}:no_candidate"] += 1
+            continue
+        if poses is None:
+            rejection_counts[f"motif:{motif_name}:no_candidate"] += 1
+            continue
         view = GeometrySceneView(layout=layout, poses=poses, std=std)
 
         report = check_clauses(

@@ -227,11 +227,12 @@ def _self_motion_subtype(
     motif: str,
     motion_clauses: tuple[Clause, ...],
     length: tuple[int, int],
+    min_target_size_m: float = 0.5,
 ) -> ScriptSpec:
     """Declare one C/combination-one trajectory subtype over the shared memory task."""
     return _script(
         capability=capability,
-        slots={"target": SlotSpec(min_size_m=0.5, unique_referent=True)},
+        slots={"target": SlotSpec(min_size_m=min_target_size_m, unique_referent=True)},
         frame_vars={
             "t_seen": "last_visible($target)",
             "t_gone": "first_invisible_after($target, $t_seen)",
@@ -344,6 +345,11 @@ OCCLUDED_MOTION = _self_motion_subtype(
     capability="self_motion_update_occluded",
     motif="walk_to_occlusion",
     length=(14, 18),
+    # Occlusion episodes need a blocker that is appreciably larger than the
+    # referent.  Reusing the 0.5 m generic self-motion floor excludes useful
+    # uniquely named targets such as nightstands and bins and leaves only
+    # large furniture that cannot be fully hidden in real pixels.
+    min_target_size_m=0.25,
     motion_clauses=(
         Clause(
             name="occluded_at_question",

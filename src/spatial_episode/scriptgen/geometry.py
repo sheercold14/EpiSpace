@@ -139,6 +139,45 @@ def segment_intersects_rotated_rect(
     return segment_intersects_rect(local_p0, local_p1, (-hx, -hy), (hx, hy))
 
 
+def segment_rotated_rect_interval(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    center: tuple[float, float],
+    half_extents: tuple[float, float],
+    yaw_deg: float,
+) -> tuple[float, float] | None:
+    """Return the inclusive segment-parameter interval inside an oriented rectangle.
+
+    The returned values satisfy ``point(t) = p0 + t * (p1 - p0)`` for
+    ``0 <= t <= 1``.  Keeping the interval, rather than only a boolean hit,
+    lets the occlusion backend compare the sightline's height with an
+    obstacle's vertical span at the actual crossing point.
+    """
+    local_p0 = _point_in_rect_frame(p0, center, yaw_deg)
+    local_p1 = _point_in_rect_frame(p1, center, yaw_deg)
+    dx = local_p1[0] - local_p0[0]
+    dy = local_p1[1] - local_p0[1]
+    t_min, t_max = 0.0, 1.0
+    hx, hy = half_extents
+    for start, delta, low, high in (
+        (local_p0[0], dx, -hx, hx),
+        (local_p0[1], dy, -hy, hy),
+    ):
+        if abs(delta) < 1e-12:
+            if start < low or start > high:
+                return None
+            continue
+        t0 = (low - start) / delta
+        t1 = (high - start) / delta
+        if t0 > t1:
+            t0, t1 = t1, t0
+        t_min = max(t_min, t0)
+        t_max = min(t_max, t1)
+        if t_min > t_max:
+            return None
+    return t_min, t_max
+
+
 def rotated_rect_penetration_depth(
     point: tuple[float, float],
     center: tuple[float, float],

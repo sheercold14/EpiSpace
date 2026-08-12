@@ -24,7 +24,13 @@ from spatial_episode.scriptgen.library import (
     SELF_MOTION,
 )
 from spatial_episode.scriptgen.predicates import get_predicate, registered_predicates
-from spatial_episode.scriptgen.sceneview import GeometrySceneView, Pose2D
+from spatial_episode.scriptgen.sceneview import (
+    GeometrySceneView,
+    Obstacle,
+    Pose2D,
+    SceneLayout,
+    SceneObject,
+)
 from spatial_episode.scriptgen.standards import STD_V1
 from spatial_episode.scriptgen.variants import VariantBuilder
 
@@ -55,7 +61,7 @@ def _view(plan) -> GeometrySceneView:
 
 
 def test_p1_registry_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v9"
+    assert STD_V1.standard_version == "std.v10"
     assert "net_turn_magnitude" in registered_answer_modes()
     assert {
         "displacement_below",
@@ -157,6 +163,50 @@ def test_walk_and_turn_meets_preregistered_balance_gate() -> None:
     assert counts["left"] / total >= 0.25
     assert counts["right"] / total >= 0.25
     assert counts["back"] / total >= 0.15
+
+
+@pytest.mark.parametrize("script", (SELF_MOTION, PURE_ROTATION))
+def test_empty_occupancy_grid_is_a_normal_motif_rejection(script) -> None:
+    layout = SceneLayout(
+        scene_id="fully-blocked",
+        objects=(
+            SceneObject(
+                name="target",
+                category="chair",
+                xy=(1.0, 1.0),
+                size_m=0.5,
+                uid="target",
+            ),
+        ),
+        obstacles=(
+            Obstacle(
+                label="enclosing_fence_proxy",
+                center_xy=(1.0, 1.0),
+                half_extents_xy=(2.0, 2.0),
+                yaw_deg=0.0,
+                z_low=0.0,
+                z_high=2.0,
+            ),
+        ),
+        walkable_min=(0.0, 0.0),
+        walkable_max=(2.0, 2.0),
+    )
+
+    report = generate_plans(
+        layout,
+        script,
+        STD_V1,
+        seed=17,
+        attempts_per_binding=3,
+        plans_per_binding=1,
+        candidate_bindings=({"target": "target"},),
+    )
+
+    assert report.plans == ()
+    assert report.rejection_counts == {
+        f"motif:{script.motifs[0]}:no_candidate": 3,
+        "binding_exhausted": 1,
+    }
 
 
 def test_multi_turn_activates_both_declared_segment_levels() -> None:

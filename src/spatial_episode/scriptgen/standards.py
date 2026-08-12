@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v9"
+    standard_version: str = "std.v10"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -36,6 +36,18 @@ class CompileStandard:
     render_min_visible_pixels: int = 900
     render_max_invisible_pixels: int = 300
     render_min_unoccluded_ratio: float = 0.30
+
+    # --- rendered occluder attribution (std.v10) ---
+    occlusion_center_patch_radius_px: int = 4
+    occlusion_min_support_pixels: int = 9
+    occlusion_min_depth_margin_m: float = 0.10
+    occlusion_min_dominance_ratio: float = 2.0
+    # Geometry search treats an OBB as a conservative proxy for a mesh.  A
+    # sightline that only clips the very top of that box is not reliable
+    # evidence of a real rendered occlusion (pillows and chair backs make the
+    # fitted box substantially taller than the solid mesh in some scenes).
+    geom_occlusion_vertical_margin_m: float = 0.15
+    geom_occlusion_footprint_margin_ratio: float = 0.35
 
     # --- disappearance ---
     absence_min_frames: int = 3
@@ -117,6 +129,9 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     # back sector. This only relaxes false rejections: every plan accepted by
     # v3-v8 remains valid under the corrected margin geometry.
     "std.v9": ("std.v8", "std.v7", "std.v6", "std.v5", "std.v4", "std.v3"),
+    # std.v10 strengthens the meaning of an occlusion clause with rendered
+    # instance/depth attribution. Older plans must be regenerated explicitly.
+    "std.v10": (),
 }
 
 STD_V4_ADDED_FIELDS = (
@@ -150,4 +165,13 @@ STD_V7_ADDED_FIELDS = (
 STD_V8_ADDED_FIELDS = (
     "coverage_ratio_levels",
     "coverage_hidden_object_size_m",
+)
+
+STD_V10_ADDED_FIELDS = (
+    "occlusion_center_patch_radius_px",
+    "occlusion_min_support_pixels",
+    "occlusion_min_depth_margin_m",
+    "occlusion_min_dominance_ratio",
+    "geom_occlusion_vertical_margin_m",
+    "geom_occlusion_footprint_margin_ratio",
 )
