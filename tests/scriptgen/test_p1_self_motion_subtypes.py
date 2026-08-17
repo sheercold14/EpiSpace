@@ -97,6 +97,9 @@ def test_subtype_isolation_witnesses() -> None:
         "max_displacement_m": 0.0,
         "allowed_m": STD_V1.pure_rotation_max_displacement_m,
     }
+    turned = next(clause for clause in PURE_ROTATION.clauses if clause.name == "turned")
+    assert turned.args["frames"] == "0:$t_q"
+    assert 80 <= rotation.clause_witnesses["turned"]["cum_turn_deg"] <= 200
 
     translation = _generated(PURE_TRANSLATION.capability)
     assert translation.clause_witnesses["heading_constant"] == {

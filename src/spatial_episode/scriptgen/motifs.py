@@ -12,6 +12,7 @@ the same ``Motif`` protocol.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import random
 from collections.abc import Callable
@@ -376,7 +377,7 @@ def _propose_route(
     target_xy: tuple[float, float],
     frame_count: int,
     rng: random.Random,
-) -> list[tuple[float, float]]:
+) -> list[tuple[float, float]] | None:
     grid = _occupancy_grid(layout)
     if not grid.free_cells:
         raise MotifUnavailable("occupancy_grid_has_no_free_cells")
@@ -400,10 +401,11 @@ def _propose_route(
         route = [grid.world_xy(index) for index in route_cells]
         if len(route) > frame_count:
             route = route[:frame_count]
-        if len(route) >= 2:
+        if len(route) >= 2 and sum(
+            distance_m(left, right) for left, right in pairwise(route)
+        ) >= 1.0:
             return route
-    start_xy = grid.world_xy(start)
-    return [start_xy, start_xy]
+    return None
 
 
 def _walk_polyline(
@@ -476,23 +478,38 @@ def _target_final_yaw(
 
 def _straight_past_endpoints(
     layout: SceneLayout, target_xy: tuple[float, float], target_size_m: float, rng: random.Random
-) -> tuple[tuple[float, float], tuple[float, float]]:
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
     """Sample a collision-free straight line passing beside, never through, a target."""
     grid = _occupancy_grid(layout)
-    lateral_offset = max(1.1, target_size_m / 2.0 + PROPOSAL_CLEARANCE_M + 0.25)
+    base_lateral_offset = max(
+        1.1,
+        target_size_m / 2.0 + PROPOSAL_CLEARANCE_M + 0.25,
+    )
     for _ in range(96):
         angle = rng.uniform(-math.pi, math.pi)
         forward = (math.cos(angle), math.sin(angle))
         left = (-forward[1], forward[0])
         sign = rng.choice((-1.0, 1.0))
-        reach = rng.uniform(2.2, 3.0)
+        # Forty percent retain the long ``back`` endpoint.  The remaining
+        # proposals stop shortly after passing the target, so its bearing is
+        # decisively left/right while heading remains exactly constant.
+        back_endpoint = rng.random() < 0.4
+        # Keep enough temporal baseline that a non-trivial frame permutation
+        # still violates the declared per-step trackability contract.
+        start_reach = rng.uniform(4.0, 4.5)
+        end_reach = rng.uniform(2.2, 3.0) if back_endpoint else rng.uniform(0.5, 0.7)
+        lateral_offset = (
+            base_lateral_offset
+            if back_endpoint
+            else max(rng.uniform(1.3, 1.6), base_lateral_offset)
+        )
         start_xy = (
-            target_xy[0] - forward[0] * reach + left[0] * lateral_offset * sign,
-            target_xy[1] - forward[1] * reach + left[1] * lateral_offset * sign,
+            target_xy[0] - forward[0] * start_reach + left[0] * lateral_offset * sign,
+            target_xy[1] - forward[1] * start_reach + left[1] * lateral_offset * sign,
         )
         end_xy = (
-            target_xy[0] + forward[0] * reach + left[0] * lateral_offset * sign,
-            target_xy[1] + forward[1] * reach + left[1] * lateral_offset * sign,
+            target_xy[0] + forward[0] * end_reach + left[0] * lateral_offset * sign,
+            target_xy[1] + forward[1] * end_reach + left[1] * lateral_offset * sign,
         )
         start, end = grid.nearest_index(start_xy), grid.nearest_index(end_xy)
         if not grid.is_free(start) or not grid.is_free(end):
@@ -502,13 +519,12 @@ def _straight_past_endpoints(
         if not _grid_line_clear(grid, start, end):
             continue
         return grid.world_xy(start), grid.world_xy(end)
-    fallback = grid.world_xy(_sample_start(grid, target_xy, rng))
-    return fallback, fallback
+    return None
 
 
 def _direct_multi_turn_route(
     layout: SceneLayout, target_xy: tuple[float, float], rng: random.Random
-) -> tuple[tuple[float, float], tuple[float, float]]:
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
     """Direct free route whose heading differs enough from the initial target gaze."""
     grid = _occupancy_grid(layout)
     for _ in range(96):
@@ -524,14 +540,13 @@ def _direct_multi_turn_route(
         heading_change = abs(wrap_deg(route_heading - gaze))
         if 55.0 <= heading_change <= 120.0:
             return start_xy, end_xy
-    fallback = grid.world_xy(_sample_start(grid, target_xy, rng))
-    return fallback, fallback
+    return None
 
 
 @motif("walk_and_turn")
 def walk_and_turn(
     layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
-) -> tuple[Pose2D, ...]:
+) -> tuple[Pose2D, ...] | None:
     """Start facing the target, then walk away through one or two turns.
 
     The walk begins at a point with clear line of sight preference (near the
@@ -542,6 +557,8 @@ def walk_and_turn(
     target = layout.object(binding["target"])
     look_frames = max(2, frame_count // 4)
     waypoints = _propose_route(layout, target.xy, frame_count - look_frames, rng)
+    if waypoints is None:
+        return None
     initial_yaw = bearing_deg(waypoints[0], target.xy)
     walk = list(_walk_polyline(waypoints, initial_yaw, frame_count - look_frames))
 
@@ -571,7 +588,7 @@ def stand_and_turn(
     # A pure rotation retains more of a large target near the image edge than
     # the geometry proxy predicts. Use the existing 150-degree proposal tier
     # so rendered disappearance still leaves enough observable rotation.
-    final_yaw = _target_final_yaw(start, target.xy, rng, desired_azimuths=(150.0,))
+    final_yaw = _target_final_yaw(start, target.xy, rng, desired_azimuths=(100.0, 150.0))
     poses = [Pose2D(start[0], start[1], initial_yaw)] * 2
     poses.extend(_turn_in_place(start, initial_yaw, final_yaw, frame_count - 2))
     return tuple(poses)
@@ -580,10 +597,13 @@ def stand_and_turn(
 @motif("walk_straight_past")
 def walk_straight_past(
     layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
-) -> tuple[Pose2D, ...]:
+) -> tuple[Pose2D, ...] | None:
     """T3: translate past a side-front target with exactly constant heading."""
     target = layout.object(binding["target"])
-    start, end = _straight_past_endpoints(layout, target.xy, target.size_m, rng)
+    endpoints = _straight_past_endpoints(layout, target.xy, target.size_m, rng)
+    if endpoints is None:
+        return None
+    start, end = endpoints
     heading = bearing_deg(start, end) if start != end else bearing_deg(start, target.xy)
     return tuple(
         Pose2D(_lerp(start[0], end[0], t), _lerp(start[1], end[1], t), heading)
@@ -594,10 +614,13 @@ def walk_straight_past(
 @motif("walk_multi_turn")
 def walk_multi_turn(
     layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
-) -> tuple[Pose2D, ...]:
+) -> tuple[Pose2D, ...] | None:
     """T4: two or three separated rotations with straight motion between them."""
     target = layout.object(binding["target"])
-    start, end = _direct_multi_turn_route(layout, target.xy, rng)
+    route = _direct_multi_turn_route(layout, target.xy, rng)
+    if route is None:
+        return None
+    start, end = route
     initial_yaw = bearing_deg(start, target.xy)
     route_yaw = bearing_deg(start, end) if start != end else initial_yaw
     requested_segments = rng.choice((2, 3))
@@ -666,9 +689,135 @@ def _occluded_endpoints(layout: SceneLayout, target_name: str) -> tuple[int, ...
     return tuple(candidates)
 
 
+@lru_cache(maxsize=256)
+def _decisive_occluded_routes(
+    layout: SceneLayout, target_name: str
+) -> tuple[tuple[tuple[float, float], ...], ...]:
+    """Cache direct routes whose first disappearance is the blocker event.
+
+    Coverage asks for up to 30 initial candidates per binding.  Re-running a
+    full endpoint/start search for every attempt made no-route bindings scale
+    30x worse.  This deterministic pool pays the scene/target scan once; the
+    motif still uses its seeded RNG to choose a route and final direction.
+    """
+
+    from .occlusion import first_decisive_disappearance
+    from .sceneview import GeometrySceneView
+    from .standards import STD_V1
+
+    grid = _occupancy_grid(layout)
+    target = layout.object(target_name)
+    endpoints = list(_occluded_endpoints(layout, target_name))
+    obstacle_by_id = {
+        obstacle.entity_id: obstacle
+        for obstacle in layout.occlusion_obstacles
+        if obstacle.entity_id is not None
+    }
+
+    def endpoint_score(index: int) -> float:
+        xy = grid.world_xy(index)
+        target_distance = distance_m(xy, target.xy)
+        scores: list[float] = []
+        for blocker_id in blocking_occluders(layout, xy, target):
+            obstacle = obstacle_by_id.get(blocker_id)
+            if obstacle is None:
+                continue
+            interval = segment_rotated_rect_interval(
+                xy,
+                target.xy,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
+            )
+            if interval is None:
+                continue
+            enter, leave = interval
+            midpoint = (enter + leave) / 2.0
+            crossing = (
+                xy[0] + (target.xy[0] - xy[0]) * midpoint,
+                xy[1] + (target.xy[1] - xy[1]) * midpoint,
+            )
+            penetration = rotated_rect_penetration_depth(
+                crossing,
+                obstacle.center_xy,
+                obstacle.half_extents_xy,
+                obstacle.yaw_deg,
+            ) / max(min(obstacle.half_extents_xy), 1e-9)
+            chord_m = (leave - enter) * target_distance
+            angular_cover = (
+                (2.0 * min(obstacle.half_extents_xy))
+                / max(distance_m(xy, obstacle.center_xy), 1e-9)
+            ) / (target.size_m / max(target_distance, 1e-9))
+            scores.append(4.0 * penetration + angular_cover + chord_m)
+        return max(scores, default=0.0)
+
+    endpoints.sort(key=endpoint_score, reverse=True)
+    route_rng = random.Random(
+        int(hashlib.sha256(f"{layout.scene_id}:{target_name}:decisive".encode()).hexdigest()[:16], 16)
+    )
+    routes: list[tuple[tuple[float, float], ...]] = []
+    seen_pairs: set[tuple[int, int]] = set()
+    for end_index in endpoints[:128]:
+        end_xy = grid.world_xy(end_index)
+        for _ in range(64):
+            start_index = _sample_start(grid, target.xy, route_rng)
+            if grid.component_ids[start_index] != grid.component_ids[end_index]:
+                continue
+            if (start_index, end_index) in seen_pairs:
+                continue
+            seen_pairs.add((start_index, end_index))
+            start_xy = grid.world_xy(start_index)
+            if distance_m(start_xy, end_xy) < 1.0:
+                continue
+            if not _grid_line_clear(grid, start_index, end_index):
+                continue
+            # Replay a representative translated prefix.  This rejects a
+            # route if distance or an earlier viewing transition makes the
+            # target disappear before the endpoint blocker, or if it
+            # reappears immediately afterwards.
+            probe_count = 12
+            probe_poses = tuple(
+                Pose2D(
+                    _lerp(start_xy[0], end_xy[0], step / (probe_count - 1)),
+                    _lerp(start_xy[1], end_xy[1], step / (probe_count - 1)),
+                    bearing_deg(
+                        (
+                            _lerp(start_xy[0], end_xy[0], step / (probe_count - 1)),
+                            _lerp(start_xy[1], end_xy[1], step / (probe_count - 1)),
+                        ),
+                        target.xy,
+                    ),
+                )
+                for step in range(probe_count)
+            )
+            view = GeometrySceneView(layout, probe_poses, STD_V1)
+            event = first_decisive_disappearance(view, STD_V1, target_name)
+            if event is None or event.cause != "occluded":
+                continue
+            states = [
+                view.visibility(target_name, frame).tristate(STD_V1)
+                for frame in range(probe_count)
+            ]
+            if sum(state is True for state in states[: event.frame]) < 2:
+                continue
+            if any(state is not False for state in states[event.frame :]):
+                continue
+            routes.append((start_xy, end_xy))
+            if len(routes) >= 10:
+                return tuple(routes)
+    return tuple(routes)
+
+
 def _occluded_route(
-    layout: SceneLayout, target_name: str, rng: random.Random
+    layout: SceneLayout,
+    target_name: str,
+    rng: random.Random,
+    *,
+    require_decisive_boundary: bool = False,
 ) -> list[tuple[float, float]] | None:
+    if require_decisive_boundary:
+        routes = _decisive_occluded_routes(layout, target_name)
+        return list(rng.choice(routes)) if routes else None
     grid = _occupancy_grid(layout)
     target = layout.object(target_name)
     endpoints = list(_occluded_endpoints(layout, target_name))
@@ -733,7 +882,16 @@ def _occluded_route(
                 continue
             if blocking_occluders(layout, start_xy, target):
                 continue
-            cells = _connect_cells(grid, start_index, end_index)
+            # The causal motif prefers a direct camera path.  Falling back to
+            # a long A* detour is both expensive and semantically risky: the
+            # target can become too small or leave the view well before the
+            # eventual blocker.  Other (legacy) occlusion motifs retain A*.
+            if require_decisive_boundary:
+                if not _grid_line_clear(grid, start_index, end_index):
+                    continue
+                cells = (start_index, end_index)
+            else:
+                cells = _connect_cells(grid, start_index, end_index)
             if cells is None:
                 continue
             # Stop at the first robustly blocked cell on the connected route.
@@ -753,6 +911,36 @@ def _occluded_route(
             )
             if boundary is None:
                 continue
+            if require_decisive_boundary:
+                # A causal occlusion route may not let the target disappear
+                # from distance before reaching its blocker.  With target-
+                # tracked gaze and a clear ray, geometry visibility reduces
+                # to size / distance, so check every dense path cell before
+                # simplifying.  The boundary itself must already be a
+                # definitely invisible, in-frustum blocker observation.
+                from .standards import STD_V1
+
+                pre_boundary = cells[:boundary]
+                maximum_visible_distance = target.size_m / STD_V1.geom_min_visible_ratio
+                if not pre_boundary or any(
+                    distance_m(grid.world_xy(cell), target.xy) > maximum_visible_distance
+                    for cell in pre_boundary
+                ):
+                    continue
+                from .sceneview import GeometrySceneView
+
+                boundary_xy = grid.world_xy(cells[boundary])
+                boundary_pose = Pose2D(
+                    boundary_xy[0],
+                    boundary_xy[1],
+                    bearing_deg(boundary_xy, target.xy),
+                )
+                boundary_view = GeometrySceneView(layout, (boundary_pose,), STD_V1)
+                if (
+                    boundary_view.visibility(target_name, 0).tristate(STD_V1) is not False
+                    or boundary_view.occlusion(target_name, 0).status != "occluded"
+                ):
+                    continue
             route_cells = _simplify_route(grid, cells[: boundary + 1])
             route = [grid.world_xy(index) for index in route_cells]
             if len(route) >= 2:
@@ -795,6 +983,72 @@ def walk_to_occlusion(
         Pose2D(end.x, end.y, wrap_deg(final_bearing + offset))
         for offset in sweep_offsets
     )
+    return tuple(tracked)
+
+
+@motif("walk_through_occlusion")
+def walk_through_occlusion(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...] | None:
+    """Acquire a real blocker, then continue trackable ego-rotation behind it.
+
+    The route ends at the first geometric clear -> blocked boundary.  Its
+    translated prefix keeps the target centred, establishing both identity
+    evidence and the causal occlusion event.  The remaining frames rotate in
+    place in at most 32-degree increments, spreading final target direction
+    across all four sectors while preserving a 3+ frame hidden suffix.
+    """
+
+    target = layout.object(binding["target"])
+    route = _occluded_route(
+        layout, binding["target"], rng, require_decisive_boundary=True
+    )
+    if route is None:
+        return None
+
+    # Seven post-event poses are enough for the longest 160-degree turn (or
+    # the 84 -> 0 front excursion) while reserving at least nine poses for a
+    # long room-crossing route at the 1.2 m translation-step contract.
+    post_frames = min(7, frame_count - 6)
+    translated_frames = frame_count - post_frames
+    initial_yaw = bearing_deg(route[0], target.xy)
+    translated = _walk_polyline(route, initial_yaw, translated_frames)
+    tracked = [
+        Pose2D(pose.x, pose.y, bearing_deg(pose.xy, target.xy))
+        for pose in translated
+    ]
+    end = tracked[-1]
+    target_bearing = bearing_deg(end.xy, target.xy)
+    desired_sector = rng.choice(("front", "left", "right", "back"))
+    desired_azimuth = (
+        rng.choice((-160.0, 160.0))
+        if desired_sector == "back"
+        else {"front": 0.0, "left": 90.0, "right": -90.0}[desired_sector]
+    )
+
+    # A front answer would otherwise require zero post-event motion.  Make a
+    # bounded 84-degree excursion and return, yielding 168 degrees cumulative
+    # rotation without changing the final front label.
+    yaw_targets = (
+        (wrap_deg(target_bearing + rng.choice((-84.0, 84.0))), target_bearing)
+        if desired_azimuth == 0.0
+        else (wrap_deg(target_bearing - desired_azimuth),)
+    )
+    yaws: list[float] = []
+    current = target_bearing
+    for target_yaw in yaw_targets:
+        while len(yaws) < post_frames:
+            delta = wrap_deg(target_yaw - current)
+            if abs(delta) <= 1e-6:
+                break
+            current = wrap_deg(
+                current + max(-MAX_TURN_PER_FRAME_DEG, min(MAX_TURN_PER_FRAME_DEG, delta))
+            )
+            yaws.append(current)
+        if len(yaws) >= post_frames:
+            break
+    yaws.extend([current] * (post_frames - len(yaws)))
+    tracked.extend(Pose2D(end.x, end.y, yaw) for yaw in yaws)
     return tuple(tracked)
 
 

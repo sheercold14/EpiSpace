@@ -258,6 +258,17 @@ class GeometrySceneView:
         if azimuth >= fov + half_width_deg:
             return VisibilityObservation("geom_ratio", 0.0, 0.0)
         if azimuth > fov - half_width_deg:
+            # Partial frustum overlap is normally ambiguous, but a blocker can
+            # already make the *full* projected target definitely invisible.
+            # Clipping cannot increase that upper bound, so preserve the
+            # decisive invisible result instead of manufacturing an edge-
+            # sliver ambiguity while the camera turns behind an occluder.
+            unoccluded = self._unoccluded_ratio(pose.xy, obj)
+            projected_upper_bound = (obj.size_m / dist) * unoccluded
+            if projected_upper_bound <= self.std.geom_max_invisible_ratio:
+                return VisibilityObservation(
+                    "geom_ratio", projected_upper_bound, unoccluded
+                )
             ambiguous = (self.std.geom_max_invisible_ratio + self.std.geom_min_visible_ratio) / 2.0
             return VisibilityObservation("geom_ratio", ambiguous, 1.0)
         unoccluded = self._unoccluded_ratio(pose.xy, obj)

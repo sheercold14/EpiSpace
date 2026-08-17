@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .occlusion import OCCLUDER_DISPLAY_NAMES_ZH
 from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
 
 _TRAVERSAL_CLAUSES = (
@@ -228,6 +229,7 @@ def _self_motion_subtype(
     motion_clauses: tuple[Clause, ...],
     length: tuple[int, int],
     min_target_size_m: float = 0.5,
+    intervention_window: str = "$t_gone:$t_q-1",
 ) -> ScriptSpec:
     """Declare one C/combination-one trajectory subtype over the shared memory task."""
     return _script(
@@ -278,7 +280,7 @@ def _self_motion_subtype(
         length=length,
         motifs=(motif,),
         templates=SELF_MOTION.templates,
-        intervention_window="$t_gone:$t_q-1",
+        intervention_window=intervention_window,
         abstain_on_unresolvable=("t_seen",),
         variant_expectations=SELF_MOTION.variant_expectations,
     )
@@ -298,7 +300,13 @@ PURE_ROTATION = _self_motion_subtype(
         Clause(
             name="turned",
             predicate="cum_turn_between",
-            args={"frames": "$t_seen:$t_q", "deg_min": 80, "deg_max": 200},
+            # For a side-sector answer the target normally leaves the camera
+            # after roughly half of an 80--120 degree in-place turn.  Requiring
+            # another 80 degrees *after* the last sighting makes left / right
+            # geometrically impossible and collapses accepted data to back.
+            # Trackability still applies per step, while this clause measures
+            # the complete observable in-place rotation.
+            args={"frames": "0:$t_q", "deg_min": 80, "deg_max": 200},
             phase="search",
         ),
     ),
@@ -309,6 +317,7 @@ PURE_TRANSLATION = _self_motion_subtype(
     capability="self_motion_update_pure_translation",
     motif="walk_straight_past",
     length=(10, 16),
+    intervention_window="1:$t_q-1",
     motion_clauses=(
         Clause(
             name="heading_constant",
@@ -358,6 +367,136 @@ OCCLUDED_MOTION = _self_motion_subtype(
             phase="compile",
         ),
     ),
+)
+
+
+_DISAPPEARANCE_FRAME_VARS = {
+    "t_event": "first_decisive_disappearance($target)",
+    "t_seen": "last_visible_before($target, $t_event)",
+    "t_q": "last_frame()",
+}
+
+
+def _disappearance_evidence_clauses(*, cause: str) -> tuple[Clause, ...]:
+    """Shared authority gates for questions about the first disappearance."""
+
+    return (
+        Clause(
+            name="identity_evidence",
+            predicate="consecutive_visible_frames_ge",
+            args={"obj": "$target", "frames": "0:$t_seen", "required": 2},
+            phase="compile",
+            on_violation="abstain",
+        ),
+        Clause(
+            name="trackable",
+            predicate="step_motion_bounded",
+            args={"frames": "0:$t_q"},
+            phase="search",
+            on_violation="abstain",
+        ),
+        Clause(
+            name="decisive_disappearance",
+            predicate="disappearance_event",
+            args={"obj": "$target", "frame": "$t_event", "cause": cause},
+            phase="compile",
+        ),
+        Clause(
+            name="stays_gone",
+            predicate="invisible_in_range",
+            args={"obj": "$target", "frames": "$t_event:$t_q"},
+            phase="compile",
+        ),
+    )
+
+
+OCCLUDER_IDENTIFICATION = _script(
+    capability="occluder_identification",
+    slots={"target": SlotSpec(min_size_m=0.25, unique_referent=True)},
+    frame_vars=_DISAPPEARANCE_FRAME_VARS,
+    clauses=_disappearance_evidence_clauses(cause="occluded"),
+    answer=AnswerSpec(
+        mode="occluder_category_at",
+        args={"obj": "$target", "frame": "$t_event"},
+    ),
+    length=(10, 22),
+    motifs=("walk_through_occlusion",),
+    templates=(
+        Template(
+            text=(
+                "这段第一人称序列中，{target}第一次明确消失时，"
+                "最先挡住它的是什么？如果证据不足，选‘无法判断’。"
+            ),
+            # The family compiler materialises the correct label plus two
+            # deterministic distractors from this policy-level superset.
+            options=(*OCCLUDER_DISPLAY_NAMES_ZH.keys(), "无法判断"),
+        ),
+    ),
+    intervention_window="$t_event:$t_q",
+    abstain_on_unresolvable=("t_event", "t_seen"),
+    variant_expectations={"drop_key": "abstain", "delay": "same"},
+)
+
+
+DISAPPEARANCE_CAUSE = _script(
+    capability="disappearance_cause",
+    slots={"target": SlotSpec(min_size_m=0.25, unique_referent=True)},
+    frame_vars=_DISAPPEARANCE_FRAME_VARS,
+    clauses=_disappearance_evidence_clauses(cause="either"),
+    answer=AnswerSpec(
+        mode="disappearance_cause_at",
+        args={"obj": "$target", "frame": "$t_event"},
+    ),
+    length=(10, 22),
+    motifs=("walk_through_occlusion",),
+    templates=(
+        Template(
+            text=(
+                "这段第一人称序列中，{target}第一次明确消失的原因是什么？"
+                "如果证据不足，选‘无法判断’。"
+            ),
+            options=("occluded", "out_of_view", "无法判断"),
+        ),
+    ),
+    intervention_window="$t_event:$t_q",
+    abstain_on_unresolvable=("t_event", "t_seen"),
+    variant_expectations={"drop_key": "abstain", "delay": "same"},
+)
+
+
+AFTER_OCCLUSION_MOTION = _script(
+    capability="self_motion_update_after_occlusion",
+    slots={"target": SlotSpec(min_size_m=0.25, unique_referent=True)},
+    frame_vars=_DISAPPEARANCE_FRAME_VARS,
+    clauses=(
+        *_disappearance_evidence_clauses(cause="occluded"),
+        Clause(
+            name="post_occlusion_gap",
+            predicate="frame_gap_ge",
+            args={"later": "$t_q", "earlier": "$t_event", "gap": 3},
+            phase="search",
+        ),
+        Clause(
+            name="post_occlusion_turn",
+            predicate="cum_turn_between",
+            args={"frames": "$t_event:$t_q", "deg_min": 80, "deg_max": 200},
+            phase="search",
+        ),
+        Clause(
+            name="margin_ok",
+            predicate="sector_margin_ge",
+            args={"obj": "$target", "frame": "$t_q"},
+            phase="search",
+        ),
+    ),
+    answer=AnswerSpec(mode="target_sector", args={"obj": "$target", "frame": "$t_q"}),
+    knobs=(Knob(name="delay", expr="$t_q-$t_event", levels=(3, 6, 10)),),
+    length=(16, 22),
+    motifs=("walk_through_occlusion",),
+    templates=SELF_MOTION.templates,
+    intervention_window="$t_event:$t_q-1",
+    abstain_on_unresolvable=("t_event", "t_seen"),
+    variant_expectations=SELF_MOTION.variant_expectations,
 )
 
 
@@ -790,6 +929,9 @@ SCRIPT_LIBRARY: dict[str, ScriptSpec] = {
         PURE_TRANSLATION,
         MULTI_TURN,
         OCCLUDED_MOTION,
+        AFTER_OCCLUSION_MOTION,
+        OCCLUDER_IDENTIFICATION,
+        DISAPPEARANCE_CAUSE,
         NET_TURN,
         NET_TURN_MAGNITUDE,
         HOMING,

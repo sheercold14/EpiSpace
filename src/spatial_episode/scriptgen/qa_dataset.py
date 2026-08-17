@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import defaultdict, deque
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ from .behavior import RenderSceneView
 from .compiler import CapabilityCompiler, Certificate
 from .family import ScriptgenFamilyV4, ScriptgenQuestionGroupV1
 from .library import SCRIPT_LIBRARY
+from .occlusion import OCCLUDER_DISPLAY_NAMES_ZH
 from .standards import STD_V1
 
 RAW_SCHEMA = "scriptgen.raw_qa.v1"
@@ -47,6 +49,9 @@ LABEL_GLOSS_ZH = {
     "absent": "不存在",
     "first": "第一个对象",
     "second": "第二个对象",
+    "occluded": "被物体遮挡",
+    "out_of_view": "移出视野",
+    **OCCLUDER_DISPLAY_NAMES_ZH,
     "无法判断": "证据不足",
 }
 
@@ -85,6 +90,7 @@ class RawQARecord(BaseModel):
     input_sha256: str
     pool: Literal["development_pool"] = "development_pool"
     sample_type: Literal["raw_qa"] = "raw_qa"
+    temporal_mode: Literal["full", "immediate", "delayed"] = "full"
     tier: Literal["P1", "P2", "P3"]
     capability: str
     role: Literal["primary", "probe", "check"]
@@ -121,6 +127,7 @@ class StreamingQARecord(BaseModel):
     input_sha256: str
     pool: Literal["development_pool"] = "development_pool"
     sample_type: Literal["streaming_qa"] = "streaming_qa"
+    temporal_mode: Literal["full", "immediate", "delayed"] = "full"
     stream_kind: Literal["trajectory_multi_question", "evidence_reveal"]
     tier: Literal["P1", "P2", "P3"]
     capabilities: tuple[str, ...]
@@ -279,13 +286,28 @@ def _streaming_system() -> str:
     )
 
 
-def _family_sources(source_root: Path, excluded: frozenset[str]) -> Iterator[FamilySource]:
-    groups_root = source_root / "groups"
-    for group_path in sorted(groups_root.glob("*/group.json")):
+def _family_sources(
+    source_root: Path,
+    excluded: frozenset[str],
+    *,
+    group_paths: Sequence[Path] | None = None,
+    excluded_episode_capabilities: dict[str, frozenset[str]] | None = None,
+) -> Iterator[FamilySource]:
+    if group_paths is None:
+        group_paths = sorted((source_root / "groups").glob("*/group.json"))
+    for group_path in group_paths:
         group = ScriptgenQuestionGroupV1.model_validate_json(group_path.read_text(encoding="utf-8"))
         plan = _read_json(Path(group.trajectory.plan_record))
+        episode_id = group_path.parent.name
+        episode_excluded = (excluded_episode_capabilities or {}).get(
+            episode_id, frozenset()
+        )
         for entry in group.questions:
-            if entry.capability in excluded or entry.family is None:
+            if (
+                entry.capability in excluded
+                or entry.capability in episode_excluded
+                or entry.family is None
+            ):
                 continue
             family_path = group_path.parent / entry.family
             family = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
@@ -294,6 +316,42 @@ def _family_sources(source_root: Path, excluded: frozenset[str]) -> Iterator[Fam
                     f"group/family capability mismatch: {group_path} {entry.capability}"
                 )
             yield FamilySource(group_path, group, family_path, family, plan)
+
+
+def _coverage_group_paths(
+    source_root: Path,
+    dataset: dict[str, Any],
+    *,
+    excluded_episode_ids: frozenset[str] = frozenset(),
+) -> tuple[Path, ...]:
+    """Resolve only the accepted groups named by a packaged coverage snapshot."""
+
+    episodes = dataset.get("episodes")
+    if not isinstance(episodes, list):
+        raise QADatasetError("coverage dataset episodes must be a list")
+    if dataset.get("episode_count") != len(episodes):
+        raise QADatasetError("coverage dataset episode_count does not match episodes")
+    result: list[Path] = []
+    seen: set[str] = set()
+    for episode in episodes:
+        if not isinstance(episode, dict) or not isinstance(episode.get("episode_id"), str):
+            raise QADatasetError("coverage dataset contains an invalid episode row")
+        episode_id = episode["episode_id"]
+        if episode_id in seen:
+            raise QADatasetError(f"duplicate coverage episode: {episode_id}")
+        seen.add(episode_id)
+        if episode_id in excluded_episode_ids:
+            continue
+        group_path = (source_root / "groups" / episode_id / "group.json").resolve()
+        declared_group = episode.get("group")
+        if not isinstance(declared_group, str):
+            raise QADatasetError(f"coverage episode has no group path: {episode_id}")
+        if Path(declared_group).resolve() != group_path:
+            raise QADatasetError(f"coverage episode group path mismatch: {episode_id}")
+        if not group_path.is_file():
+            raise QADatasetError(f"missing accepted coverage group: {group_path}")
+        result.append(group_path)
+    return tuple(sorted(result))
 
 
 def _relative_source_path(source_root: Path, path: Path) -> str:
@@ -407,6 +465,7 @@ def _raw_record(
         "input_sha256": "",
         "pool": "development_pool",
         "sample_type": "raw_qa",
+        "temporal_mode": "full",
         "tier": capability_tier(source.family.capability),
         "capability": source.family.capability,
         "role": source.family.role,
@@ -472,30 +531,112 @@ def _compile_prefixes(
     *,
     stop_after_first_answerable: bool,
 ) -> list[PrefixState]:
+    canonical = next(episode for episode in family.episodes if episode.kind == "canonical")
+    return _compile_sequence_prefixes(
+        view,
+        family,
+        binding,
+        frame_sequence=canonical.frame_sequence,
+        expected_episode=canonical,
+        stop_after_first_answerable=stop_after_first_answerable,
+    )
+
+
+def _compile_sequence_prefixes(
+    view: RenderSceneView,
+    family: ScriptgenFamilyV4,
+    binding: dict[str, str],
+    *,
+    frame_sequence: Sequence[int],
+    expected_episode: Any,
+    stop_after_first_answerable: bool,
+) -> list[PrefixState]:
+    """Compile prefixes of canonical or intervened frame sequences."""
+
     compiler = CapabilityCompiler(script=SCRIPT_LIBRARY[family.capability], std=STD_V1)
     states: list[PrefixState] = []
-    for prefix_length in range(1, view.frame_count + 1):
+    sequence = tuple(frame_sequence)
+    for prefix_length in range(1, len(sequence) + 1):
         certificate = compiler.compile(
             view,
             binding,
-            frame_sequence=tuple(range(prefix_length)),
+            frame_sequence=sequence[:prefix_length],
         )
         states.append(PrefixState(prefix_length, certificate))
         if stop_after_first_answerable and certificate.status == "answerable":
             break
-    canonical = next(episode for episode in family.episodes if episode.kind == "canonical")
-    full = compiler.compile(view, binding)
-    if full.status != "answerable" or full.answer is None:
-        raise QADatasetError(f"{family.family_id}: full canonical no longer answerable")
-    if full.answer.label != canonical.label:
+    full = compiler.compile(view, binding, frame_sequence=sequence)
+    if full.status != expected_episode.certificate.status:
         raise QADatasetError(
-            f"{family.family_id}: recompiled {full.answer.label} != packaged {canonical.label}"
+            f"{family.family_id}: recompiled {expected_episode.kind} status "
+            f"{full.status} != packaged {expected_episode.certificate.status}"
+        )
+    full_label = full.answer.label if full.answer is not None else family.question.abstain_option
+    if full_label != expected_episode.label:
+        raise QADatasetError(
+            f"{family.family_id}: recompiled {full_label} != packaged {expected_episode.label}"
         )
     return states
 
 
 def _event_question(family: ScriptgenFamilyV4) -> str:
     return format_question(family.question.text, family.question.options, streaming=True)
+
+
+def _prefix_has_pose_transition(view: RenderSceneView, prefix_length: int) -> bool:
+    """Whether a prefix contains observable camera motion in the pose record.
+
+    Simulator warm-up can change RGB pixels while leaving the camera pose
+    exactly unchanged.  A self-motion question must therefore be gated by the
+    authoritative pose sequence, never by pixel differences alone.
+    """
+
+    for frame in range(1, prefix_length):
+        left = view.camera_pose(frame - 1)
+        right = view.camera_pose(frame)
+        translation = math.hypot(right.x - left.x, right.y - left.y)
+        turn = abs((right.yaw_deg - left.yaw_deg + 180.0) % 360.0 - 180.0)
+        if translation > 1e-6 or turn > 1e-6:
+            return True
+    return False
+
+
+def _p1_event_states(
+    view: RenderSceneView,
+    states: Sequence[PrefixState],
+    *,
+    force_endpoint: bool,
+) -> tuple[PrefixState, ...]:
+    """Select P1 label transitions without dropping ``A -> B -> A``.
+
+    Consecutive equal labels are redundant, but a label returning after an
+    intervening value is a real state transition.  The source capability also
+    receives a canonical full-episode event so the stream releases its tail
+    even when the answer stabilized earlier.
+    """
+
+    selected: list[PrefixState] = []
+    last_label: str | None = None
+    for state in states:
+        if state.prefix_length < 2 or not _prefix_has_pose_transition(view, state.prefix_length):
+            continue
+        if state.certificate.status != "answerable" or state.label is None:
+            continue
+        if state.label == last_label:
+            continue
+        selected.append(state)
+        last_label = state.label
+
+    if force_endpoint and states:
+        endpoint = states[-1]
+        if (
+            endpoint.certificate.status == "answerable"
+            and endpoint.label is not None
+            and _prefix_has_pose_transition(view, endpoint.prefix_length)
+            and not any(state.prefix_length == endpoint.prefix_length for state in selected)
+        ):
+            selected.append(endpoint)
+    return tuple(selected)
 
 
 def _stream_record(
@@ -507,6 +648,7 @@ def _stream_record(
     sources: Sequence[FamilySource],
     event_rows: Sequence[tuple[FamilySource, PrefixState]],
     hasher: SourceHasher,
+    temporal_mode: Literal["full", "immediate", "delayed"] = "full",
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     if not event_rows:
         raise QADatasetError(f"{record_id}: streaming record has no turns")
@@ -520,6 +662,7 @@ def _stream_record(
     for turn_index, (source, state) in enumerate(event_rows, start=1):
         if state.prefix_length < released:
             raise QADatasetError(f"{record_id}: non-monotonic streaming events")
+        frame_sequence = state.certificate.frame_sequence
         new_images = tuple(
             _media_ref(
                 source_root=source_root,
@@ -529,7 +672,7 @@ def _stream_record(
                 ordinal=len(flat_images) + offset,
                 hasher=hasher,
             )
-            for offset, frame in enumerate(range(released, state.prefix_length))
+            for offset, frame in enumerate(frame_sequence[released : state.prefix_length])
         )
         flat_images.extend(new_images)
         released = state.prefix_length
@@ -595,6 +738,7 @@ def _stream_record(
         "input_sha256": "",
         "pool": "development_pool",
         "sample_type": "streaming_qa",
+        "temporal_mode": temporal_mode,
         "stream_kind": stream_kind,
         "tier": tier,
         "capabilities": list(capabilities),
@@ -628,6 +772,7 @@ def _stream_record(
         "record_id": record_id,
         "input_sha256": payload["input_sha256"],
         "sample_type": "streaming_qa",
+        "temporal_mode": temporal_mode,
         "stream_kind": stream_kind,
         "tier": tier,
         "capabilities": list(capabilities),
@@ -651,13 +796,35 @@ def _stream_record(
         "input_sha256": payload["input_sha256"],
         "turns": oracle_turns,
         "source": payload["source"],
+        "temporal_mode": temporal_mode,
     }
     return validated, eval_input, oracle
 
 
-def _build_streaming(
+_OCCLUSION_ISOLATED_CAPABILITIES = frozenset(
+    {"occluder_identification", "disappearance_cause"}
+)
+
+
+def _stable_source_order(sources: Sequence[FamilySource], namespace: str) -> list[FamilySource]:
+    return sorted(
+        sources,
+        key=lambda source: hashlib.sha256(
+            f"{namespace}:{source.family.family_id}".encode()
+        ).hexdigest(),
+    )
+
+
+def _family_episode(source: FamilySource, kind: str) -> Any:
+    try:
+        return next(episode for episode in source.family.episodes if episode.kind == kind)
+    except StopIteration as error:
+        raise QADatasetError(f"{source.family.family_id}: missing {kind} episode") from error
+
+
+def _build_occlusion_isolated_streaming(
     source_root: Path,
-    family_sources: Sequence[FamilySource],
+    sources: Sequence[FamilySource],
     hasher: SourceHasher,
 ) -> tuple[
     list[dict[str, Any]],
@@ -665,16 +832,196 @@ def _build_streaming(
     list[dict[str, Any]],
     list[dict[str, Any]],
 ]:
-    by_group: dict[Path, list[FamilySource]] = defaultdict(list)
-    for source in family_sources:
-        by_group[source.group_path].append(source)
+    """Immediate/delayed one-question records with calibrated abstention.
+
+    Cause records are sampled exactly 1:1:1 across occluded, out_of_view, and
+    unable.  Identity records keep every answerable family and add enough
+    deterministic drop-key records for an approximately 25% unable rate.
+    Every record has one turn, so neither an earlier answer nor another
+    capability can leak into its history.
+    """
+
+    special = [
+        source
+        for source in sources
+        if source.family.capability in _OCCLUSION_ISOLATED_CAPABILITIES
+    ]
+    if not special:
+        return [], [], [], []
+
+    cause_by_label: dict[str, list[FamilySource]] = defaultdict(list)
+    identity_sources: list[FamilySource] = []
+    for source in special:
+        canonical = _family_episode(source, "canonical")
+        if source.family.capability == "disappearance_cause":
+            cause_by_label[canonical.label].append(source)
+        else:
+            identity_sources.append(source)
+
+    cause_sources: list[FamilySource] = []
+    if cause_by_label:
+        expected = {"occluded", "out_of_view"}
+        if set(cause_by_label) != expected:
+            raise QADatasetError(
+                "disappearance_cause overlay must contain occluded and out_of_view labels"
+            )
+        balanced_count = min(len(cause_by_label[label]) for label in expected)
+        for label in sorted(expected):
+            cause_sources.extend(
+                _stable_source_order(cause_by_label[label], f"cause:{label}")[:balanced_count]
+            )
+        cause_unable_sources = _stable_source_order(
+            cause_sources, "cause:unable"
+        )[:balanced_count]
+    else:
+        cause_unable_sources = []
+
+    identity_sources = _stable_source_order(identity_sources, "identity:answerable")
+    # k / (N + k) ~= 25%, where both answerable and unable families produce
+    # one immediate plus one delayed isolated record.
+    identity_unable_count = math.ceil(len(identity_sources) / 3)
+    identity_unable_sources = _stable_source_order(
+        identity_sources, "identity:unable"
+    )[:identity_unable_count]
+    unable_ids = {
+        (source.family.capability, source.family.family_id)
+        for source in (*cause_unable_sources, *identity_unable_sources)
+    }
+    answerable_ids = {
+        (source.family.capability, source.family.family_id)
+        for source in (*cause_sources, *identity_sources)
+    }
+
     records: list[dict[str, Any]] = []
     inputs: list[dict[str, Any]] = []
     oracles: list[dict[str, Any]] = []
     skips: list[dict[str, Any]] = []
+    current_group: Path | None = None
+    view: RenderSceneView | None = None
+    for source in sorted(
+        special,
+        key=lambda value: (str(value.group_path), value.family.capability),
+    ):
+        key = (source.family.capability, source.family.family_id)
+        emit_answerable = key in answerable_ids
+        emit_unable = key in unable_ids
+        if not emit_answerable and not emit_unable:
+            continue
+        if source.group_path != current_group:
+            view = RenderSceneView.from_bundle(
+                Path(source.group.trajectory.bundle),
+                STD_V1,
+                scene_ir=Path(source.group.trajectory.scene_ir),
+            )
+            current_group = source.group_path
+        assert view is not None
+        binding = dict(source.plan["binding"])
+
+        def emit(state: PrefixState, temporal_mode: Literal["immediate", "delayed"], label: str) -> None:
+            record_id = "stream-occlusion-" + hashlib.sha256(
+                f"{source.family.family_id}:{label}:{temporal_mode}".encode()
+            ).hexdigest()[:20]
+            triple = _stream_record(
+                source_root=source_root,
+                record_id=record_id,
+                stream_kind="evidence_reveal",
+                tier=capability_tier(source.family.capability),
+                sources=(source,),
+                event_rows=((source, state),),
+                hasher=hasher,
+                temporal_mode=temporal_mode,
+            )
+            records.append(triple[0])
+            inputs.append(triple[1])
+            oracles.append(triple[2])
+
+        if emit_answerable:
+            canonical = _family_episode(source, "canonical")
+            states = _compile_sequence_prefixes(
+                view,
+                source.family,
+                binding,
+                frame_sequence=canonical.frame_sequence,
+                expected_episode=canonical,
+                stop_after_first_answerable=False,
+            )
+            immediate = next(
+                (state for state in states if state.certificate.status == "answerable"),
+                None,
+            )
+            delayed = states[-1]
+            if immediate is None:
+                raise QADatasetError(f"{source.family.family_id}: no answerable event prefix")
+            emit(immediate, "immediate", "answerable")
+            if delayed.prefix_length > immediate.prefix_length:
+                emit(delayed, "delayed", "answerable")
+            else:
+                skips.append(
+                    {
+                        "family_id": source.family.family_id,
+                        "tier": "P1",
+                        "reason": "no_post_event_delay",
+                    }
+                )
+
+        if emit_unable:
+            drop_key = _family_episode(source, "drop_key")
+            states = _compile_sequence_prefixes(
+                view,
+                source.family,
+                binding,
+                frame_sequence=drop_key.frame_sequence,
+                expected_episode=drop_key,
+                stop_after_first_answerable=False,
+            )
+            abstains = [state for state in states if state.certificate.status == "abstain"]
+            if not abstains:
+                raise QADatasetError(f"{source.family.family_id}: drop_key has no abstain prefix")
+            immediate = next(
+                (state for state in abstains if state.prefix_length >= 2), abstains[0]
+            )
+            emit(immediate, "immediate", "unable")
+            if abstains[-1].prefix_length > immediate.prefix_length:
+                emit(abstains[-1], "delayed", "unable")
+            else:
+                skips.append(
+                    {
+                        "family_id": source.family.family_id,
+                        "tier": "P1",
+                        "reason": "drop_key_too_short_for_delay",
+                    }
+                )
+    return records, inputs, oracles, skips
+
+
+def _build_streaming(
+    source_root: Path,
+    family_sources: Sequence[FamilySource],
+    hasher: SourceHasher,
+    *,
+    source_capabilities: dict[Path, str] | None = None,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    records, inputs, oracles, skips = _build_occlusion_isolated_streaming(
+        source_root, family_sources, hasher
+    )
+    by_group: dict[Path, list[FamilySource]] = defaultdict(list)
+    for source in family_sources:
+        if source.family.capability in _OCCLUSION_ISOLATED_CAPABILITIES:
+            continue
+        by_group[source.group_path].append(source)
     for group_path, sources in sorted(by_group.items(), key=lambda item: str(item[0])):
         first = sources[0]
         tier = capability_tier(first.family.capability)
+        source_capability = (
+            source_capabilities.get(group_path)
+            if source_capabilities is not None
+            else None
+        ) or str(first.plan["capability"])
         view = RenderSceneView.from_bundle(
             Path(first.group.trajectory.bundle),
             STD_V1,
@@ -690,19 +1037,11 @@ def _build_streaming(
                     binding,
                     stop_after_first_answerable=False,
                 )
-                seen_labels: set[str] = set()
-                for state in states:
-                    # A single image contains no observable motion transition.  Even
-                    # when the geometric convention defines its net turn as zero,
-                    # serializing that prefix would be a protocol/triviality test,
-                    # not a visual self-motion question.
-                    if state.prefix_length < 2:
-                        continue
-                    if state.certificate.status != "answerable" or state.label is None:
-                        continue
-                    if state.label in seen_labels:
-                        continue
-                    seen_labels.add(state.label)
+                for state in _p1_event_states(
+                    view,
+                    states,
+                    force_endpoint=source.family.capability == source_capability,
+                ):
                     events.append((source, state))
             events.sort(key=lambda item: (item[1].prefix_length, item[0].family.capability))
             if len(events) < 2:
@@ -862,6 +1201,8 @@ def build_qa_dataset(
     output_root: Path,
     batch_size: int = 100,
     excluded_capabilities: frozenset[str] = DEFAULT_EXCLUDED_CAPABILITIES,
+    excluded_episode_ids: frozenset[str] = frozenset(),
+    excluded_episode_capabilities: dict[str, frozenset[str]] | None = None,
 ) -> dict[str, Any]:
     """Build training-ready records plus answer-hidden evaluation projections."""
 
@@ -873,16 +1214,60 @@ def build_qa_dataset(
     if not dataset_path.is_file():
         raise QADatasetError(f"missing source dataset index: {dataset_path}")
     dataset = _read_json(dataset_path)
-    if dataset.get("failed_trajectory_count") != 0:
-        raise QADatasetError("source collection contains failed trajectories")
+    excluded_episode_capabilities = excluded_episode_capabilities or {}
     if dataset.get("standard_version") != STD_V1.standard_version:
         raise QADatasetError(
             f"source standard {dataset.get('standard_version')} != compiler {STD_V1.standard_version}"
         )
 
+    if dataset.get("schema_version") == "scriptgen_binding_coverage_dataset.v1":
+        known_episode_ids = {episode["episode_id"] for episode in dataset["episodes"]}
+        unknown_exclusions = excluded_episode_ids - known_episode_ids
+        if unknown_exclusions:
+            raise QADatasetError(
+                "excluded coverage episodes are unknown: "
+                + ", ".join(sorted(unknown_exclusions)[:10])
+            )
+        unknown_scoped = set(excluded_episode_capabilities) - known_episode_ids
+        if unknown_scoped:
+            raise QADatasetError(
+                "capability exclusions name unknown coverage episodes: "
+                + ", ".join(sorted(unknown_scoped)[:10])
+            )
+        group_paths = _coverage_group_paths(
+            source_root,
+            dataset,
+            excluded_episode_ids=excluded_episode_ids,
+        )
+        source_trajectory_count = len(group_paths)
+        source_capabilities = {
+            (source_root / "groups" / episode["episode_id"] / "group.json").resolve(): episode[
+                "source_capability"
+            ]
+            for episode in dataset["episodes"]
+            if episode["episode_id"] not in excluded_episode_ids
+        }
+    else:
+        if excluded_episode_ids or excluded_episode_capabilities:
+            raise QADatasetError(
+                "episode and capability exclusions require a coverage dataset source"
+            )
+        if dataset.get("failed_trajectory_count") != 0:
+            raise QADatasetError("source collection contains failed trajectories")
+        group_paths = None
+        source_trajectory_count = dataset.get("accepted_trajectory_count")
+        source_capabilities = None
+
     hasher = SourceHasher(source_root)
     hasher.hash(dataset_path)
-    sources = list(_family_sources(source_root, excluded_capabilities))
+    sources = list(
+        _family_sources(
+            source_root,
+            excluded_capabilities,
+            group_paths=group_paths,
+            excluded_episode_capabilities=excluded_episode_capabilities,
+        )
+    )
     seen_groups: set[Path] = set()
     for source in sources:
         if source.group_path in seen_groups:
@@ -910,7 +1295,10 @@ def build_qa_dataset(
             raw_oracles.append(triple[2])
 
     streaming_records, streaming_inputs, streaming_oracles, streaming_skips = _build_streaming(
-        source_root, sources, hasher
+        source_root,
+        sources,
+        hasher,
+        source_capabilities=source_capabilities,
     )
     raw_records, raw_inputs, raw_oracles = _assign_batches(
         raw_records,
@@ -952,17 +1340,28 @@ def build_qa_dataset(
     _write_jsonl(output_root / "source_snapshot.jsonl", source_rows)
     policy = {
         "schema_version": POLICY_SCHEMA,
-        "policy_version": "generation_policy.v1",
+        "policy_version": "generation_policy.v2",
         "source_is_read_only": True,
         "model_visible_modalities": ["rgb"],
         "excluded_capabilities": sorted(excluded_capabilities),
+        "excluded_episode_ids": sorted(excluded_episode_ids),
+        "excluded_episode_capabilities": {
+            episode_id: sorted(capabilities)
+            for episode_id, capabilities in sorted(excluded_episode_capabilities.items())
+        },
         "raw_variants": ["canonical", "permute", "drop_key", "drop_filler", "delay"],
         "streaming": {
             "P1": (
-                "group questions at first valid label and valid label changes; "
-                "require at least two frames so motion is observable"
+                "group questions at consecutive valid label transitions; preserve A-B-A; "
+                "require an authoritative pose transition and force the source capability "
+                "at the canonical full-episode endpoint"
             ),
             "P2_P3": "last abstain prefix then first answerable prefix per family",
+            "occlusion_isolated": (
+                "one question per record at immediate and delayed prefixes; cause labels "
+                "are 1:1:1 occluded/out_of_view/unable; identity adds deterministic "
+                "drop-key records for approximately 25% unable"
+            ),
             "variants": ["canonical"],
             "invalid_prefix_policy": "never serialize as abstain",
         },
@@ -970,7 +1369,7 @@ def build_qa_dataset(
         "language_policy": "preserve family question; append label glossary and exact output contract",
         "gold_policy": "compiler_only; model predictions never modify gold",
     }
-    _write_json(output_root / "generation_policy.v1.json", policy)
+    _write_json(output_root / "generation_policy.v2.json", policy)
     _write_jsonl(
         output_root / "generation_policy_history.jsonl",
         [
@@ -993,23 +1392,37 @@ def build_qa_dataset(
             },
             {
                 "iteration": 2,
-                "status": "frozen",
+                "status": "superseded",
                 "rule": "generation_policy.v1",
-                "reason": "deterministic gates passed; subsequent model errors cannot alter gold",
+                "reason": "audit found global label dedup, missing endpoint, and pose evidence bugs",
+            },
+            {
+                "iteration": 3,
+                "status": "frozen",
+                "rule": "generation_policy.v2",
+                "reason": (
+                    "use consecutive label dedup, canonical source endpoint, and pose-transition "
+                    "evidence gate; compiler gold remains authoritative"
+                ),
             },
         ],
     )
     manifest = {
         "schema_version": MANIFEST_SCHEMA,
-        "dataset_id": "scriptgen_qa_v1",
+        "dataset_id": "scriptgen_qa_v2",
         "pool": "development_pool",
         "source_root": str(source_root),
         "source_collection_id": dataset.get("collection_id"),
         "source_standard_version": dataset.get("standard_version"),
-        "source_trajectory_count": dataset.get("accepted_trajectory_count"),
+        "source_trajectory_count": source_trajectory_count,
         "source_snapshot_sha256": _source_digest(source_rows),
         "source_snapshot_file_count": len(source_rows),
         "excluded_capabilities": sorted(excluded_capabilities),
+        "excluded_episode_ids": sorted(excluded_episode_ids),
+        "excluded_episode_capabilities": {
+            episode_id: sorted(capabilities)
+            for episode_id, capabilities in sorted(excluded_episode_capabilities.items())
+        },
         "family_count": len(sources),
         "raw_record_count": len(raw_records),
         "streaming_record_count": len(streaming_records),
@@ -1029,7 +1442,7 @@ def build_qa_dataset(
             "streaming_eval_oracle": "streaming_eval_oracle.jsonl",
             "source_snapshot": "source_snapshot.jsonl",
             "source_mount": "source/",
-            "policy": "generation_policy.v1.json",
+            "policy": "generation_policy.v2.json",
             "policy_history": "generation_policy_history.jsonl",
         },
         "training_status": "not_run",

@@ -31,7 +31,7 @@ from .geometry import (
     segment_intersects_rect,
     wrap_deg,
 )
-from .sceneview import GeometrySceneView, Pose2D, SceneLayout, SceneView
+from .sceneview import GeometrySceneView, Pose2D, ReindexedSceneView, SceneLayout, SceneView
 from .standards import CompileStandard
 
 
@@ -251,6 +251,45 @@ def visible_somewhere(
     return Verdict(False, {"obj": obj, "frames": rows})
 
 
+@predicate("consecutive_visible_frames_ge")
+def consecutive_visible_frames_ge(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    frames: Sequence[int],
+    required: int,
+) -> Verdict:
+    """The target supplies a consecutive run of clear identity evidence."""
+
+    if required < 1:
+        raise ValueError("required must be positive")
+    rows = _tristates(view, obj, frames, std)
+    longest = 0
+    current = 0
+    for _, state, _ in rows:
+        current = current + 1 if state is True else 0
+        longest = max(longest, current)
+    ambiguous = [frame for frame, state, _ in rows if state is None]
+    holds: bool | None
+    if longest >= required:
+        holds = True
+    elif ambiguous:
+        holds = None
+    else:
+        holds = False
+    return Verdict(
+        holds,
+        {
+            "obj": obj,
+            "frames": rows,
+            "longest_consecutive_visible_frames": longest,
+            "required_frames": required,
+            "ambiguous_frames": ambiguous,
+        },
+    )
+
+
 @predicate("invisible_in_range")
 def invisible_in_range(
     view: SceneView, std: CompileStandard, *, obj: str, frames: Sequence[int]
@@ -460,13 +499,29 @@ def turn_below(view: SceneView, std: CompileStandard, *, frames: Sequence[int]) 
 def _turn_segment_count(view: SceneView, frames: Sequence[int], threshold: float) -> int:
     from .geometry import wrap_deg
 
-    active = [
-        abs(wrap_deg(view.camera_pose(b).yaw_deg - view.camera_pose(a).yaw_deg)) >= threshold
-        for a, b in pairwise(frames)
-    ]
-    return sum(
-        value and (index == 0 or not active[index - 1]) for index, value in enumerate(active)
-    )
+    count = 0
+    active_run = False
+    for left, right in pairwise(frames):
+        # Repeating the exact same source frame is the explicit delay
+        # intervention. It adds elapsed time but no new motion evidence, so it
+        # is neutral and must not split one continuous turn into two segments.
+        left_source = view.frames[left] if isinstance(view, ReindexedSceneView) else left
+        right_source = view.frames[right] if isinstance(view, ReindexedSceneView) else right
+        if left_source == right_source:
+            continue
+        active = (
+            abs(
+                wrap_deg(
+                    view.camera_pose(right).yaw_deg
+                    - view.camera_pose(left).yaw_deg
+                )
+            )
+            >= threshold
+        )
+        if active and not active_run:
+            count += 1
+        active_run = active
+    return count
 
 
 @predicate("turn_segments_between")
@@ -510,6 +565,45 @@ def occluded_in_view(view: SceneView, std: CompileStandard, *, obj: str, frame: 
             "blocked_by": ",".join(blocked_by),
         },
     )
+
+
+@predicate("disappearance_event")
+def disappearance_event(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    frame: int,
+    cause: str = "either",
+) -> Verdict:
+    """A decisive, semantically eligible disappearance event at ``frame``."""
+
+    if not hasattr(view, "occlusion"):
+        return Verdict(None, {"obj": obj, "frame": frame, "reason": "backend_unsupported"})
+    from .occlusion import occluder_category_allowed
+
+    observation = view.occlusion(obj, frame)
+    witness = dict(observation.witness)
+    witness.update({"obj": obj, "frame": frame, "required_cause": cause})
+    if observation.status == "ambiguous":
+        return Verdict(None, witness)
+    if observation.status == "occluded":
+        # Search-time OBB rays nominate plausible blockers but do not carry a
+        # render instance category.  Geometry therefore passes conservatively;
+        # authoritative render compilation applies the semantic allow-list.
+        if observation.kind == "geometry_ray_3d":
+            witness["semantic_filter_phase"] = "render_compile"
+            return Verdict(cause in {"either", "occluded"}, witness)
+        category = witness.get("occluder_category")
+        allowed = occluder_category_allowed(category if isinstance(category, str) else None)
+        witness["occluder_category_allowed"] = allowed
+        if not allowed:
+            witness["semantic_reason"] = "disallowed_occluder_category"
+            return Verdict(False, witness)
+        return Verdict(cause in {"either", "occluded"}, witness)
+    reason = witness.get("reason")
+    is_out = reason in {"target_behind_camera", "target_projection_outside_image"}
+    return Verdict(is_out and cause in {"either", "out_of_view"}, witness)
 
 
 @predicate("all_landmarks_visible")

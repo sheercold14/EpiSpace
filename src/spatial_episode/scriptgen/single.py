@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +21,11 @@ from .library import SCRIPT_LIBRARY
 from .standards import STD_V1, CompileStandard
 
 SINGLE_RUN_SCHEMA_VERSION = "scriptgen_single_run.v1"
+_DETERMINISTIC_RENDER_FAILURE_PREFIXES = (
+    "renderer_failure:RuntimeError:auxiliary camera failed physics clearance:",
+    "renderer_failure:RuntimeError:scripted path failed traversability clearance:",
+    "renderer_failure:RuntimeError:scripted path failed physics capsule clearance:",
+)
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -136,6 +142,17 @@ def _validate_output_root(output_root: Path, *inputs: Path) -> None:
         )
 
 
+def _render_failure_is_retryable(reason: str | None) -> bool:
+    """Whether an unchanged candidate can benefit from one renderer retry."""
+    return not (
+        reason
+        and any(
+            reason.startswith(prefix)
+            for prefix in _DETERMINISTIC_RENDER_FAILURE_PREFIXES
+        )
+    )
+
+
 def _render(
     *,
     recipe: Path,
@@ -170,29 +187,60 @@ def _render(
     if bundle.exists():
         command.append("--overwrite")
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with log_path.open("w", encoding="utf-8") as log:
-            result = subprocess.run(
-                command,
-                cwd=og_root,
-                env=_runtime_env(og_root, data_root),
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=timeout_minutes * 60,
-                check=False,
-            )
-    except subprocess.TimeoutExpired:
-        return False, f"render_timeout_after_{timeout_minutes}_minutes"
-    if result.returncode != 0:
-        return False, f"renderer_exit_{result.returncode}"
+    timed_out = False
+    with log_path.open("w", encoding="utf-8") as log:
+        process = subprocess.Popen(
+            command,
+            cwd=og_root,
+            env=_runtime_env(og_root, data_root),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            # ``conda run`` launches descendants. A timeout must own a
+            # process group or the renderer can survive and race the retry
+            # while publishing the same bundle.
+            start_new_session=True,
+        )
+        try:
+            returncode = process.wait(timeout=timeout_minutes * 60)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                returncode = process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                returncode = process.wait()
+
     report_path = bundle / "render_report.json"
-    if not report_path.is_file():
-        return False, "render_report_missing"
-    report = json.loads(report_path.read_text(encoding="utf-8"))
-    if report.get("status") != "success":
+    if report_path.is_file():
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        if report.get("status") == "success":
+            # The backend atomically publishes the complete directory before
+            # OmniGibson shutdown. A shutdown hang / non-zero exit therefore
+            # must not discard or re-render an already complete bundle.
+            return True, None
         return False, "render_report_not_success"
-    return True, None
+
+    failure_path = bundle / "failure_report.json"
+    if failure_path.is_file():
+        failure = json.loads(failure_path.read_text(encoding="utf-8"))
+        error = failure.get("error") or {}
+        return False, (
+            f"renderer_failure:{error.get('type', 'unknown')}:"
+            f"{error.get('message', 'unknown')}"
+        )
+    if timed_out:
+        return False, f"render_timeout_after_{timeout_minutes}_minutes"
+    if returncode != 0:
+        return False, f"renderer_exit_{returncode}"
+    return False, "render_report_missing"
 
 
 def run_one(

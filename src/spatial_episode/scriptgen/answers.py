@@ -85,6 +85,76 @@ def target_sector(
     )
 
 
+@answer_mode("occluder_category_at")
+def occluder_category_at(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    frame: int,
+) -> AnswerResult:
+    """Semantic category of the authority-attributed blocker at an event."""
+
+    del std
+    from .occlusion import DISAPPEARANCE_POLICY_VERSION, occluder_category_allowed
+
+    observation = view.occlusion(obj, frame)
+    category = observation.witness.get("occluder_category")
+    if observation.kind == "geometry_ray_3d" and observation.occluder_ids:
+        try:
+            category = view.object(observation.occluder_ids[0]).category
+        except KeyError:
+            category = observation.occluder_ids[0]
+    if observation.status != "occluded" or (
+        observation.kind != "geometry_ray_3d"
+        and not occluder_category_allowed(category if isinstance(category, str) else None)
+    ):
+        raise ValueError("occluder category answer requires an eligible occlusion clause")
+    entity_id = observation.witness.get("occluder_entity_id") or (
+        observation.occluder_ids[0] if observation.occluder_ids else ""
+    )
+    return AnswerResult(
+        label=str(category),
+        witness={
+            "event_frame": frame,
+            "occluder_category": str(category),
+            "occluder_entity_id": str(entity_id),
+            "event_policy_version": DISAPPEARANCE_POLICY_VERSION,
+        },
+    )
+
+
+@answer_mode("disappearance_cause_at")
+def disappearance_cause_at(
+    view: SceneView,
+    std: CompileStandard,
+    *,
+    obj: str,
+    frame: int,
+) -> AnswerResult:
+    """Whether the decisive disappearance was occlusion or leaving the view."""
+
+    del std
+    observation = view.occlusion(obj, frame)
+    if observation.status == "occluded":
+        label = "occluded"
+    elif observation.status == "clear" and observation.witness.get("reason") in {
+        "target_behind_camera",
+        "target_projection_outside_image",
+    }:
+        label = "out_of_view"
+    else:
+        raise ValueError("disappearance cause answer requires a decisive event clause")
+    return AnswerResult(
+        label=label,
+        witness={
+            "event_frame": frame,
+            "cause": label,
+            "authority_reason": str(observation.witness.get("reason") or "occluder_attributed"),
+        },
+    )
+
+
 @answer_mode("view_side")
 def view_side(
     view: SceneView,

@@ -325,6 +325,24 @@ def test_render_occlusion_attribution_uses_instance_and_depth(tmp_path: Path) ->
     assert evidence.witness["depth_margin_m"] == 2.0
 
 
+def test_render_visibility_and_occlusion_results_are_cached(tmp_path: Path) -> None:
+    view = _render_occlusion_view(
+        tmp_path,
+        patch_ids=np.full((9, 9), 42, dtype=np.uint32),
+        patch_depth=np.full((9, 9), 2.0, dtype=np.float32),
+        runtime_entity_ids={42: "bookcase"},
+    )
+
+    visibility = view.visibility("target", 0)
+    occlusion = view.occlusion("target", 0)
+    view._mask_cache.clear()
+    view._depth_cache.clear()
+    (view.bundle_root / "views" / "view-000.sensors.npz").unlink()
+
+    assert view.visibility("target", 0) is visibility
+    assert view.occlusion("target", 0) is occlusion
+
+
 def test_render_occlusion_attribution_rejects_competing_instances(tmp_path: Path) -> None:
     identifiers = np.full((9, 9), 42, dtype=np.uint32)
     identifiers[:, 5:] = 43

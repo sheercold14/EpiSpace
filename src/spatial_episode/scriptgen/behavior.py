@@ -261,6 +261,12 @@ class RenderSceneView:
     camera_heights_m: tuple[float, ...] = ()
     _mask_cache: dict[int, np.ndarray] = field(default_factory=dict, compare=False)
     _depth_cache: dict[int, np.ndarray] = field(default_factory=dict, compare=False)
+    _visibility_cache: dict[tuple[str, int], VisibilityObservation] = field(
+        default_factory=dict, compare=False
+    )
+    _occlusion_cache: dict[tuple[str, int], OcclusionObservation] = field(
+        default_factory=dict, compare=False
+    )
 
     @classmethod
     def from_bundle(
@@ -350,12 +356,19 @@ class RenderSceneView:
         return list(self.layout.objects)
 
     def visibility(self, name: str, t: int) -> VisibilityObservation:
+        key = (name, t)
+        cached = self._visibility_cache.get(key)
+        if cached is not None:
+            return cached
         runtime_ids = self.entity_runtime_ids.get(name, ())
         if not runtime_ids:
-            return VisibilityObservation("render_pixels", 0.0, 1.0)
-        instance = self._instance_mask(t)
-        pixels = int(np.isin(instance, runtime_ids).sum())
-        return VisibilityObservation("render_pixels", float(pixels), 1.0)
+            result = VisibilityObservation("render_pixels", 0.0, 1.0)
+        else:
+            instance = self._instance_mask(t)
+            pixels = int(np.isin(instance, runtime_ids).sum())
+            result = VisibilityObservation("render_pixels", float(pixels), 1.0)
+        self._visibility_cache[key] = result
+        return result
 
     def occluders_between(self, name: str, t: int) -> tuple[str, ...]:
         return self.occlusion(name, t).occluder_ids
@@ -368,6 +381,16 @@ class RenderSceneView:
         whose linear depth is safely in front of the target centre. Ambiguous
         or unmapped evidence is never promoted to an occlusion claim.
         """
+        key = (name, t)
+        cached = self._occlusion_cache.get(key)
+        if cached is not None:
+            return cached
+        result = self._compute_occlusion(name, t)
+        self._occlusion_cache[key] = result
+        return result
+
+    def _compute_occlusion(self, name: str, t: int) -> OcclusionObservation:
+        """Uncached implementation for :meth:`occlusion`."""
         target_visibility = self.visibility(name, t)
         target_state = target_visibility.tristate(self.std)
         base: dict[str, Any] = {

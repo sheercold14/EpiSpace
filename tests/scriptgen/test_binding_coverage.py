@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,10 +20,12 @@ from spatial_episode.scriptgen.binding_coverage import (
     _confirmed_render_unresolvable_targets,
     _completed_scene_prefix,
     _derived_seed,
+    _geometry_pool,
     _new_candidates,
     _scene_occupancy_proxy_rejection,
     _validate_rendered_candidate,
     compatible_credit_cell_ids,
+    initialize_coverage_status,
     load_coverage,
     plan_coverage,
     run_coverage,
@@ -289,6 +292,68 @@ def test_initial_search_uses_a_small_frontier_before_the_150_attempt_cap(
     assert not search.search_pool_exhausted
 
 
+def test_label_aware_geometry_pool_scans_frontier_and_keeps_only_desired_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = _scene(tmp_path)
+    cell = CoverageCell(
+        cell_id="cell",
+        scene_key="scene",
+        scene_id="scene",
+        capability="self_motion_update_pure_rotation",
+        binding={"target": "target"},
+        seed=17,
+        desired_answer_label="left",
+        target_accepted=3,
+        geometry_pool_size=0,
+        diverse_pool_size=0,
+    )
+    left = _plan(
+        "left.a0", capability="self_motion_update_pure_rotation"
+    ).model_copy(
+        update={
+            "provisional_answer": ProvisionalAnswer(
+                mode="target_sector", label="left", witness={}
+            )
+        }
+    )
+    back = _plan(
+        "back.a1", capability="self_motion_update_pure_rotation"
+    ).model_copy(
+        update={
+            "provisional_answer": ProvisionalAnswer(
+                mode="target_sector", label="back", witness={}
+            )
+        }
+    )
+    observed = {}
+
+    def fake_generate(*args, **kwargs):
+        observed.update(kwargs)
+        return SimpleNamespace(plans=(left, back), rejection_counts={})
+
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage.layout_from_scene_ir",
+        lambda *args, **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage.generate_plans", fake_generate
+    )
+
+    plans, rejection_counts = _geometry_pool(
+        cell,
+        scene,
+        attempts_per_binding=30,
+        plans_per_binding=6,
+        std=STD_V1,
+    )
+
+    assert plans == (left,)
+    assert rejection_counts == {"answer_label:not_left": 1}
+    assert observed["plans_per_binding"] == 30
+
+
 def _write_coverage_manifest(
     tmp_path: Path,
     *,
@@ -353,6 +418,35 @@ def test_render_pass_does_not_backfill_or_rewrite_manifest_while_planner_runs(
     assert manifest_path.read_bytes() == before
     status = json.loads(status_path.read_text(encoding="utf-8"))
     assert status["cells"]["cell"]["status"] == "awaiting_candidates"
+
+
+def test_initialize_status_without_rendering_and_validate_existing_index(
+    tmp_path: Path,
+) -> None:
+    scene = _scene(tmp_path)
+    cell = CoverageCell(
+        cell_id="cell",
+        scene_key="scene",
+        scene_id="scene",
+        capability="self_motion_update",
+        binding={"target": "target"},
+        seed=17,
+        target_accepted=10,
+        geometry_pool_size=0,
+        diverse_pool_size=0,
+    )
+    manifest_path = _write_coverage_manifest(tmp_path, cells=(cell,), scenes=(scene,))
+
+    status_path = initialize_coverage_status(manifest_path)
+    first = status_path.read_bytes()
+    assert initialize_coverage_status(manifest_path) == status_path
+    assert status_path.read_bytes() == first
+    status = json.loads(first)
+    assert status["cells"]["cell"] == {
+        "status": "planned",
+        "accepted_episode_ids": [],
+        "candidate_statuses": {},
+    }
 
 
 def test_question_variant_assertion_is_a_candidate_rejection(
@@ -951,6 +1045,141 @@ def test_answerable_companions_credit_their_projected_binding_cells(tmp_path: Pa
     assert credited == ("self_motion_update", "path_integration")
 
 
+def test_full_producer_continues_for_explicit_derived_credit_deficit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = _scene(tmp_path)
+    plan = _plan("plan.a0")
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "render_report.json").write_text(
+        json.dumps({"status": "success"}),
+        encoding="utf-8",
+    )
+    plan_record = tmp_path / "candidate.record.json"
+    plan_record.write_text(plan.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    candidate = CoverageCandidate(
+        candidate_id="candidate",
+        plan_id=plan.plan_id,
+        attempt_index=0,
+        plan_record=str(plan_record),
+        render_plan=str(tmp_path / "candidate.views.json"),
+        recipe=str(tmp_path / "candidate.yaml"),
+        bundle=str(bundle),
+        group=str(tmp_path / "group"),
+        log=str(tmp_path / "candidate.log"),
+    )
+    producer = CoverageCell(
+        cell_id="producer",
+        scene_key="scene",
+        scene_id="scene",
+        capability="self_motion_update",
+        binding={"target": "target"},
+        seed=17,
+        target_accepted=1,
+        geometry_pool_size=1,
+        diverse_pool_size=1,
+        candidates=(candidate,),
+    )
+    derived = CoverageCell(
+        cell_id="derived",
+        scene_key="scene",
+        scene_id="scene",
+        capability="path_integration",
+        binding={"target": "target"},
+        seed=29,
+        target_accepted=1,
+        geometry_pool_size=0,
+        diverse_pool_size=0,
+    )
+    manifest_path = _write_coverage_manifest(
+        tmp_path,
+        cells=(producer, derived),
+        scenes=(scene,),
+    )
+    (tmp_path / "coverage.status.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "scriptgen_binding_coverage_status.v1",
+                "collection_id": "coverage",
+                "cells": {
+                    "producer": {
+                        "status": "complete",
+                        "accepted_episode_ids": ["existing"],
+                        "candidate_statuses": {
+                            "candidate": {"status": "pending", "reason": None}
+                        },
+                    },
+                    "derived": {
+                        "status": "planned",
+                        "accepted_episode_ids": [],
+                        "candidate_statuses": {},
+                    },
+                },
+                "episodes": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    group = ScriptgenQuestionGroupV1(
+        question_group_id="group",
+        standard_version=STD_V1.standard_version,
+        trajectory=QuestionGroupTrajectory(
+            bundle=str(bundle),
+            plan_record=str(plan_record),
+            scene_ir=scene.scene_ir,
+            plan_id=plan.plan_id,
+            scene_id="scene",
+        ),
+        questions=(
+            QuestionGroupEntry(
+                capability="self_motion_update",
+                role="primary",
+                family_id="self",
+                label="back",
+                family="self/family.json",
+                skip_reason=None,
+            ),
+            QuestionGroupEntry(
+                capability="path_integration",
+                role="primary",
+                family_id="path",
+                label="right",
+                family="path/family.json",
+                skip_reason=None,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage.verify_coverage_sources",
+        lambda manifest: None,
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage._validate_rendered_candidate",
+        lambda *args, **kwargs: (group, plan),
+    )
+
+    status_path = run_coverage(
+        manifest_path,
+        og_root=tmp_path,
+        conda_env="behavior",
+        data_root=tmp_path,
+        gpu_ids=(0,),
+        cell_ids=("producer",),
+        credit_cell_ids=("derived",),
+        allow_backfill=False,
+        skip_preflight=True,
+    )
+
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    assert status["cells"]["producer"]["status"] == "complete"
+    assert status["cells"]["derived"]["accepted_episode_ids"] == ["candidate"]
+    assert status["cells"]["producer"]["candidate_statuses"]["candidate"][
+        "credited_cells"
+    ] == ["derived"]
+
+
 def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeypatch) -> None:
     source_root = tmp_path / "source"
     source_root.mkdir()
@@ -995,7 +1224,10 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
     index_path.write_text(index.model_dump_json(indent=2) + "\n", encoding="utf-8")
     monkeypatch.setattr(
         "spatial_episode.scriptgen.binding_coverage._bindings_for_scene",
-        lambda *args, **kwargs: ({"target": "target"},),
+        lambda *args, **kwargs: (
+            {"target": "target"},
+            {"target": "not-allowed"},
+        ),
     )
     monkeypatch.setattr(
         "spatial_episode.scriptgen.binding_coverage._new_candidates",
@@ -1023,6 +1255,7 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
         attempts_per_binding=2,
         maximum_multislot_bindings=1,
         capabilities=("self_motion_update",),
+        binding_allowlist={"scene": [{"target": "target"}]},
     )
     second = plan_coverage(
         source_index_path=index_path,
@@ -1032,11 +1265,13 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
         attempts_per_binding=2,
         maximum_multislot_bindings=1,
         capabilities=("self_motion_update",),
+        binding_allowlist={"scene": [{"target": "target"}]},
     )
 
     assert first == second
     manifest = load_coverage(first)
     assert len(manifest.cells) == 1
+    assert manifest.cells[0].binding == {"target": "target"}
 
     recipe.write_text("source: {changed: true}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="source recipe changed"):

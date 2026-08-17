@@ -20,6 +20,7 @@ Packing refuses to ship anything questionable:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -29,15 +30,18 @@ from typing import Any, Literal
 from .behavior import RenderSceneView
 from .compiler import CapabilityCompiler, Certificate
 from .library import (
+    AFTER_OCCLUSION_MOTION,
     CROSS_VIEW_CLOSER,
     CROSS_VIEW_RELATION,
     CROSS_VIEW_SCRIPT_SETS,
+    DISAPPEARANCE_CAUSE,
     EXISTENCE_SUFFICIENCY,
     HOMING,
     MULTI_TURN,
     NET_TURN,
     NET_TURN_MAGNITUDE,
     OCCLUDED_MOTION,
+    OCCLUDER_IDENTIFICATION,
     PURE_ROTATION,
     PURE_TRANSLATION,
     REFERENCE_FRAME_SCRIPTS,
@@ -63,6 +67,9 @@ QUESTION_ROLES: dict[str, FamilyRole] = {
     PURE_TRANSLATION.capability: "primary",
     MULTI_TURN.capability: "primary",
     OCCLUDED_MOTION.capability: "primary",
+    AFTER_OCCLUSION_MOTION.capability: "primary",
+    OCCLUDER_IDENTIFICATION.capability: "primary",
+    DISAPPEARANCE_CAUSE.capability: "primary",
     **{script.capability: "primary" for script in REFERENCE_FRAME_SCRIPTS},
     **{script.capability: "primary" for script in CROSS_VIEW_RELATION},
     **{script.capability: "probe" for script in CROSS_VIEW_CLOSER},
@@ -77,6 +84,15 @@ QUESTION_GROUP_SCRIPTS = (
     EXISTENCE_SUFFICIENCY,
 )
 QUESTION_SCRIPT_SETS = {
+    AFTER_OCCLUSION_MOTION.capability: (
+        AFTER_OCCLUSION_MOTION,
+        OCCLUDER_IDENTIFICATION,
+        DISAPPEARANCE_CAUSE,
+        NET_TURN,
+        NET_TURN_MAGNITUDE,
+        HOMING,
+        VIEW_SIDE,
+    ),
     **{
         script.capability: (*REFERENCE_FRAME_SCRIPTS, EXISTENCE_SUFFICIENCY)
         for script in REFERENCE_FRAME_SCRIPTS
@@ -240,9 +256,15 @@ def build_family_doc(
     if checks.unfilled_placeholders or checks.frame_number_leak or checks.answer_token_leak:
         raise FamilyBlocked(f"question text failed leak audit: {checks}")
 
-    role = role or _role_for(script)
     question_group_id = question_group_id or f"{plan['plan_id']}.question_group"
     family_id = family_id or f"{plan['plan_id']}.family.s{seed}"
+    role = role or _role_for(script)
+    question_options = _materialized_question_options(
+        script,
+        canonical.answer.label,
+        family_id,
+        template.options,
+    )
     episodes = (
         FamilyEpisode(
             episode_id=f"{family_id}.canonical",
@@ -280,7 +302,7 @@ def build_family_doc(
         referents=referents,
         question=FamilyQuestion(
             text=question_text,
-            options=template.options,
+            options=question_options,
             abstain_option=template.abstain_option,
         ),
         frames=frames,
@@ -460,6 +482,34 @@ def _role_for(script: ScriptSpec) -> FamilyRole:
         return QUESTION_ROLES[script.capability]
     except KeyError as error:
         raise ValueError(f"no question-group role for {script.capability!r}") from error
+
+
+def _materialized_question_options(
+    script: ScriptSpec,
+    correct_label: str,
+    family_id: str,
+    template_options: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Build a stable four-choice identity question without answer-position leaks."""
+
+    if script.capability != OCCLUDER_IDENTIFICATION.capability:
+        return template_options
+    abstain = script.templates[0].abstain_option
+    pool = [option for option in template_options if option not in {correct_label, abstain}]
+    if correct_label not in template_options or len(pool) < 2:
+        raise FamilyBlocked(
+            f"{family_id}: cannot materialize occluder choices for {correct_label!r}"
+        )
+
+    def rank(label: str, namespace: str) -> str:
+        return hashlib.sha256(f"{family_id}:{namespace}:{label}".encode()).hexdigest()
+
+    distractors = sorted(pool, key=lambda label: rank(label, "distractor"))[:2]
+    visible = sorted(
+        [correct_label, *distractors],
+        key=lambda label: rank(label, "position"),
+    )
+    return (*visible, abstain)
 
 
 def _audit(

@@ -12,6 +12,7 @@ from spatial_episode.scriptgen.collection import (
     CollectionManifest,
     SourceRenderEvidence,
     _binding_chain_source_covisible,
+    _reference_binding_eligible,
     _reference_render_robust_filter,
     _visit_render_robust_filter,
     discover_scenes,
@@ -174,6 +175,25 @@ def test_reference_render_filter_rejects_proxy_only_occlusion() -> None:
 
     assert _reference_render_robust_filter(clear, binding, STD_V1)
     assert not _reference_render_robust_filter(blocked, binding, STD_V1)
+
+
+def test_reference_binding_reserves_auxiliary_camera_probe_radius() -> None:
+    angle = math.radians(20.0)
+    objects = (
+        _object("viewpoint", "viewpoint_cat", 0.0, 0.0),
+        _object("facing", "facing_cat", 2.0, 0.0),
+        _object("target", "target_cat", 4.0 * math.cos(angle), 4.0 * math.sin(angle)),
+    )
+    binding = {"viewpoint": "viewpoint", "facing": "facing", "target": "target"}
+    clear = SceneLayout("clear", objects)
+    probe_collision = SceneLayout(
+        "probe_collision",
+        objects,
+        obstacles=(Obstacle("cabinet", (0.14, 0.0), (0.1, 0.1), 0.0, 1.4, 1.6),),
+    )
+
+    assert _reference_binding_eligible(clear, binding, STD_V1)
+    assert not _reference_binding_eligible(probe_collision, binding, STD_V1)
 
 
 def test_reference_render_plan_keeps_auxiliary_views_outside_sequence() -> None:

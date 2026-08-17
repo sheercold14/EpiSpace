@@ -153,8 +153,42 @@ class VariantBuilder:
     def _delay_sequence(self, delay_extra: int) -> tuple[int, ...]:
         """Pause at the midpoint of the spec-declared intervention window."""
         positions = self._intervention_positions()
-        pause_position = positions[len(positions) // 2]
         sequence = list(self.canonical.frame_sequence)
+        midpoint = positions[len(positions) // 2]
+        pause_position = midpoint
+        if any(
+            clause.predicate == "turn_segments_between"
+            for clause in self.compiler.script.clauses
+        ):
+            # A duplicated pose is a pause, not a new turn segment. Repeating
+            # a pose in the interior of a continuous turn nevertheless inserts
+            # a zero-yaw step and the v1 segment counter correctly sees two
+            # active runs. Pick the closest straight/boundary pose so the delay
+            # intervention changes elapsed time only.
+            from .geometry import wrap_deg
+
+            threshold = self.compiler.std.turn_segment_min_step_deg
+
+            def active(left: int, right: int) -> bool:
+                left_yaw = self.view.camera_pose(sequence[left]).yaw_deg
+                right_yaw = self.view.camera_pose(sequence[right]).yaw_deg
+                return abs(wrap_deg(right_yaw - left_yaw)) >= threshold
+
+            safe = [
+                position
+                for position in positions
+                if not (
+                    position > 0
+                    and position + 1 < len(sequence)
+                    and active(position - 1, position)
+                    and active(position, position + 1)
+                )
+            ]
+            if safe:
+                pause_position = min(
+                    safe,
+                    key=lambda position: (abs(position - midpoint), position),
+                )
         pause_at = sequence[pause_position]
         return tuple(
             sequence[: pause_position + 1]

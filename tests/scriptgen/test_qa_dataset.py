@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -18,12 +19,16 @@ from spatial_episode.scriptgen.qa_dataset import (
     FamilySource,
     QADatasetError,
     SourceHasher,
+    _coverage_group_paths,
+    _family_sources,
     _input_hash,
+    _p1_event_states,
     _raw_record,
     capability_tier,
     format_question,
     verify_source_snapshot,
 )
+from spatial_episode.scriptgen.sceneview import Pose2D
 from spatial_episode.scriptgen.qa_evaluation import answer_format_compliant, parse_answer_label
 from spatial_episode.scriptgen.qa_reporting import _raw_case, _stream_case
 from spatial_episode.scriptgen.standards import STD_V1
@@ -208,6 +213,108 @@ def test_source_snapshot_detects_drift(tmp_path: Path) -> None:
     assert verify_source_snapshot(source_root=source, snapshot_path=snapshot)["status"] == "pass"
     item.write_text('{"changed":true}', encoding="utf-8")
     assert verify_source_snapshot(source_root=source, snapshot_path=snapshot)["status"] == "fail"
+
+
+def test_coverage_group_paths_use_only_packaged_accepted_episodes(tmp_path: Path) -> None:
+    groups = tmp_path / "groups"
+    accepted = groups / "accepted" / "group.json"
+    redundant = groups / "redundant" / "group.json"
+    accepted.parent.mkdir(parents=True)
+    redundant.parent.mkdir(parents=True)
+    accepted.write_text("{}", encoding="utf-8")
+    redundant.write_text("{}", encoding="utf-8")
+    dataset = {
+        "episode_count": 1,
+        "episodes": [
+            {
+                "episode_id": "accepted",
+                "group": str(accepted),
+            }
+        ],
+    }
+    assert _coverage_group_paths(tmp_path, dataset) == (accepted.resolve(),)
+    assert _coverage_group_paths(
+        tmp_path,
+        dataset,
+        excluded_episode_ids=frozenset({"accepted"}),
+    ) == ()
+
+
+def test_capability_exclusion_keeps_episode_scope_narrow(tmp_path: Path) -> None:
+    source = _source(tmp_path)
+    (tmp_path / "plan.json").write_text(
+        __import__("json").dumps(PLAN), encoding="utf-8"
+    )
+    assert len(
+        list(
+            _family_sources(
+                tmp_path,
+                frozenset(),
+                group_paths=(source.group_path,),
+            )
+        )
+    ) == 1
+    assert list(
+        _family_sources(
+            tmp_path,
+            frozenset(),
+            group_paths=(source.group_path,),
+            excluded_episode_capabilities={
+                "fake": frozenset({SELF_MOTION.capability})
+            },
+        )
+    ) == []
+
+
+def test_p1_streaming_preserves_label_return_and_forces_endpoint() -> None:
+    poses = (
+        Pose2D(0.0, 0.0, 0.0),
+        Pose2D(0.0, 0.0, 0.0),
+        Pose2D(1.0, 0.0, 0.0),
+        Pose2D(1.0, 0.0, 20.0),
+        Pose2D(1.0, 0.0, 20.0),
+    )
+    view = SimpleNamespace(camera_pose=lambda frame: poses[frame])
+
+    def state(prefix_length: int, label: str):
+        return SimpleNamespace(
+            prefix_length=prefix_length,
+            label=label,
+            certificate=SimpleNamespace(status="answerable"),
+        )
+
+    states = tuple(
+        state(prefix, label)
+        for prefix, label in enumerate(("A", "A", "A", "B", "A"), start=1)
+    )
+    selected = _p1_event_states(view, states, force_endpoint=True)
+
+    # Prefix 2 has no pose transition.  A -> B -> A is retained, and the
+    # full endpoint is already the final A event rather than being duplicated.
+    assert [(item.prefix_length, item.label) for item in selected] == [
+        (3, "A"),
+        (4, "B"),
+        (5, "A"),
+    ]
+
+
+def test_p1_streaming_endpoint_repeats_stable_source_answer() -> None:
+    poses = tuple(Pose2D(float(frame), 0.0, 0.0) for frame in range(4))
+    view = SimpleNamespace(camera_pose=lambda frame: poses[frame])
+
+    def state(prefix_length: int):
+        return SimpleNamespace(
+            prefix_length=prefix_length,
+            label="back",
+            certificate=SimpleNamespace(status="answerable"),
+        )
+
+    selected = _p1_event_states(
+        view,
+        tuple(state(prefix) for prefix in range(1, 5)),
+        force_endpoint=True,
+    )
+    assert [item.prefix_length for item in selected] == [2, 4]
 
 
 def test_model_errors_do_not_relabel_compiler_gold() -> None:

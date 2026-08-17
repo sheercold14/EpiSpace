@@ -122,6 +122,18 @@ def _run_resolver(
             if view.visibility(obj, t).tristate(std) is False:
                 return t
         return None
+    if fn == "first_decisive_disappearance":
+        from .occlusion import first_decisive_disappearance
+
+        (obj,) = args
+        event = first_decisive_disappearance(view, std, obj)
+        return None if event is None else event.frame
+    if fn == "last_visible_before":
+        obj, before = args[0], int(args[1])
+        for t in reversed(range(max(0, before))):
+            if view.visibility(obj, t).tristate(std) is True:
+                return t
+        return None
     raise ScriptError(f"unknown frame-var resolver in {expr!r}")
 
 

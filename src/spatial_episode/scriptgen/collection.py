@@ -38,6 +38,10 @@ DEFAULT_SEEDS = (17, 29)
 MAX_RANKED_OBJECTS = 18
 MAX_RANKED_BINDINGS = 128
 MAX_VISIT_BINDINGS = 128
+# The scripted backend validates auxiliary cameras with a sphere whose radius
+# equals the source sensor near plane. behavior51 source recipes all use 5 cm;
+# mirror that acquisition constraint in the cheap P2 binding prefilter.
+AUXILIARY_CAMERA_PROBE_RADIUS_M = 0.05
 
 REFERENCE_CAPABILITIES = frozenset(script.capability for script in REFERENCE_FRAME_SCRIPTS)
 
@@ -441,7 +445,10 @@ def _reference_binding_eligible(
         and point_in_rotated_rect(
             viewpoint.xy,
             obstacle.center_xy,
-            obstacle.half_extents_xy,
+            (
+                obstacle.half_extents_xy[0] + AUXILIARY_CAMERA_PROBE_RADIUS_M,
+                obstacle.half_extents_xy[1] + AUXILIARY_CAMERA_PROBE_RADIUS_M,
+            ),
             obstacle.yaw_deg,
         )
         for obstacle in layout.obstacles

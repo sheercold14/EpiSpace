@@ -129,6 +129,11 @@ def _scene_weights(
         row = status.get("cells", {}).get(cell_id, {})
         if len(row.get("accepted_episode_ids", ())) >= int(cell["target_accepted"]):
             continue
+        # A geometry-empty cell is still remote work when authoritative
+        # backfill is enabled.  Keep its scene in the shard even though its
+        # initial frame weight and pending-candidate count are both zero.
+        weights.setdefault(cell["scene_key"], 0)
+        pending_counts.setdefault(cell["scene_key"], 0)
         for candidate in cell.get("candidates", ()):
             if _candidate_state(status, cell_id, candidate["candidate_id"]) != "pending":
                 continue
@@ -140,7 +145,7 @@ def _scene_weights(
 def _assign_scenes(
     weights: dict[str, int], pending_counts: dict[str, int], shard_count: int
 ) -> list[dict[str, Any]]:
-    active = [scene_key for scene_key, count in pending_counts.items() if count > 0]
+    active = sorted(set(weights) | set(pending_counts))
     if len(active) < shard_count:
         raise ValueError(
             f"only {len(active)} scenes have pending render candidates; "
@@ -564,6 +569,23 @@ def command_finalize(args: argparse.Namespace) -> int:
     if running:
         raise RuntimeError("cannot finalize a running shard: " + ", ".join(running[:8]))
     metadata = _read_json(output_root / "shard.json")
+    manifest_candidate_ids = {
+        candidate["candidate_id"]
+        for cell in manifest.get("cells", ())
+        for candidate in cell.get("candidates", ())
+    }
+    status_candidate_ids = {
+        candidate_id
+        for row in status.get("cells", {}).values()
+        for candidate_id in row.get("candidate_statuses", {})
+    }
+    if manifest_candidate_ids != status_candidate_ids:
+        only_manifest = sorted(manifest_candidate_ids - status_candidate_ids)
+        only_status = sorted(status_candidate_ids - manifest_candidate_ids)
+        raise ValueError(
+            "cannot finalize inconsistent shard candidate indexes: "
+            f"manifest_only={only_manifest[:8]} status_only={only_status[:8]}"
+        )
     candidate_counts: dict[str, int] = defaultdict(int)
     cell_counts: dict[str, int] = defaultdict(int)
     for row in status.get("cells", {}).values():
@@ -641,6 +663,131 @@ def _localize_remote_candidate(
     }
 
 
+def _localize_group_trajectory(
+    group_path: Path,
+    *,
+    candidate: dict[str, Any],
+    scene_ir: Path,
+) -> bool:
+    """Rewrite worker-local trajectory references in one copied group."""
+    group = _read_json(group_path)
+    trajectory = group.get("trajectory")
+    if not isinstance(trajectory, dict):
+        raise ValueError(f"question group has no trajectory object: {group_path}")
+    if trajectory.get("plan_id") != candidate.get("plan_id"):
+        raise ValueError(f"question group plan mismatch: {group_path}")
+    if not scene_ir.is_file():
+        raise FileNotFoundError(scene_ir)
+    expected = {
+        **trajectory,
+        "bundle": str(Path(candidate["bundle"]).resolve()),
+        "plan_record": str(Path(candidate["plan_record"]).resolve()),
+        "scene_ir": str(scene_ir.resolve()),
+    }
+    if trajectory == expected:
+        return False
+    group["trajectory"] = expected
+    _write_json(group_path, group)
+    return True
+
+
+def _recover_status_only_candidates(
+    shard_manifest: dict[str, Any],
+    shard_status: dict[str, Any],
+    *,
+    result_root: Path,
+) -> list[str]:
+    """Recover dynamically backfilled candidates omitted from a shard manifest.
+
+    Older workers could persist a generated candidate and its terminal status
+    without appending the candidate entry to ``coverage.plan.json``.  The plan,
+    views, and recipe are still authoritative artifacts in the finalized result.
+    Reconstructing the small manifest entry keeps the immutable shard untouched
+    while making its plan and status indexes consistent in the merged dataset.
+    """
+    cells = {cell["cell_id"]: cell for cell in shard_manifest.get("cells", ())}
+    manifest_candidate_ids = {
+        candidate["candidate_id"]
+        for cell in cells.values()
+        for candidate in cell.get("candidates", ())
+    }
+    status_locations: dict[str, list[str]] = defaultdict(list)
+    for cell_id, row in shard_status.get("cells", {}).items():
+        for candidate_id in row.get("candidate_statuses", {}):
+            status_locations[candidate_id].append(cell_id)
+
+    recovered: list[str] = []
+    for candidate_id in sorted(set(status_locations) - manifest_candidate_ids):
+        locations = status_locations[candidate_id]
+        if len(locations) != 1:
+            raise ValueError(
+                f"status-only candidate has ambiguous cells: {candidate_id}={locations}"
+            )
+        cell_id = locations[0]
+        cell = cells.get(cell_id)
+        if cell is None:
+            raise ValueError(f"status-only candidate belongs to unknown cell: {candidate_id}")
+        match = re.fullmatch(re.escape(cell_id) + r"__a(\d+)", candidate_id)
+        if match is None:
+            raise ValueError(
+                f"status-only candidate does not match its cell: {candidate_id}/{cell_id}"
+            )
+
+        plan_record = result_root / "plans" / f"{candidate_id}.record.json"
+        render_plan = result_root / "plans" / f"{candidate_id}.views.json"
+        recipe = result_root / "recipes" / f"{candidate_id}.yaml"
+        for artifact in (plan_record, render_plan, recipe):
+            if not artifact.is_file():
+                raise FileNotFoundError(
+                    f"status-only candidate is missing its authoritative artifact: {artifact}"
+                )
+        record = _read_json(plan_record)
+        expected = {
+            "scene_id": cell.get("scene_id"),
+            "capability": cell.get("capability"),
+            "binding": cell.get("binding"),
+            "seed": cell.get("seed"),
+        }
+        mismatches = {
+            key: (record.get(key), value)
+            for key, value in expected.items()
+            if record.get(key) != value
+        }
+        if mismatches:
+            raise ValueError(
+                f"status-only candidate plan disagrees with its cell: "
+                f"{candidate_id} {mismatches}"
+            )
+        episode = shard_status.get("episodes", {}).get(candidate_id)
+        if episode is not None and episode.get("plan_id") != record.get("plan_id"):
+            raise ValueError(
+                f"status-only episode plan_id mismatch: {candidate_id}"
+            )
+
+        cell.setdefault("candidates", []).append(
+            {
+                "candidate_id": candidate_id,
+                "plan_id": record["plan_id"],
+                "attempt_index": int(match.group(1)),
+                "plan_record": str(plan_record),
+                "render_plan": str(render_plan),
+                "recipe": str(recipe),
+                "bundle": str(result_root / "bundles" / candidate_id),
+                "group": str(result_root / "groups" / candidate_id),
+                "log": str(result_root / "logs" / f"{candidate_id}.log"),
+            }
+        )
+        cell["candidates"].sort(
+            key=lambda candidate: (
+                int(candidate.get("attempt_index", -1)),
+                candidate["candidate_id"],
+            )
+        )
+        recovered.append(candidate_id)
+
+    return recovered
+
+
 def command_merge(args: argparse.Namespace) -> int:
     manifest_path = args.manifest.resolve()
     manifest = _read_json(manifest_path)
@@ -682,6 +829,7 @@ def command_merge(args: argparse.Namespace) -> int:
         raise RuntimeError("master status is running; stop the local pipeline before merging")
 
     master_cells = {cell["cell_id"]: cell for cell in manifest["cells"]}
+    master_scenes = {scene["scene_key"]: scene for scene in manifest["scenes"]}
     master_candidates = {
         candidate["candidate_id"]: candidate
         for cell in manifest["cells"]
@@ -727,6 +875,18 @@ def command_merge(args: argparse.Namespace) -> int:
             metadata["cell_ids"]
         ):
             raise ValueError(f"shard manifest cell assignment changed: {shard_name}")
+
+        recovered_candidates = _recover_status_only_candidates(
+            shard_manifest,
+            shard_status,
+            result_root=result_root,
+        )
+        if recovered_candidates:
+            print(
+                f"merge recovered status-only candidates={len(recovered_candidates)} "
+                f"shard={shard_name}",
+                file=sys.stderr,
+            )
 
         localized_cells: dict[str, dict[str, Any]] = {}
         for remote_cell in shard_manifest["cells"]:
@@ -787,6 +947,14 @@ def command_merge(args: argparse.Namespace) -> int:
                 raise ValueError(f"unknown episode candidate in {shard_name}: {episode_id}")
             local_episode = dict(episode)
             candidate = master_candidates[episode_id]
+            scene_key = episode.get("scene_key")
+            if scene_key not in master_scenes:
+                raise ValueError(f"unknown episode scene in {shard_name}: {episode_id}")
+            _localize_group_trajectory(
+                Path(candidate["group"]) / "group.json",
+                candidate=candidate,
+                scene_ir=Path(master_scenes[scene_key]["scene_ir"]),
+            )
             local_episode["bundle"] = candidate["bundle"]
             local_episode["group"] = str(Path(candidate["group"]) / "group.json")
             status["episodes"][episode_id] = local_episode

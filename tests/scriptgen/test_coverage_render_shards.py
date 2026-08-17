@@ -29,6 +29,48 @@ def test_scene_assignment_balances_whole_scenes() -> None:
     assert sum(item["pending_candidates"] for item in assignments) == 20
 
 
+def test_zero_candidate_deficit_scene_is_kept_for_remote_backfill() -> None:
+    manifest = {
+        "cells": [
+            {
+                "cell_id": "zero",
+                "scene_key": "scene-zero",
+                "target_accepted": 3,
+                "candidates": [],
+            },
+            {
+                "cell_id": "ready",
+                "scene_key": "scene-ready",
+                "target_accepted": 3,
+                "candidates": [
+                    {"candidate_id": "candidate", "render_plan": "unused"}
+                ],
+            },
+        ]
+    }
+    status = {
+        "cells": {
+            "zero": {
+                "accepted_episode_ids": [],
+                "candidate_statuses": {},
+            },
+            "ready": {
+                "accepted_episode_ids": [],
+                "candidate_statuses": {
+                    "candidate": {"status": "pending", "reason": None}
+                },
+            },
+        }
+    }
+
+    weights, pending = SHARDS._scene_weights(manifest, status)
+
+    assert weights["scene-zero"] == 0
+    assert pending["scene-zero"] == 0
+    assignments = SHARDS._assign_scenes(weights, pending, 1)
+    assert assignments[0]["scene_keys"] == ["scene-ready", "scene-zero"]
+
+
 def test_build_and_prepare_rebases_all_runtime_paths(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -205,3 +247,100 @@ def test_remote_backfill_candidate_is_copied_and_rebased(tmp_path: Path) -> None
     recipe = Path(localized["recipe"]).read_text(encoding="utf-8")
     assert str(master_output / "plans" / f"{candidate_id}.views.json") in recipe
     assert str(result_root) not in recipe
+
+
+def test_status_only_backfill_candidate_is_recovered(tmp_path: Path) -> None:
+    result_root = tmp_path / "remote" / "output"
+    cell_id = "scene__self_motion_update__binding"
+    candidate_id = f"{cell_id}__a031"
+    record = {
+        "plan_id": "scene-id.self_motion_update.b0.s17.a31",
+        "scene_id": "scene-id",
+        "capability": "self_motion_update",
+        "binding": {"target": "target"},
+        "seed": 17,
+    }
+    _write_json(result_root / "plans" / f"{candidate_id}.record.json", record)
+    _write_json(result_root / "plans" / f"{candidate_id}.views.json", {"views": []})
+    (result_root / "recipes").mkdir(parents=True)
+    (result_root / "recipes" / f"{candidate_id}.yaml").write_text(
+        "trajectory:\n"
+        f"  plan_path: {result_root}/plans/{candidate_id}.views.json\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "cells": [
+            {
+                "cell_id": cell_id,
+                "scene_id": "scene-id",
+                "capability": "self_motion_update",
+                "binding": {"target": "target"},
+                "seed": 17,
+                "candidates": [],
+            }
+        ]
+    }
+    status = {
+        "cells": {
+            cell_id: {
+                "candidate_statuses": {candidate_id: {"status": "accepted"}}
+            }
+        },
+        "episodes": {candidate_id: {"plan_id": record["plan_id"]}},
+    }
+
+    recovered = SHARDS._recover_status_only_candidates(
+        manifest,
+        status,
+        result_root=result_root,
+    )
+
+    assert recovered == [candidate_id]
+    candidate = manifest["cells"][0]["candidates"][0]
+    assert candidate["candidate_id"] == candidate_id
+    assert candidate["attempt_index"] == 31
+    assert candidate["plan_id"] == record["plan_id"]
+
+
+def test_copied_group_trajectory_is_localized(tmp_path: Path) -> None:
+    group_path = tmp_path / "master" / "groups" / "candidate" / "group.json"
+    scene_ir = tmp_path / "sources" / "scene_ir.json"
+    _write_json(scene_ir, {"scene_id": "scene-id", "entities": []})
+    _write_json(
+        group_path,
+        {
+            "trajectory": {
+                "bundle": "/remote/output/bundles/candidate",
+                "plan_record": "/remote/package/plans/candidate.record.json",
+                "scene_ir": "/remote/package/sources/scene_ir.json",
+                "plan_id": "plan-id",
+                "scene_id": "scene-id",
+            }
+        },
+    )
+    candidate = {
+        "candidate_id": "candidate",
+        "plan_id": "plan-id",
+        "bundle": str(tmp_path / "master" / "bundles" / "candidate"),
+        "plan_record": str(tmp_path / "master" / "plans" / "candidate.record.json"),
+    }
+
+    changed = SHARDS._localize_group_trajectory(
+        group_path,
+        candidate=candidate,
+        scene_ir=scene_ir,
+    )
+    group = json.loads(group_path.read_text(encoding="utf-8"))
+
+    assert changed is True
+    assert group["trajectory"]["bundle"] == candidate["bundle"]
+    assert group["trajectory"]["plan_record"] == candidate["plan_record"]
+    assert group["trajectory"]["scene_ir"] == str(scene_ir)
+    assert (
+        SHARDS._localize_group_trajectory(
+            group_path,
+            candidate=candidate,
+            scene_ir=scene_ir,
+        )
+        is False
+    )

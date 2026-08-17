@@ -35,7 +35,7 @@ from .generate import generate_plans
 from .library import SCRIPT_LIBRARY
 from .motifs import proposal_occupancy_grid
 from .plan import TrajectoryPlan
-from .single import _preflight, _render, _write_recipe
+from .single import _preflight, _render, _render_failure_is_retryable, _write_recipe
 from .slotting import iter_bindings
 from .source_inventory import SourceIndex, SourceSceneRecord, load_source_index
 from .spec import SpecModel
@@ -56,6 +56,8 @@ DEFERRED_INITIAL_CAPABILITIES = frozenset(
         "homing_probe",
         "view_side_check",
         "existence_sufficiency_bed",
+        "occluder_identification",
+        "disappearance_cause",
         *(
             capability
             for capability in REFERENCE_CAPABILITIES
@@ -89,6 +91,14 @@ class CoverageCell(SpecModel):
     capability: str
     binding: dict[str, str]
     seed: int
+    # Optional geometry / render answer constraint used by label-aware repair
+    # overlays.  Separate manifests are used for separate labels so the
+    # ordinary capability+binding coverage key remains unambiguous.
+    desired_answer_label: str | None = None
+    # Optional repair-round suffix for candidate IDs.  A new deterministic
+    # seed can then reuse attempt indices 0..N without colliding with the
+    # immutable candidates retained from an earlier collection version.
+    candidate_namespace: str = ""
     target_accepted: int = Field(ge=1)
     geometry_pool_size: int = Field(ge=0)
     diverse_pool_size: int = Field(ge=0)
@@ -114,6 +124,7 @@ class CoverageManifest(SpecModel):
     maximum_multislot_bindings: int = Field(ge=1)
     limit_bindings_per_capability: int | None = Field(default=None, ge=1)
     capabilities: tuple[str, ...]
+    desired_answer_label: str | None = None
     scenes: tuple[CollectionScene, ...]
     scene_skips: dict[str, str] = Field(default_factory=dict)
     cells: tuple[CoverageCell, ...]
@@ -328,7 +339,9 @@ def _candidate_from_plan(
     std: CompileStandard,
 ) -> CoverageCandidate:
     output_root = Path(manifest.output_root)
-    candidate_id = f"{cell.cell_id}__a{_attempt_index(plan.plan_id):03d}"
+    candidate_id = (
+        f"{cell.cell_id}{cell.candidate_namespace}__a{_attempt_index(plan.plan_id):03d}"
+    )
     plan_record = output_root / "plans" / f"{candidate_id}.record.json"
     render_plan = output_root / "plans" / f"{candidate_id}.views.json"
     recipe = output_root / "recipes" / f"{candidate_id}.yaml"
@@ -367,13 +380,29 @@ def _geometry_pool(
         std,
         seed=cell.seed,
         attempts_per_binding=attempts_per_binding,
-        plans_per_binding=plans_per_binding,
+        # A label-aware pass must inspect every geometry-valid proposal in the
+        # attempt frontier.  Stopping after N plans of any label can otherwise
+        # miss a desired side label even though later attempts contain it.
+        plans_per_binding=(
+            attempts_per_binding
+            if cell.desired_answer_label is not None
+            else plans_per_binding
+        ),
         candidate_bindings=(cell.binding,),
         candidate_filter=(
             _visit_render_robust_filter if script.motifs == ("visit_landmarks",) else None
         ),
     )
-    return report.plans, report.rejection_counts
+    if cell.desired_answer_label is None:
+        return report.plans, report.rejection_counts
+    plans = tuple(
+        plan
+        for plan in report.plans
+        if plan.provisional_answer.label == cell.desired_answer_label
+    )
+    counts = Counter(report.rejection_counts)
+    counts[f"answer_label:not_{cell.desired_answer_label}"] += len(report.plans) - len(plans)
+    return plans, dict(counts)
 
 
 def _new_candidates(
@@ -478,6 +507,8 @@ def plan_coverage(
     limit_bindings_per_capability: int | None = None,
     capabilities: tuple[str, ...] | None = None,
     scene_keys: tuple[str, ...] | None = None,
+    binding_allowlist: dict[str, list[dict[str, str]]] | None = None,
+    desired_answer_label: str | None = None,
     std: CompileStandard = STD_V1,
     on_scene_completed: Callable[[str], None] | None = None,
     initialize_only: bool = False,
@@ -521,6 +552,7 @@ def plan_coverage(
         maximum_multislot_bindings=maximum_multislot_bindings,
         limit_bindings_per_capability=limit_bindings_per_capability,
         capabilities=requested_capabilities,
+        desired_answer_label=desired_answer_label,
         scenes=scenes,
         cells=(),
     )
@@ -539,6 +571,7 @@ def plan_coverage(
             maximum_multislot_bindings,
             limit_bindings_per_capability,
             requested_capabilities,
+            desired_answer_label,
             tuple(scene.scene_key for scene in scenes),
         )
         observed = (
@@ -552,6 +585,7 @@ def plan_coverage(
             existing.maximum_multislot_bindings,
             existing.limit_bindings_per_capability,
             existing.capabilities,
+            existing.desired_answer_label,
             tuple(scene.scene_key for scene in existing.scenes),
         )
         if observed != expected:
@@ -590,6 +624,16 @@ def plan_coverage(
                 binding_cache[cache_key] = bindings
             if limit_bindings_per_capability is not None:
                 bindings = bindings[:limit_bindings_per_capability]
+            if binding_allowlist is not None:
+                allowed = {
+                    _canonical_binding(binding)
+                    for binding in binding_allowlist.get(scene.scene_key, ())
+                }
+                bindings = tuple(
+                    binding
+                    for binding in bindings
+                    if _canonical_binding(binding) in allowed
+                )
             for binding in bindings:
                 cell_id = (
                     f"{scene.scene_key}__{capability}__"
@@ -604,6 +648,7 @@ def plan_coverage(
                     capability=capability,
                     binding=binding,
                     seed=_derived_seed(collection_id, scene.scene_id, capability, binding),
+                    desired_answer_label=desired_answer_label,
                     target_accepted=accepted_per_binding,
                     geometry_pool_size=0,
                     diverse_pool_size=0,
@@ -801,6 +846,15 @@ def _validate_rendered_candidate(
     if certificate.status != "answerable" or certificate.mismatch is not None:
         reason = certificate.reason or certificate.mismatch or "primary_not_answerable"
         raise FamilyBlocked(str(reason))
+    if (
+        cell.desired_answer_label is not None
+        and certificate.answer is not None
+        and certificate.answer.label != cell.desired_answer_label
+    ):
+        raise FamilyBlocked(
+            "desired_answer_label_mismatch:"
+            f"expected={cell.desired_answer_label}:actual={certificate.answer.label}"
+        )
     try:
         group_path = build_question_group(
             Path(candidate.bundle),
@@ -820,6 +874,14 @@ def _validate_rendered_candidate(
     primary = next(item for item in group.questions if item.capability == cell.capability)
     if primary.label is None or primary.family is None:
         raise FamilyBlocked(f"primary question skipped: {primary.skip_reason}")
+    if (
+        cell.desired_answer_label is not None
+        and primary.label != cell.desired_answer_label
+    ):
+        raise FamilyBlocked(
+            "desired_group_label_mismatch:"
+            f"expected={cell.desired_answer_label}:actual={primary.label}"
+        )
     return group, plan
 
 
@@ -840,6 +902,38 @@ def _status_template(manifest: CoverageManifest) -> dict[str, Any]:
         },
         "episodes": {},
     }
+
+
+def initialize_coverage_status(manifest_path: Path) -> Path:
+    """Create an idle status snapshot without rendering or runtime preflight.
+
+    Distributed render packages need a hash-bound base status even when a new
+    geometry manifest has never been run locally.  Existing status is accepted
+    only when it belongs to the same collection and indexes the exact cells and
+    initial candidates declared by the manifest.
+    """
+    manifest_path = manifest_path.resolve()
+    manifest = load_coverage(manifest_path)
+    status_path = Path(manifest.output_root) / "coverage.status.json"
+    expected = _status_template(manifest)
+    if status_path.is_file():
+        observed = json.loads(status_path.read_text(encoding="utf-8"))
+        if observed.get("collection_id") != manifest.collection_id:
+            raise ValueError(f"coverage status collection differs: {status_path}")
+        if set(observed.get("cells", {})) != set(expected["cells"]):
+            raise ValueError(f"coverage status cell index differs: {status_path}")
+        for cell_id, expected_row in expected["cells"].items():
+            observed_candidates = set(
+                observed["cells"][cell_id].get("candidate_statuses", {})
+            )
+            expected_candidates = set(expected_row["candidate_statuses"])
+            if observed_candidates != expected_candidates:
+                raise ValueError(
+                    f"coverage status candidate index differs: {status_path}/{cell_id}"
+                )
+        return status_path
+    _write_json(status_path, expected)
+    return status_path
 
 
 def _cell_credit_key(scene_key: str, capability: str, binding: dict[str, str]) -> str:
@@ -892,6 +986,7 @@ def run_coverage(
     limit_cells: int | None = None,
     scene_keys: tuple[str, ...] | None = None,
     cell_ids: tuple[str, ...] | None = None,
+    credit_cell_ids: tuple[str, ...] | None = None,
     allow_backfill: bool = True,
     skip_preflight: bool = False,
     std: CompileStandard = STD_V1,
@@ -911,7 +1006,42 @@ def run_coverage(
         else _status_template(manifest)
     )
     scenes = {scene.scene_key: scene for scene in manifest.scenes}
+    cells_by_id = {cell.cell_id: cell for cell in manifest.cells}
+    requested_credit_ids = set(credit_cell_ids or ())
+    unknown_credit_ids = requested_credit_ids - set(cells_by_id)
+    if unknown_credit_ids:
+        raise ValueError(
+            "unknown credit cell ids: " + ", ".join(sorted(unknown_credit_ids))
+        )
     lock = threading.RLock()
+
+    def missing_slots(cell_id: str) -> int:
+        cell = cells_by_id[cell_id]
+        return max(
+            0,
+            cell.target_accepted - len(status["cells"][cell_id]["accepted_episode_ids"]),
+        )
+
+    def potential_credit_ids(cell: CoverageCell) -> tuple[str, ...]:
+        """Deficient repair targets that this producer binding may serve."""
+
+        if not requested_credit_ids:
+            return ()
+        result = []
+        for target_id in requested_credit_ids:
+            target = cells_by_id[target_id]
+            if target.scene_key != cell.scene_key or missing_slots(target_id) == 0:
+                continue
+            slots = SCRIPT_LIBRARY[target.capability].slots
+            if all(
+                name in cell.binding and cell.binding[name] == target.binding.get(name)
+                for name in slots
+            ):
+                result.append(target_id)
+        return tuple(result)
+
+    def source_needs_work(cell: CoverageCell) -> bool:
+        return missing_slots(cell.cell_id) > 0 or bool(potential_credit_ids(cell))
 
     def refresh_status_for_manifest() -> None:
         for cell in manifest.cells:
@@ -1060,7 +1190,12 @@ def run_coverage(
             for episode_id in row["accepted_episode_ids"]
             if episode_id in candidates
         )
-        needed = max(1, cell.target_accepted - len(row["accepted_episode_ids"]))
+        downstream_missing = [missing_slots(item) for item in potential_credit_ids(cell)]
+        needed = max(
+            1,
+            cell.target_accepted - len(row["accepted_episode_ids"]),
+            *downstream_missing,
+        )
         search = _new_candidates(
             cell,
             scene,
@@ -1098,7 +1233,7 @@ def run_coverage(
             with lock:
                 cell = next(item for item in manifest.cells if item.cell_id == cell_id)
                 row = status["cells"][cell_id]
-                if len(row["accepted_episode_ids"]) >= cell.target_accepted:
+                if not source_needs_work(cell):
                     row["status"] = "complete"
                     save()
                     return
@@ -1117,7 +1252,11 @@ def run_coverage(
                         save()
                         return
                     if append_backfill(cell_id) == 0:
-                        row["status"] = "exhausted"
+                        row["status"] = (
+                            "complete"
+                            if len(row["accepted_episode_ids"]) >= cell.target_accepted
+                            else "exhausted"
+                        )
                         save()
                         return
                     continue
@@ -1142,7 +1281,7 @@ def run_coverage(
                     gpu_id=gpu_id,
                     timeout_minutes=timeout_minutes,
                 )
-                if not rendered:
+                if not rendered and _render_failure_is_retryable(reason):
                     rendered, reason = _render(
                         recipe=Path(pending.recipe),
                         bundle=Path(pending.bundle),
@@ -1319,6 +1458,7 @@ def run_coverage_pipeline(
                 maximum_multislot_bindings=initial.maximum_multislot_bindings,
                 limit_bindings_per_capability=initial.limit_bindings_per_capability,
                 capabilities=initial.capabilities,
+                desired_answer_label=initial.desired_answer_label,
                 scene_keys=tuple(scene.scene_key for scene in initial.scenes),
                 std=std,
                 on_scene_completed=scene_completed,

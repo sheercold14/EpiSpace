@@ -18,6 +18,19 @@ def _parser() -> argparse.ArgumentParser:
     generate.add_argument("--source", type=Path, required=True)
     generate.add_argument("--out", type=Path, required=True)
     generate.add_argument("--batch-size", type=int, default=100)
+    generate.add_argument(
+        "--quarantine",
+        type=Path,
+        help="JSONL audit rows whose episode_id values are excluded from this QA release",
+    )
+    generate.add_argument(
+        "--exclusions",
+        type=Path,
+        help=(
+            "JSONL rows with episode_id and capability; excludes only that question "
+            "while retaining other capabilities on the same rendered episode"
+        ),
+    )
 
     evaluate = subparsers.add_parser("evaluate")
     evaluate.add_argument("--dataset-root", type=Path, required=True)
@@ -44,6 +57,39 @@ def _print(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def _quarantined_episode_ids(path: Path | None) -> frozenset[str]:
+    if path is None:
+        return frozenset()
+    result: set[str] = set()
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        episode_id = row.get("episode_id") if isinstance(row, dict) else None
+        if not isinstance(episode_id, str):
+            raise ValueError(f"{path}:{line_number}: missing string episode_id")
+        result.add(episode_id)
+    return frozenset(result)
+
+
+def _episode_capability_exclusions(path: Path | None) -> dict[str, frozenset[str]]:
+    if path is None:
+        return {}
+    result: dict[str, set[str]] = {}
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        episode_id = row.get("episode_id") if isinstance(row, dict) else None
+        capability = row.get("capability") if isinstance(row, dict) else None
+        if not isinstance(episode_id, str) or not isinstance(capability, str):
+            raise ValueError(
+                f"{path}:{line_number}: expected string episode_id and capability"
+            )
+        result.setdefault(episode_id, set()).add(capability)
+    return {episode_id: frozenset(values) for episode_id, values in result.items()}
+
+
 def main() -> int:
     args = _parser().parse_args()
     if args.command == "generate":
@@ -54,6 +100,8 @@ def main() -> int:
                 source_root=args.source,
                 output_root=args.out,
                 batch_size=args.batch_size,
+                excluded_episode_ids=_quarantined_episode_ids(args.quarantine),
+                excluded_episode_capabilities=_episode_capability_exclusions(args.exclusions),
             )
         )
         return 0

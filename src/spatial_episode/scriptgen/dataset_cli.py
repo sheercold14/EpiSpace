@@ -80,6 +80,22 @@ def parser() -> argparse.ArgumentParser:
     coverage_plan.add_argument("--limit-bindings-per-capability", type=int)
     coverage_plan.add_argument("--capabilities", nargs="+", choices=sorted(SCRIPT_LIBRARY))
     coverage_plan.add_argument("--scenes", nargs="+")
+    coverage_plan.add_argument(
+        "--desired-answer-label",
+        choices=("front", "left", "back", "right"),
+        help=(
+            "retain only geometry plans with this provisional answer and require the "
+            "same authoritative rendered answer"
+        ),
+    )
+    coverage_plan.add_argument(
+        "--binding-allowlist",
+        type=Path,
+        help=(
+            "JSON object with bindings_by_scene; only exact canonical bindings are "
+            "planned for the requested capability"
+        ),
+    )
     coverage_plan.add_argument("--initialize-only", action="store_true")
     coverage_run = commands.add_parser("coverage-run")
     coverage_run.add_argument("--manifest", type=Path, required=True)
@@ -96,6 +112,14 @@ def parser() -> argparse.ArgumentParser:
         help="JSON list, or an object containing a cell_ids list, to render",
     )
     coverage_run.add_argument(
+        "--credit-cell-ids-file",
+        type=Path,
+        help=(
+            "optional JSON repair target list; producer cells may continue after their own "
+            "quota is full while compatible target cells remain deficient"
+        ),
+    )
+    coverage_run.add_argument(
         "--no-backfill",
         action="store_true",
         help="render and validate existing candidates without changing the plan manifest",
@@ -110,6 +134,8 @@ def parser() -> argparse.ArgumentParser:
     coverage_pipeline.add_argument("--timeout-minutes", type=int, default=20)
     coverage_package = commands.add_parser("coverage-package")
     coverage_package.add_argument("--manifest", type=Path, required=True)
+    coverage_init = commands.add_parser("coverage-init-status")
+    coverage_init.add_argument("--manifest", type=Path, required=True)
     return result
 
 
@@ -135,6 +161,24 @@ def main() -> int:
     if args.command == "coverage-plan":
         from .binding_coverage import plan_coverage
 
+        binding_allowlist = None
+        if args.binding_allowlist is not None:
+            payload = json.loads(args.binding_allowlist.read_text(encoding="utf-8"))
+            binding_allowlist = payload.get("bindings_by_scene") if isinstance(payload, dict) else None
+            if not isinstance(binding_allowlist, dict) or not all(
+                isinstance(scene, str)
+                and isinstance(bindings, list)
+                and all(
+                    isinstance(binding, dict)
+                    and all(isinstance(key, str) and isinstance(value, str) for key, value in binding.items())
+                    for binding in bindings
+                )
+                for scene, bindings in binding_allowlist.items()
+            ):
+                raise ValueError(
+                    "--binding-allowlist must contain {bindings_by_scene: {scene: [binding, ...]}}"
+                )
+
         path = plan_coverage(
             source_index_path=args.source_index,
             output_root=args.output_root,
@@ -146,9 +190,16 @@ def main() -> int:
             limit_bindings_per_capability=args.limit_bindings_per_capability,
             capabilities=tuple(args.capabilities) if args.capabilities else None,
             scene_keys=tuple(args.scenes) if args.scenes else None,
+            binding_allowlist=binding_allowlist,
+            desired_answer_label=args.desired_answer_label,
             initialize_only=args.initialize_only,
         )
         print(path)
+        return 0
+    if args.command == "coverage-init-status":
+        from .binding_coverage import initialize_coverage_status
+
+        print(initialize_coverage_status(args.manifest))
         return 0
     if args.command == "coverage-pipeline":
         from .binding_coverage import run_coverage_pipeline
@@ -167,18 +218,22 @@ def main() -> int:
     if args.command == "coverage-run":
         from .binding_coverage import run_coverage
 
-        cell_ids = None
-        if args.cell_ids_file is not None:
-            cell_id_payload = json.loads(args.cell_ids_file.read_text(encoding="utf-8"))
+        def load_cell_ids(path: Path | None) -> tuple[str, ...] | None:
+            if path is None:
+                return None
+            cell_id_payload = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(cell_id_payload, dict):
                 cell_id_payload = cell_id_payload.get("cell_ids")
             if not isinstance(cell_id_payload, list) or not all(
                 isinstance(cell_id, str) for cell_id in cell_id_payload
             ):
                 raise ValueError(
-                    "--cell-ids-file must contain a JSON string list or {\"cell_ids\": [...]}"
+                    f"{path} must contain a JSON string list or {{\"cell_ids\": [...]}}"
                 )
-            cell_ids = tuple(cell_id_payload)
+            return tuple(cell_id_payload)
+
+        cell_ids = load_cell_ids(args.cell_ids_file)
+        credit_cell_ids = load_cell_ids(args.credit_cell_ids_file)
         path = run_coverage(
             args.manifest,
             og_root=args.og_root,
@@ -189,6 +244,7 @@ def main() -> int:
             timeout_minutes=args.timeout_minutes,
             limit_cells=args.limit_cells,
             cell_ids=cell_ids,
+            credit_cell_ids=credit_cell_ids,
             allow_backfill=not args.no_backfill,
         )
         print(path)

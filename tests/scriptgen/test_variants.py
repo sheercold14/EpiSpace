@@ -14,7 +14,13 @@ from _batchdata import load_plan_record, load_render_view, needs_batch
 from test_compiler import BINDING, qualifying_all_modes_fake, qualifying_fake
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler
-from spatial_episode.scriptgen.library import HOMING, NET_TURN, SELF_MOTION, VIEW_SIDE
+from spatial_episode.scriptgen.library import (
+    HOMING,
+    MULTI_TURN,
+    NET_TURN,
+    SELF_MOTION,
+    VIEW_SIDE,
+)
 from spatial_episode.scriptgen.standards import STD_V1
 from spatial_episode.scriptgen.variants import (
     INTERVENTION_KINDS,
@@ -130,6 +136,54 @@ def test_delay_grows_knob_only(fake_builder: VariantBuilder) -> None:
     # The repeated frame is a standstill: consecutive duplicates only.
     repeated = [t for t in set(delay.frame_sequence) if delay.frame_sequence.count(t) > 1]
     assert len(repeated) == 1
+
+
+def test_multi_turn_delay_does_not_split_a_continuous_turn() -> None:
+    # The target remains visible until frame 11, so every legal pause frame
+    # (12:14) lies inside the final continuous turn. This was the v1 failure
+    # mode for 11 rendered candidates.
+    from test_compiler import FakeRenderView
+
+    view = FakeRenderView(
+        yaws=(
+            90,
+            90,
+            60,
+            30,
+            30,
+            30,
+            0,
+            -30,
+            -30,
+            -30,
+            -30,
+            -30,
+            -64,
+            -98,
+            -132,
+            -165,
+        ),
+        pixels=(5000,) * 12 + (0,) * 4,
+    )
+    compiler = CapabilityCompiler(script=MULTI_TURN, std=STD_V1)
+    canonical = compiler.compile(view, BINDING, with_essential=True)
+    assert canonical.status == "answerable"
+    builder = VariantBuilder(
+        compiler=compiler,
+        view=view,
+        binding=BINDING,
+        canonical=canonical,
+    )
+
+    delayed = builder._verified("delay", [builder._delay_sequence(4)])
+    assert delayed.certificate.status == "answerable"
+    outcome = next(
+        row
+        for row in delayed.certificate.clause_outcomes
+        if row.predicate == "turn_segments_between"
+    )
+    assert outcome.holds is True
+    assert outcome.witness["turn_segment_count"] == 3
 
 
 def test_variants_never_hand_assign_gold(fake_builder: VariantBuilder) -> None:
