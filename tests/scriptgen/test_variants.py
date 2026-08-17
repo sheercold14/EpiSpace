@@ -7,6 +7,7 @@ three rendered trajectories and assert the recompiled golds.
 
 from __future__ import annotations
 
+import inspect
 import random
 
 import pytest
@@ -42,6 +43,10 @@ def fake_builder() -> VariantBuilder:
 def test_all_four_kinds_built(fake_builder: VariantBuilder) -> None:
     variants = fake_builder.build_all(seed=3)
     assert tuple(v.kind for v in variants) == INTERVENTION_KINDS
+
+
+def test_default_permutation_search_budget_covers_sparse_valid_orders() -> None:
+    assert inspect.signature(VariantBuilder.build_all).parameters["max_tries"].default == 64
 
 
 def test_only_declared_kinds_are_built() -> None:

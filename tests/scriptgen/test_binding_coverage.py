@@ -22,6 +22,7 @@ from spatial_episode.scriptgen.binding_coverage import (
     _derived_seed,
     _geometry_pool,
     _new_candidates,
+    _refresh_status_for_manifest,
     _scene_occupancy_proxy_rejection,
     _validate_rendered_candidate,
     compatible_credit_cell_ids,
@@ -47,6 +48,7 @@ from spatial_episode.scriptgen.plan import (
 )
 from spatial_episode.scriptgen.source_inventory import SourceIndex, SourceSceneRecord
 from spatial_episode.scriptgen.standards import STD_V1
+from spatial_episode.scriptgen.variants import FamilyMismatch
 
 
 def _plan(
@@ -513,6 +515,140 @@ def test_question_variant_assertion_is_a_candidate_rejection(
             scene,
             std=STD_V1,
         )
+
+
+def test_family_mismatch_rejects_candidates_without_killing_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = _scene(tmp_path)
+    candidates = []
+    for index in range(2):
+        plan = _plan(f"plan.a{index}")
+        plan_record = tmp_path / f"candidate-{index}.record.json"
+        plan_record.write_text(plan.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        bundle = tmp_path / f"bundle-{index}"
+        bundle.mkdir()
+        (bundle / "render_report.json").write_text(
+            json.dumps({"status": "success"}), encoding="utf-8"
+        )
+        candidates.append(
+            CoverageCandidate(
+                candidate_id=f"candidate-{index}",
+                plan_id=plan.plan_id,
+                attempt_index=index,
+                plan_record=str(plan_record),
+                render_plan=str(tmp_path / f"candidate-{index}.views.json"),
+                recipe=str(tmp_path / f"candidate-{index}.yaml"),
+                bundle=str(bundle),
+                group=str(tmp_path / f"group-{index}"),
+                log=str(tmp_path / f"candidate-{index}.log"),
+            )
+        )
+    cell = CoverageCell(
+        cell_id="cell",
+        scene_key="scene",
+        scene_id="scene",
+        capability="self_motion_update",
+        binding={"target": "target"},
+        seed=17,
+        target_accepted=10,
+        geometry_pool_size=2,
+        diverse_pool_size=2,
+        candidates=tuple(candidates),
+    )
+    manifest_path = _write_coverage_manifest(tmp_path, cells=(cell,), scenes=(scene,))
+    mismatch = FamilyMismatch(
+        "permute",
+        "abstain",
+        SimpleNamespace(
+            status="answerable",
+            answer=SimpleNamespace(label="front"),
+            reason=None,
+        ),
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage.verify_coverage_sources",
+        lambda manifest: None,
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage._validate_rendered_candidate",
+        lambda *args, **kwargs: (_ for _ in ()).throw(mismatch),
+    )
+
+    status_path = run_coverage(
+        manifest_path,
+        og_root=tmp_path,
+        conda_env="behavior",
+        data_root=tmp_path,
+        gpu_ids=(0,),
+        allow_backfill=False,
+        skip_preflight=True,
+    )
+
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    rows = status["cells"]["cell"]["candidate_statuses"]
+    assert {row["status"] for row in rows.values()} == {"rejected"}
+    assert {row["reason"] for row in rows.values()} == {
+        "authority:FamilyMismatch:variant permute: expected abstain, "
+        "compiler produced status=answerable answer=front reason=None"
+    }
+
+
+def test_manifest_sync_preserves_live_running_candidates(tmp_path: Path) -> None:
+    scene = _scene(tmp_path)
+    candidate = CoverageCandidate(
+        candidate_id="candidate",
+        plan_id="plan.a0",
+        attempt_index=0,
+        plan_record=str(tmp_path / "candidate.record.json"),
+        render_plan=str(tmp_path / "candidate.views.json"),
+        recipe=str(tmp_path / "candidate.yaml"),
+        bundle=str(tmp_path / "bundle"),
+        group=str(tmp_path / "group"),
+        log=str(tmp_path / "candidate.log"),
+    )
+    cell = CoverageCell(
+        cell_id="cell",
+        scene_key="scene",
+        scene_id="scene",
+        capability="self_motion_update",
+        binding={"target": "target"},
+        seed=17,
+        target_accepted=10,
+        geometry_pool_size=1,
+        diverse_pool_size=1,
+        candidates=(candidate,),
+    )
+    manifest_path = _write_coverage_manifest(tmp_path, cells=(cell,), scenes=(scene,))
+    manifest = load_coverage(manifest_path)
+    status = {
+        "cells": {
+            "cell": {
+                "status": "running",
+                "accepted_episode_ids": [],
+                "candidate_statuses": {
+                    "candidate": {"status": "running", "reason": None, "gpu_id": 2}
+                },
+            }
+        },
+        "episodes": {},
+    }
+
+    _refresh_status_for_manifest(status, manifest, recover_interrupted=False)
+    assert status["cells"]["cell"]["status"] == "running"
+    assert status["cells"]["cell"]["candidate_statuses"]["candidate"] == {
+        "status": "running",
+        "reason": None,
+        "gpu_id": 2,
+    }
+
+    _refresh_status_for_manifest(status, manifest, recover_interrupted=True)
+    assert status["cells"]["cell"]["status"] == "planned"
+    assert status["cells"]["cell"]["candidate_statuses"]["candidate"] == {
+        "status": "pending",
+        "reason": "recovered_after_interruption",
+    }
 
 
 def test_render_only_unresolvable_verdict_never_rewrites_planner_manifest(
@@ -1193,6 +1329,7 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
         encoding="utf-8",
     )
     recipe.write_text("source: {}\n", encoding="utf-8")
+
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     index = SourceIndex(
         source_id="source",

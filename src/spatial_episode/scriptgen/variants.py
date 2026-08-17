@@ -83,7 +83,7 @@ class VariantBuilder:
         seed: int,
         drop_count: int = 2,
         delay_extra: int = 4,
-        max_tries: int = 8,
+        max_tries: int = 64,
     ) -> tuple[Variant, ...]:
         rng = random.Random(seed)
         builders = {

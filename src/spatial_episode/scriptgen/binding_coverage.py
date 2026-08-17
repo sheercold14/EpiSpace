@@ -40,6 +40,7 @@ from .slotting import iter_bindings
 from .source_inventory import SourceIndex, SourceSceneRecord, load_source_index
 from .spec import SpecModel
 from .standards import STD_V1, CompileStandard
+from .variants import FamilyMismatch
 
 COVERAGE_SCHEMA_VERSION = "scriptgen_binding_coverage.v1"
 COVERAGE_STATUS_SCHEMA_VERSION = "scriptgen_binding_coverage_status.v1"
@@ -936,6 +937,49 @@ def initialize_coverage_status(manifest_path: Path) -> Path:
     return status_path
 
 
+def _refresh_status_for_manifest(
+    status: dict[str, Any],
+    manifest: CoverageManifest,
+    *,
+    recover_interrupted: bool,
+) -> None:
+    """Add new manifest candidates without disturbing active workers.
+
+    ``running`` rows are stale only when a new render pass starts. Manifest
+    backfill and render-unresolvable updates also call this helper while the
+    current pass is live, so they must not reset candidates owned by another
+    GPU worker.
+    """
+    for cell in manifest.cells:
+        row = status["cells"].setdefault(
+            cell.cell_id,
+            {"status": "planned", "accepted_episode_ids": [], "candidate_statuses": {}},
+        )
+        if recover_interrupted and row["status"] == "running":
+            row["status"] = "planned"
+        for candidate in cell.candidates:
+            candidate_row = row["candidate_statuses"].setdefault(
+                candidate.candidate_id,
+                {"status": "pending", "reason": None},
+            )
+            if not recover_interrupted:
+                continue
+            if candidate_row["status"] == "running":
+                candidate_row.update(
+                    status="pending",
+                    reason="recovered_after_interruption",
+                )
+                candidate_row.pop("gpu_id", None)
+            elif candidate_row["status"] == "rejected" and str(
+                candidate_row.get("reason") or ""
+            ).startswith("authority:KeyError:"):
+                candidate_row.update(
+                    status="pending",
+                    reason="recovered_after_transient_authority_keyerror",
+                )
+                candidate_row.pop("gpu_id", None)
+
+
 def _cell_credit_key(scene_key: str, capability: str, binding: dict[str, str]) -> str:
     return f"{scene_key}\0{capability}\0{_canonical_binding(binding)}"
 
@@ -1043,34 +1087,7 @@ def run_coverage(
     def source_needs_work(cell: CoverageCell) -> bool:
         return missing_slots(cell.cell_id) > 0 or bool(potential_credit_ids(cell))
 
-    def refresh_status_for_manifest() -> None:
-        for cell in manifest.cells:
-            row = status["cells"].setdefault(
-                cell.cell_id,
-                {"status": "planned", "accepted_episode_ids": [], "candidate_statuses": {}},
-            )
-            if row["status"] == "running":
-                row["status"] = "planned"
-            for candidate in cell.candidates:
-                candidate_row = row["candidate_statuses"].setdefault(
-                    candidate.candidate_id,
-                    {"status": "pending", "reason": None},
-                )
-                if candidate_row["status"] == "running":
-                    candidate_row.update(status="pending", reason="recovered_after_interruption")
-                elif candidate_row["status"] == "rejected" and str(
-                    candidate_row.get("reason") or ""
-                ).startswith("authority:KeyError:"):
-                    # A KeyError is an implementation failure, never an
-                    # authoritative data rejection.  Revalidate the completed
-                    # bundle after restart so transient cache races do not
-                    # permanently discard an otherwise valid trajectory.
-                    candidate_row.update(
-                        status="pending",
-                        reason="recovered_after_transient_authority_keyerror",
-                    )
-
-    refresh_status_for_manifest()
+    _refresh_status_for_manifest(status, manifest, recover_interrupted=True)
 
     def save() -> None:
         _write_json(status_path, status)
@@ -1158,7 +1175,7 @@ def run_coverage(
             }
         )
         _write_json(manifest_path, manifest)
-        refresh_status_for_manifest()
+        _refresh_status_for_manifest(status, manifest, recover_interrupted=False)
 
     def append_backfill(cell_id: str) -> int:
         nonlocal manifest
@@ -1224,7 +1241,7 @@ def run_coverage(
             }
         )
         _write_json(manifest_path, manifest)
-        refresh_status_for_manifest()
+        _refresh_status_for_manifest(status, manifest, recover_interrupted=False)
         save()
         return len(search.candidates)
 
@@ -1302,7 +1319,13 @@ def run_coverage(
                         scene,
                         std=std,
                     )
-                except (FamilyBlocked, OSError, KeyError, ValueError) as error:
+                except (
+                    FamilyBlocked,
+                    FamilyMismatch,
+                    OSError,
+                    KeyError,
+                    ValueError,
+                ) as error:
                     reason = f"authority:{type(error).__name__}:{error}"
             terminal_missing_runtime_ids: tuple[str, ...] = ()
             with lock:
@@ -1365,7 +1388,6 @@ def run_coverage(
                     flush=True,
                 )
                 return
-
     worker_count = min(workers or len(gpu_ids), len(gpu_ids))
 
     def worker(gpu_id: int) -> None:
