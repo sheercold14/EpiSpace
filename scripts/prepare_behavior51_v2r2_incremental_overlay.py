@@ -425,6 +425,19 @@ def prepare(
             for target_id in remaining_credit_ids
         )
     }
+    unserviceable_credit_ids = {
+        target_id
+        for target_id in remaining_credit_ids
+        if not any(
+            _producer_can_serve(cells[producer_id], cells[target_id])
+            for producer_id in producer_cell_ids
+        )
+    }
+    # A few ordinary homing/path-integration credits were carried only by
+    # trajectories whose source capability used the deprecated occlusion
+    # terminal definition.  They must remain held with that producer instead
+    # of silently entering an unrelated geometry search.
+    remaining_credit_ids.difference_update(unserviceable_credit_ids)
 
     manifest["collection_id"] = collection_id
     manifest["output_root"] = str(output_root)
@@ -490,10 +503,13 @@ def prepare(
         for cell_id in sorted(remaining_credit_ids)
     ]
     held_ids = sorted(
-        cell_id
-        for cell_id in marginal_ids
-        if cells[cell_id]["capability"] in HELD_CAPABILITIES
-        and _missing_slots(cell_id, cells, status) > 0
+        {
+            cell_id
+            for cell_id in marginal_ids
+            if cells[cell_id]["capability"] in HELD_CAPABILITIES
+            and _missing_slots(cell_id, cells, status) > 0
+        }
+        | unserviceable_credit_ids
     )
 
     occlusion_import: dict[str, Any] | None = None
@@ -533,8 +549,9 @@ def prepare(
             "schema_version": "epispace.behavior51_v2r2_held_cells.v1",
             "cell_ids": held_ids,
             "reason": (
-                "deprecated occluded terminal definition; replaced by the separate "
-                "self_motion_update_after_occlusion collection"
+                "deprecated occluded terminal definition, including downstream "
+                "credits whose only producer used that definition; replaced by the "
+                "separate self_motion_update_after_occlusion collection"
             ),
         },
     )
@@ -578,6 +595,7 @@ def prepare(
             for cell_id in remaining_credit_ids
         ),
         "held_deprecated_occlusion_cell_count": len(held_ids),
+        "held_downstream_credit_cell_count": len(unserviceable_credit_ids),
         "recompile_candidate_count": sum(
             action_by_candidate[item] in RECOMPILE_ACTIONS
             for item in ready_candidate_ids
