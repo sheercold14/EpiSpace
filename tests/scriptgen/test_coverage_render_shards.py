@@ -71,6 +71,38 @@ def test_zero_candidate_deficit_scene_is_kept_for_remote_backfill() -> None:
     assert assignments[0]["scene_keys"] == ["scene-ready", "scene-zero"]
 
 
+def test_requested_producer_scene_is_kept_when_source_quota_is_complete() -> None:
+    manifest = {
+        "cells": [
+            {
+                "cell_id": "producer",
+                "scene_key": "scene",
+                "target_accepted": 1,
+                "candidates": [],
+            }
+        ]
+    }
+    status = {
+        "cells": {
+            "producer": {
+                "accepted_episode_ids": ["existing"],
+                "candidate_statuses": {},
+            }
+        }
+    }
+
+    ordinary_weights, _ = SHARDS._scene_weights(manifest, status)
+    repair_weights, _ = SHARDS._scene_weights(
+        manifest,
+        status,
+        requested_cell_ids={"producer"},
+        backfill_frame_weight=120,
+    )
+
+    assert ordinary_weights == {}
+    assert repair_weights == {"scene": 120}
+
+
 def test_build_and_prepare_rebases_all_runtime_paths(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -181,6 +213,8 @@ def test_build_and_prepare_rebases_all_runtime_paths(
             "pending_candidates": 1,
         },
         shard_count=1,
+        requested_cell_ids={"cell"},
+        requested_credit_cell_ids={"cell"},
         hardlink=False,
         code_revisions={
             "epispace": {"remote": "example/epispace", "commit": "a" * 40},
@@ -209,6 +243,12 @@ def test_build_and_prepare_rebases_all_runtime_paths(
     )
     assert str(package_root.resolve() / "planning" / "plans" / "candidate.views.json") in runtime_recipe
     assert SHARDS.PACKAGE_TOKEN not in runtime_recipe
+    assert json.loads((package_root / "cell_ids.json").read_text())["cell_ids"] == [
+        "cell"
+    ]
+    assert json.loads(
+        (package_root / "credit_cell_ids.json").read_text()
+    )["cell_ids"] == ["cell"]
 
 
 def test_remote_backfill_candidate_is_copied_and_rebased(tmp_path: Path) -> None:
@@ -300,6 +340,57 @@ def test_status_only_backfill_candidate_is_recovered(tmp_path: Path) -> None:
     assert candidate["candidate_id"] == candidate_id
     assert candidate["attempt_index"] == 31
     assert candidate["plan_id"] == record["plan_id"]
+
+
+def test_namespaced_status_only_backfill_candidate_is_recovered(tmp_path: Path) -> None:
+    result_root = tmp_path / "remote" / "output"
+    cell_id = "scene__self_motion_update__binding"
+    candidate_id = f"{cell_id}__v2r2__a031"
+    record = {
+        "plan_id": "scene-id.self_motion_update.b0.s17.a31",
+        "scene_id": "scene-id",
+        "capability": "self_motion_update",
+        "binding": {"target": "target"},
+        "seed": 17,
+    }
+    _write_json(result_root / "plans" / f"{candidate_id}.record.json", record)
+    _write_json(result_root / "plans" / f"{candidate_id}.views.json", {"views": []})
+    (result_root / "recipes").mkdir(parents=True)
+    (result_root / "recipes" / f"{candidate_id}.yaml").write_text(
+        "trajectory:\n"
+        f"  plan_path: {result_root}/plans/{candidate_id}.views.json\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "cells": [
+            {
+                "cell_id": cell_id,
+                "scene_id": "scene-id",
+                "capability": "self_motion_update",
+                "binding": {"target": "target"},
+                "seed": 17,
+                "candidate_namespace": "__v2r2",
+                "candidates": [],
+            }
+        ]
+    }
+    status = {
+        "cells": {
+            cell_id: {
+                "candidate_statuses": {candidate_id: {"status": "accepted"}}
+            }
+        },
+        "episodes": {candidate_id: {"plan_id": record["plan_id"]}},
+    }
+
+    recovered = SHARDS._recover_status_only_candidates(
+        manifest,
+        status,
+        result_root=result_root,
+    )
+
+    assert recovered == [candidate_id]
+    assert manifest["cells"][0]["candidates"][0]["attempt_index"] == 31
 
 
 def test_copied_group_trajectory_is_localized(tmp_path: Path) -> None:

@@ -1180,6 +1180,11 @@ def run_coverage(
     def append_backfill(cell_id: str) -> int:
         nonlocal manifest
         cell = next(item for item in manifest.cells if item.cell_id == cell_id)
+        # Deferred capabilities are question-only coverage targets.  Their
+        # episodes must come from compatible producer trajectories, never from
+        # an independent geometry search using the deferred question spec.
+        if cell.capability in DEFERRED_INITIAL_CAPABILITIES:
+            return 0
         if cell.search_pool_exhausted:
             return 0
         if (
@@ -1389,15 +1394,25 @@ def run_coverage(
                 )
                 return
     worker_count = min(workers or len(gpu_ids), len(gpu_ids))
+    worker_failed = threading.Event()
+    worker_errors: list[tuple[str, BaseException]] = []
 
     def worker(gpu_id: int) -> None:
-        while True:
+        while not worker_failed.is_set():
             try:
                 cell_id = work.get_nowait()
             except queue.Empty:
                 return
-            process_cell(cell_id, gpu_id)
-            work.task_done()
+            try:
+                process_cell(cell_id, gpu_id)
+            except BaseException as error:
+                with lock:
+                    worker_errors.append((cell_id, error))
+                    save()
+                worker_failed.set()
+                return
+            finally:
+                work.task_done()
 
     threads = [
         threading.Thread(target=worker, args=(gpu_id,), name=f"coverage-gpu-{gpu_id}")
@@ -1409,6 +1424,9 @@ def run_coverage(
         thread.join()
     with lock:
         save()
+    if worker_errors:
+        cell_id, error = worker_errors[0]
+        raise RuntimeError(f"coverage worker failed: cell={cell_id}") from error
     return status_path
 
 

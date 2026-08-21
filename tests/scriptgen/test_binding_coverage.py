@@ -422,6 +422,93 @@ def test_render_pass_does_not_backfill_or_rewrite_manifest_while_planner_runs(
     assert status["cells"]["cell"]["status"] == "awaiting_candidates"
 
 
+def test_deferred_question_cell_never_runs_independent_geometry_backfill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = _scene(tmp_path)
+    cell = CoverageCell(
+        cell_id="deferred",
+        scene_key="scene",
+        scene_id="scene",
+        capability="occluder_identification",
+        binding={"target": "target"},
+        seed=17,
+        target_accepted=10,
+        geometry_pool_size=0,
+        diverse_pool_size=0,
+        search_attempt_limit=0,
+        raw_plan_limit=0,
+    )
+    manifest_path = _write_coverage_manifest(tmp_path, cells=(cell,), scenes=(scene,))
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage.verify_coverage_sources",
+        lambda manifest: None,
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage._new_candidates",
+        lambda *args, **kwargs: pytest.fail("deferred cells must not generate plans"),
+    )
+
+    status_path = run_coverage(
+        manifest_path,
+        og_root=tmp_path,
+        conda_env="behavior",
+        data_root=tmp_path,
+        gpu_ids=(0,),
+        skip_preflight=True,
+    )
+
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    assert status["cells"]["deferred"]["status"] == "exhausted"
+    assert status["cells"]["deferred"]["candidate_statuses"] == {}
+
+
+def test_worker_exception_fails_the_outer_coverage_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene = _scene(tmp_path)
+    cell = CoverageCell(
+        cell_id="producer",
+        scene_key="scene",
+        scene_id="scene",
+        capability="self_motion_update",
+        binding={"target": "target"},
+        seed=17,
+        target_accepted=10,
+        geometry_pool_size=0,
+        diverse_pool_size=0,
+        search_attempt_limit=30,
+        raw_plan_limit=0,
+    )
+    manifest_path = _write_coverage_manifest(tmp_path, cells=(cell,), scenes=(scene,))
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage.verify_coverage_sources",
+        lambda manifest: None,
+    )
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage._new_candidates",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("boom")),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="coverage worker failed: cell=producer",
+    ) as raised:
+        run_coverage(
+            manifest_path,
+            og_root=tmp_path,
+            conda_env="behavior",
+            data_root=tmp_path,
+            gpu_ids=(0,),
+            skip_preflight=True,
+        )
+
+    assert isinstance(raised.value.__cause__, ValueError)
+    assert str(raised.value.__cause__) == "boom"
+
+
 def test_initialize_status_without_rendering_and_validate_existing_index(
     tmp_path: Path,
 ) -> None:

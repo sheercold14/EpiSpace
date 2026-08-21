@@ -78,6 +78,13 @@ coverage_run_args=(
   --timeout-minutes "${epispace_timeout_minutes}"
   --cell-ids-file "${work_root}/output/cell_ids.json"
 )
+if [[ -f "${package_root}/credit_cell_ids.json" ]]; then
+  cp "${package_root}/credit_cell_ids.json" \
+    "${work_root}/output/credit_cell_ids.json"
+  coverage_run_args+=(
+    --credit-cell-ids-file "${work_root}/output/credit_cell_ids.json"
+  )
+fi
 if [[ "${epispace_remote_backfill}" == 0 ]]; then
   coverage_run_args+=(--no-backfill)
 fi

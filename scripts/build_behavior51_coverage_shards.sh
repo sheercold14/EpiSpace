@@ -15,6 +15,13 @@ args=(
   --backend-root "${backend_root}"
 )
 
+if [[ -n "${EPISPACE_COVERAGE_CELL_IDS_FILE:-}" ]]; then
+  args+=(--cell-ids-file "${EPISPACE_COVERAGE_CELL_IDS_FILE}")
+fi
+if [[ -n "${EPISPACE_COVERAGE_CREDIT_CELL_IDS_FILE:-}" ]]; then
+  args+=(--credit-cell-ids-file "${EPISPACE_COVERAGE_CREDIT_CELL_IDS_FILE}")
+fi
+
 if [[ "${EPISPACE_SHARD_PREVIEW:-0}" == 1 ]]; then
   args+=(--preview)
 fi

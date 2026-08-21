@@ -557,6 +557,7 @@ def audit(source_root: Path, output_root: Path, *, prefix_audit: bool) -> dict[s
         raise ValueError("coverage plan differs from merge ledger")
     if _sha256(status_path) != ledger["current_status_sha256"]:
         raise ValueError("coverage status differs from merge ledger")
+    partial_snapshot = len(ledger["applied_shards"]) < 2
 
     candidates = {
         candidate["candidate_id"]: candidate
@@ -731,7 +732,7 @@ def audit(source_root: Path, output_root: Path, *, prefix_audit: bool) -> dict[s
             "status_sha256": _sha256(status_path),
             "merge_ledger": str(ledger_path),
             "applied_shards": ledger["applied_shards"],
-            "partial": len(ledger["applied_shards"]) < 2,
+            "partial": partial_snapshot,
         },
         "counts": {
             "source_episode_count": len(dataset["episodes"]),
@@ -783,7 +784,11 @@ def audit(source_root: Path, output_root: Path, *, prefix_audit: bool) -> dict[s
             "cell_status": dict(
                 sorted(Counter(status["cells"][cell["cell_id"]]["status"] for cell in p3_cells).items())
             ),
-            "disposition": "blocked_waiting_for_shard_000",
+            "disposition": (
+                "blocked_waiting_for_remaining_shard"
+                if partial_snapshot
+                else "full_snapshot_audited"
+            ),
         },
         "integrity": {
             "accepted_npz_container_count": sum(
@@ -796,7 +801,11 @@ def audit(source_root: Path, output_root: Path, *, prefix_audit: bool) -> dict[s
         "v2_policy": {
             "v1_mutation": "forbidden",
             "healthy_media_reuse": "reference_or_hardlink",
-            "quarantine_credit_recompute": "current_partial_snapshot_now; repeat after later merge",
+            "quarantine_credit_recompute": (
+                "current_partial_snapshot_now; repeat after later merge"
+                if partial_snapshot
+                else "full_merged_snapshot"
+            ),
             "qa_recompile": "v2_only",
         },
     }
@@ -839,6 +848,7 @@ def audit(source_root: Path, output_root: Path, *, prefix_audit: bool) -> dict[s
                 "self_motion_update_occluded": "redesign occlusion at intermediate t_occ then move to t_q",
             },
             "current_partial_snapshot": {
+                "snapshot_scope": "partial" if partial_snapshot else "full_merged",
                 "quarantine_marginal_cell_count": len(marginal_deficits),
                 "quarantine_marginal_missing_slots": sum(
                     row["new_missing_slots"] for row in marginal_deficits
@@ -853,6 +863,8 @@ def audit(source_root: Path, output_root: Path, *, prefix_audit: bool) -> dict[s
             "merge_policy": (
                 "start local repair now; if another canonical shard is merged later, "
                 "recompute and deduplicate its episode credits before final v2 release"
+                if partial_snapshot
+                else "all canonical shards are merged; build the final v2 overlay from this audit"
             ),
         },
     )

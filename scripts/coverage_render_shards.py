@@ -119,21 +119,48 @@ def _frame_count(candidate: dict[str, Any]) -> int:
     return max(1, len(payload.get("views", ())) + len(payload.get("auxiliary_views", ())))
 
 
+def _requested_cell_ids(path: Path | None) -> set[str] | None:
+    if path is None:
+        return None
+    payload = _read_json(path.resolve())
+    cell_ids = payload.get("cell_ids")
+    if not isinstance(cell_ids, list) or not all(
+        isinstance(cell_id, str) for cell_id in cell_ids
+    ):
+        raise ValueError(f"cell-id file must contain a string cell_ids list: {path}")
+    if len(cell_ids) != len(set(cell_ids)):
+        raise ValueError(f"cell-id file contains duplicates: {path}")
+    return set(cell_ids)
+
+
 def _scene_weights(
-    manifest: dict[str, Any], status: dict[str, Any]
+    manifest: dict[str, Any],
+    status: dict[str, Any],
+    requested_cell_ids: set[str] | None = None,
+    backfill_frame_weight: int = 0,
 ) -> tuple[dict[str, int], dict[str, int]]:
     weights: dict[str, int] = defaultdict(int)
     pending_counts: dict[str, int] = defaultdict(int)
     for cell in manifest["cells"]:
         cell_id = cell["cell_id"]
+        if requested_cell_ids is not None and cell_id not in requested_cell_ids:
+            continue
         row = status.get("cells", {}).get(cell_id, {})
-        if len(row.get("accepted_episode_ids", ())) >= int(cell["target_accepted"]):
+        if requested_cell_ids is None and len(row.get("accepted_episode_ids", ())) >= int(
+            cell["target_accepted"]
+        ):
             continue
         # A geometry-empty cell is still remote work when authoritative
         # backfill is enabled.  Keep its scene in the shard even though its
         # initial frame weight and pending-candidate count are both zero.
         weights.setdefault(cell["scene_key"], 0)
         pending_counts.setdefault(cell["scene_key"], 0)
+        if requested_cell_ids is not None:
+            # Repair overlays deliberately reset their producer geometry pools.
+            # Existing pending frames therefore understate most of the remote
+            # work.  A per-producer virtual frame cost prevents all zero-pool
+            # scenes from collapsing into one long-tail shard.
+            weights[cell["scene_key"]] += backfill_frame_weight
         for candidate in cell.get("candidates", ()):
             if _candidate_state(status, cell_id, candidate["candidate_id"]) != "pending":
                 continue
@@ -283,6 +310,8 @@ def _build_one_package(
     source_status_path: Path,
     assignment: dict[str, Any],
     shard_count: int,
+    requested_cell_ids: set[str] | None,
+    requested_credit_cell_ids: set[str] | None,
     hardlink: bool,
     code_revisions: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, Any]:
@@ -352,7 +381,22 @@ def _build_one_package(
     _write_json(manifest_template, subset_manifest)
     _write_json(status_template, subset_status)
     cell_ids = [cell["cell_id"] for cell in subset_manifest["cells"]]
-    _write_json(package_root / "cell_ids.json", {"cell_ids": cell_ids})
+    run_cell_ids = [
+        cell_id
+        for cell_id in cell_ids
+        if requested_cell_ids is None or cell_id in requested_cell_ids
+    ]
+    credit_cell_ids = [
+        cell_id
+        for cell_id in cell_ids
+        if requested_credit_cell_ids is not None
+        and cell_id in requested_credit_cell_ids
+    ]
+    _write_json(package_root / "cell_ids.json", {"cell_ids": run_cell_ids})
+    if requested_credit_cell_ids is not None:
+        _write_json(
+            package_root / "credit_cell_ids.json", {"cell_ids": credit_cell_ids}
+        )
     metadata = {
         "schema_version": SHARD_SCHEMA,
         "collection_id": manifest["collection_id"],
@@ -361,6 +405,8 @@ def _build_one_package(
         "shard_name": package_root.name,
         "scene_keys": sorted(scene_keys),
         "cell_ids": cell_ids,
+        "run_cell_ids": run_cell_ids,
+        "credit_cell_ids": credit_cell_ids,
         "candidate_ids": sorted(candidate_ids),
         "estimated_frames": assignment["estimated_frames"],
         "pending_candidates": assignment["pending_candidates"],
@@ -400,13 +446,40 @@ def command_build(args: argparse.Namespace) -> int:
                 + ", ".join(running[:8])
             )
 
-    weights, pending_counts = _scene_weights(manifest, status)
+    known_cell_ids = {cell["cell_id"] for cell in manifest["cells"]}
+    requested_cell_ids = _requested_cell_ids(args.cell_ids_file)
+    requested_credit_cell_ids = _requested_cell_ids(args.credit_cell_ids_file)
+    for label, requested in (
+        ("producer", requested_cell_ids),
+        ("credit", requested_credit_cell_ids),
+    ):
+        unknown = (requested or set()) - known_cell_ids
+        if unknown:
+            raise ValueError(
+                f"unknown {label} cell ids: " + ", ".join(sorted(unknown)[:8])
+            )
+    weights, pending_counts = _scene_weights(
+        manifest,
+        status,
+        requested_cell_ids=requested_cell_ids,
+        backfill_frame_weight=(
+            args.backfill_frame_weight if requested_cell_ids is not None else 0
+        ),
+    )
     assignments = _assign_scenes(weights, pending_counts, args.num_shards)
     preview = {
         "manifest": str(manifest_path),
         "status": str(status_path),
         "live_manifest_processes": live_processes,
         "running_status_rows": len(running),
+        "requested_cell_count": (
+            len(requested_cell_ids) if requested_cell_ids is not None else None
+        ),
+        "requested_credit_cell_count": (
+            len(requested_credit_cell_ids)
+            if requested_credit_cell_ids is not None
+            else None
+        ),
         "shards": assignments,
     }
     if args.preview:
@@ -449,6 +522,8 @@ def command_build(args: argparse.Namespace) -> int:
             source_status_path=status_path,
             assignment=assignment,
             shard_count=args.num_shards,
+            requested_cell_ids=requested_cell_ids,
+            requested_credit_cell_ids=requested_credit_cell_ids,
             hardlink=args.hardlink,
             code_revisions=code_revisions,
         )
@@ -727,7 +802,10 @@ def _recover_status_only_candidates(
         cell = cells.get(cell_id)
         if cell is None:
             raise ValueError(f"status-only candidate belongs to unknown cell: {candidate_id}")
-        match = re.fullmatch(re.escape(cell_id) + r"__a(\d+)", candidate_id)
+        namespace = str(cell.get("candidate_namespace", ""))
+        match = re.fullmatch(
+            re.escape(f"{cell_id}{namespace}") + r"__a(\d+)", candidate_id
+        )
         if match is None:
             raise ValueError(
                 f"status-only candidate does not match its cell: {candidate_id}/{cell_id}"
@@ -980,6 +1058,22 @@ def parser() -> argparse.ArgumentParser:
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--num-shards", type=int, default=2)
     build.add_argument(
+        "--cell-ids-file",
+        type=Path,
+        help="run only these producer cells while retaining complete scene manifests",
+    )
+    build.add_argument(
+        "--credit-cell-ids-file",
+        type=Path,
+        help="preserve downstream repair targets used to decide producer backfill",
+    )
+    build.add_argument(
+        "--backfill-frame-weight",
+        type=int,
+        default=120,
+        help="virtual frame cost per selected producer with deferred geometry",
+    )
+    build.add_argument(
         "--backend-root",
         type=Path,
         default=Path(
@@ -1018,6 +1112,8 @@ def main() -> int:
     args = parser().parse_args()
     if getattr(args, "num_shards", 1) < 1:
         raise ValueError("--num-shards must be positive")
+    if getattr(args, "backfill_frame_weight", 0) < 0:
+        raise ValueError("--backfill-frame-weight must be non-negative")
     return int(args.handler(args))
 
 
