@@ -23,12 +23,23 @@ echo "[$(date +%T)] sources done: $(grep -c 'source ready' /tmp/prepare_all51.lo
 # A scene that died on a full disk is worth one retry before it is written off:
 # the garden scenes are the only ones that have ever produced deep chains, and
 # losing one to an environment fault would quietly shrink the P3 scene pool.
-mapfile -t FAILED < <(grep -o 'source failed scene=\S*' /tmp/prepare_all51.log |
-  cut -d= -f2 | sort -u)
-if [ "${#FAILED[@]}" -gt 0 ]; then
-  echo "[$(date +%T)] retrying failed sources: ${FAILED[*]}"
+#
+# The retry has to repeat the original all-scene invocation rather than name
+# the failed scenes.  prepare-scenes compares the requested scene count against
+# the count recorded in source.index.json and refuses a run that differs, so
+# "--scenes Wainscott_0_garden" is rejected before it renders anything.  The
+# full command is resumable - a scene whose bundle is still on disk is adopted
+# untouched - so this costs one scene's render, not fifty-one.
+FAILED=$(python - "$SOURCES/source.index.json" <<'PY'
+import json, pathlib, sys
+index = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(" ".join(sorted(s["scene_key"] for s in index["scenes"] if s["status"] != "ready")))
+PY
+)
+if [ -n "$FAILED" ]; then
+  echo "[$(date +%T)] retrying failed sources: $FAILED"
   python -m spatial_episode.scriptgen.dataset_cli prepare-scenes \
-    --scenes "${FAILED[@]}" \
+    --scene-set all \
     --source-root "$SOURCES" \
     --source-id p23_sources_all_v1 \
     --og-root /data/shichao/data/dataV100/code/OminiGibson \
@@ -53,13 +64,20 @@ python scripts/report_scene_concentration.py \
 # Three collections, because the per-scene binding cap has to differ by line
 # and coverage-plan takes one value per collection.  Shared credit runs inside
 # the reference curve and inside each cross-view trio, never between them, so
-# splitting on that boundary costs no coverage.
+# splitting on that boundary costs no coverage - including splitting the chain
+# lines by k, as long as each ego/anchor/closer trio stays whole.
 #
-# P2 draws from twenty scenes with the top two holding a quarter of the supply,
-# so it can afford the wide cap.  The chain lines come from a handful of rooms -
-# at a cap of 32 two rooms hold 60% of k1 and 81% of k3 - so they take a
-# tighter cap, which trades supply for the scene diversity that decides whether
-# the model learns the relation or the room.
+# The 50-scene screen decides the split.  P2 draws on 37 scenes with the top
+# two holding 15% at a cap of 32, so it takes the wide cap.  The chains come
+# from a handful of rooms and no cap can add rooms, so the cap is only there to
+# stop one room dominating what few there are: at 8 the snapshot k1 and k2
+# top-two shares sit at 33% and 43%, and above that k2 crosses half.
+#
+# k3 does not go into training at either cap.  Snapshot k3 exists in four
+# scenes and walking k3 in three, and two of them hold two thirds of the supply
+# no matter how it is capped, so a model trained on it learns those rooms.  It
+# renders into the holdout collection with the walking line and is evaluated,
+# not trained on.
 P2=(reference_frame_transform reference_frame_transform_yaw45 reference_frame_transform_yaw90
     reference_frame_transform_yaw135 reference_frame_transform_yaw180
     reference_frame_transform_yawm45 reference_frame_transform_yawm90
@@ -68,10 +86,11 @@ P2=(reference_frame_transform reference_frame_transform_yaw45 reference_frame_tr
     reference_frame_visibility_yaw135 reference_frame_visibility_yaw180
     reference_frame_visibility_yawm45 reference_frame_visibility_yawm90
     reference_frame_visibility_yawm135)
-SNAPSHOT=(cross_view_snapshot_ego_k1 cross_view_snapshot_ego_k2 cross_view_snapshot_ego_k3
-          cross_view_snapshot_anchor_k1 cross_view_snapshot_anchor_k2 cross_view_snapshot_anchor_k3
-          cross_view_snapshot_closer_k1 cross_view_snapshot_closer_k2 cross_view_snapshot_closer_k3)
-WALKING=(cross_view_ego_k1 cross_view_ego_k2 cross_view_ego_k3
+SNAPSHOT=(cross_view_snapshot_ego_k1 cross_view_snapshot_ego_k2
+          cross_view_snapshot_anchor_k1 cross_view_snapshot_anchor_k2
+          cross_view_snapshot_closer_k1 cross_view_snapshot_closer_k2)
+HOLDOUT=(cross_view_snapshot_ego_k3 cross_view_snapshot_anchor_k3 cross_view_snapshot_closer_k3
+         cross_view_ego_k1 cross_view_ego_k2 cross_view_ego_k3
          cross_view_anchor_k1 cross_view_anchor_k2 cross_view_anchor_k3
          cross_view_closer_k1 cross_view_closer_k2 cross_view_closer_k3)
 
@@ -88,8 +107,8 @@ plan_collection() {
 }
 
 plan_collection p23_p2_v1      32 "${P2[@]}"
-plan_collection p23_p3snap_v1  16 "${SNAPSHOT[@]}"
-plan_collection p23_holdout_v1 16 "${WALKING[@]}"
+plan_collection p23_p3snap_v1   8 "${SNAPSHOT[@]}"
+plan_collection p23_holdout_v1  8 "${HOLDOUT[@]}"
 
 for name in p23_p2_v1 p23_p3snap_v1 p23_holdout_v1; do
   echo "[$(date +%T)] --- $name"
