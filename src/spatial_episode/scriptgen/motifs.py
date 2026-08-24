@@ -1206,6 +1206,101 @@ def _landmark_chain(binding: dict[str, str]) -> tuple[str, ...]:
     return (binding["target"], *anchors, binding["other"])
 
 
+def pair_framable_station_exists(
+    layout: SceneLayout, left_name: str, right_name: str
+) -> bool:
+    """Whether some free station frames both objects clearly at jitter extremes.
+
+    Pair-only form of the snapshot station admission: no target/other
+    exclusivity and no final-edge margin.  Passing here is necessary for any
+    chain edge over this pair, so the result can prune bindings without
+    excluding a chain the full station search could still realise.  Sampling
+    density mirrors ``_edge_station_pool`` and the result is deterministic in
+    the pair, so it is safe to cache across capabilities.
+    """
+    if left_name > right_name:
+        left_name, right_name = right_name, left_name
+    return _pair_framable(layout, left_name, right_name)
+
+
+@lru_cache(maxsize=65536)
+def _pair_framable(layout: SceneLayout, left_name: str, right_name: str) -> bool:
+    from .standards import STD_V1 as std
+
+    grid = _occupancy_grid(layout)
+    left, right = layout.object(left_name), layout.object(right_name)
+    cap_left = _landmark_view_cap_m(left.size_m)
+    cap_right = _landmark_view_cap_m(right.size_m)
+    edge = distance_m(left.xy, right.xy)
+    half = edge / 2.0
+    reach = min(cap_left, cap_right)
+    if half >= reach:
+        return False
+    jitter = std.snapshot_yaw_jitter_deg
+    rng = random.Random(f"pair_framable|{left_name}|{right_name}")
+
+    def admit(index: int) -> bool:
+        xy = grid.world_xy(index)
+        left_distance = distance_m(xy, left.xy)
+        right_distance = distance_m(xy, right.xy)
+        if not 0.75 <= left_distance <= cap_left:
+            return False
+        if not 0.75 <= right_distance <= cap_right:
+            return False
+        left_yaw = bearing_deg(xy, left.xy)
+        separation = wrap_deg(bearing_deg(xy, right.xy) - left_yaw)
+        if abs(separation) > 70.0:
+            return False
+        yaw = wrap_deg(left_yaw + separation / 2.0)
+        probes = GeometrySceneView(
+            layout,
+            tuple(
+                Pose2D(xy[0], xy[1], wrap_deg(yaw + delta))
+                for delta in (-jitter, 0.0, jitter)
+            ),
+            std,
+        )
+        return all(
+            probes.visibility(name, frame).tristate(std) is True
+            for frame in range(3)
+            for name in (left_name, right_name)
+        )
+
+    mid = ((left.xy[0] + right.xy[0]) / 2.0, (left.xy[1] + right.xy[1]) / 2.0)
+    if edge > 1e-6:
+        axis = ((right.xy[0] - left.xy[0]) / edge, (right.xy[1] - left.xy[1]) / edge)
+    else:
+        angle = rng.uniform(0.0, 2.0 * math.pi)
+        axis = (math.cos(angle), math.sin(angle))
+    normal = (-axis[1], axis[0])
+    height_min = max(half / math.tan(math.radians(35.0)), 0.75)
+    height_max = math.sqrt(max(reach * reach - half * half, 0.0))
+    tried: set[int] = set()
+    if height_min < height_max:
+        for _ in range(96):
+            side = rng.choice((-1.0, 1.0))
+            height = rng.uniform(height_min, height_max)
+            lateral = rng.uniform(-0.6, 0.6) * half
+            proposal = (
+                mid[0] + normal[0] * height * side + axis[0] * lateral,
+                mid[1] + normal[1] * height * side + axis[1] * lateral,
+            )
+            index = grid.nearest_index(proposal)
+            if index in tried or not grid.is_free(index):
+                continue
+            tried.add(index)
+            if admit(index):
+                return True
+    for _ in range(min(256, len(grid.free_cells))):
+        index = grid.free_cells[rng.randrange(len(grid.free_cells))]
+        if index in tried:
+            continue
+        tried.add(index)
+        if admit(index):
+            return True
+    return False
+
+
 def _edge_station_pool(
     layout: SceneLayout,
     grid: _OccupancyGrid,

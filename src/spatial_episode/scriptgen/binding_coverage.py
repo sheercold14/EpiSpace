@@ -22,7 +22,7 @@ from .collection import (
     CHAIN_MOTIFS,
     CollectionScene,
     REFERENCE_CAPABILITIES,
-    _binding_chain_source_covisible,
+    _chain_binding_filter,
     _reference_binding_eligible,
     _scene_can_bind,
     _source_render_evidence,
@@ -237,7 +237,7 @@ def _bindings_for_scene(
             script,
             maximum=maximum_multislot_bindings,
             allowed_entity_ids=evidence.visible_entities,
-            binding_filter=lambda binding: _binding_chain_source_covisible(binding, evidence),
+            binding_filter=_chain_binding_filter(layout, script, evidence),
         )
     return ranked_bindings(layout, script, maximum=maximum_multislot_bindings)
 

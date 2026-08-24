@@ -26,6 +26,7 @@ from .compiler import CapabilityCompiler
 from .generate import generate_plans
 from .geometry import azimuth_deg, bearing_deg, distance_m, point_in_rotated_rect, wrap_deg
 from .library import REFERENCE_FRAME_SCRIPTS, SCRIPT_LIBRARY
+from .motifs import _landmark_chain, pair_framable_station_exists
 from .plan import TrajectoryPlan
 from .sceneview import GeometrySceneView, Pose2D, SceneLayout, SceneObject
 from .spec import ScriptSpec, SpecModel
@@ -298,12 +299,7 @@ def _generate_one(
                     else None
                 ),
                 binding_filter=(
-                    (
-                        lambda binding: _binding_chain_source_covisible(
-                            binding,
-                            source_render_evidence,
-                        )
-                    )
+                    _chain_binding_filter(layout, script, source_render_evidence)
                     if source_render_evidence is not None
                     else None
                 ),
@@ -412,18 +408,38 @@ def _binding_chain_source_covisible(
     binding: dict[str, str],
     evidence: SourceRenderEvidence,
 ) -> bool:
-    anchors = tuple(
-        binding[name]
-        for name in sorted(
-            (name for name in binding if name.startswith("anchor")),
-            key=lambda name: int(name.removeprefix("anchor")),
-        )
-    )
-    chain = (binding["target"], *anchors, binding["other"])
+    chain = _landmark_chain(binding)
     return all(
         frozenset((left, right)) in evidence.covisible_pairs
         for left, right in itertools.pairwise(chain)
     )
+
+
+def _binding_chain_stations_framable(
+    layout: SceneLayout, binding: dict[str, str]
+) -> bool:
+    """Every chain edge admits some snapshot station in pure geometry.
+
+    Snapshot stations are searched over the whole free grid, so the static
+    source survey's covisible pairs are far too strict a proxy for them; the
+    geometry backend's own pair admission is the necessary condition instead.
+    """
+    chain = _landmark_chain(binding)
+    return all(
+        pair_framable_station_exists(layout, left, right)
+        for left, right in itertools.pairwise(chain)
+    )
+
+
+def _chain_binding_filter(
+    layout: SceneLayout,
+    script: ScriptSpec,
+    evidence: SourceRenderEvidence,
+) -> Callable[[dict[str, str]], bool]:
+    """Prefilter chain bindings by the evidence a chain edge actually needs."""
+    if script.motifs == ("snapshot_landmarks",):
+        return lambda binding: _binding_chain_stations_framable(layout, binding)
+    return lambda binding: _binding_chain_source_covisible(binding, evidence)
 
 
 def _reference_binding_eligible(

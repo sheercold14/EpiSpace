@@ -272,6 +272,28 @@ def test_ego_anchor_and_closer_recompile_on_the_same_chain(
     assert closer.answer.witness["distance_ratio"] == distance_ratio
 
 
+def test_snapshot_chain_prefilter_uses_geometric_pair_framability() -> None:
+    from spatial_episode.scriptgen.collection import (
+        _binding_chain_stations_framable,
+        _chain_binding_filter,
+    )
+    from spatial_episode.scriptgen.motifs import pair_framable_station_exists
+
+    layout = _fixture_layout(2)
+    binding = {"target": "X", "anchor1": "A1", "anchor2": "A2", "other": "Y"}
+    assert pair_framable_station_exists(layout, "A2", "Y")
+    assert _binding_chain_stations_framable(layout, binding)
+    # X and Y are 8 m apart: keeping their separation under 70 degrees
+    # pushes any station beyond the 6 m clear-view cap for size 0.6 m, so
+    # a chain with no anchor between them must be pruned.
+    assert not pair_framable_station_exists(layout, "X", "Y")
+    assert not _binding_chain_stations_framable(layout, {"target": "X", "other": "Y"})
+    snapshot_filter = _chain_binding_filter(
+        layout, CROSS_VIEW_SNAPSHOT_EGO[1], evidence=None  # type: ignore[arg-type]
+    )
+    assert snapshot_filter(binding)
+
+
 def test_anchor_frame_ignores_reference_objects_intrinsic_yaw() -> None:
     ego_script, plan, view = _case(1)
     anchor_script = _fixed_binding(CROSS_VIEW_ANCHOR[0], 1)
