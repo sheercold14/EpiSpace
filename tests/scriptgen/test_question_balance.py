@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import json
+
 from typing import Any
 
-from spatial_episode.scriptgen.question_balance import balance_question_labels
+from spatial_episode.scriptgen.question_balance import (
+    balance_question_labels,
+    exclusion_lines,
+)
 
 
-def _group(group_id: str, questions: list[tuple[str, str | None]]) -> dict[str, Any]:
+def _group(questions: list[tuple[str, str | None]]) -> dict[str, Any]:
     return {
-        "question_group_id": group_id,
         "questions": [
             {
                 "capability": capability,
@@ -28,10 +32,10 @@ def _stratum(report: dict[str, Any], capability: str) -> dict[str, Any]:
 
 def test_every_retained_label_ships_the_same_number_of_questions() -> None:
     """The shipped stratum is flat, so no constant answer beats chance."""
-    groups = [
-        _group(f"g{index}", [("reference_frame_visibility_yaw90", label)])
+    groups = {
+        f"e{index}": _group([("reference_frame_visibility_yaw90", label)])
         for index, label in enumerate(["visible"] * 2 + ["not_visible"] * 8)
-    ]
+    }
     report = balance_question_labels(groups)
     stratum = _stratum(report, "reference_frame_visibility_yaw90")
     assert stratum["label_counts"] == {"visible": 2, "not_visible": 8}
@@ -49,10 +53,10 @@ def test_a_stratum_with_one_answer_ships_nothing_and_says_so() -> None:
     prior, so it is dropped whole and named in the report rather than left to
     look like a stratum that simply produced few questions.
     """
-    groups = [
-        _group(f"g{index}", [("cross_view_snapshot_anchor_k1", "front")])
+    groups = {
+        f"e{index}": _group([("cross_view_snapshot_anchor_k1", "front")])
         for index in range(6)
-    ]
+    }
     report = balance_question_labels(groups)
     stratum = _stratum(report, "cross_view_snapshot_anchor_k1")
     assert stratum["collapsed"] is True
@@ -69,19 +73,18 @@ def test_capabilities_balance_independently_of_each_other() -> None:
     that happen to answer "visible" pay for the yaws that never do, and the
     rotation named in the question text would go on predicting the label.
     """
-    groups = [
-        _group(
-            f"g{index}",
+    groups = {
+        f"e{index}": _group(
             [
                 ("reference_frame_visibility", "visible" if index < 8 else "not_visible"),
                 (
                     "reference_frame_visibility_yaw180",
                     "not_visible" if index < 8 else "visible",
                 ),
-            ],
+            ]
         )
         for index in range(10)
-    ]
+    }
     report = balance_question_labels(groups)
     for capability in ("reference_frame_visibility", "reference_frame_visibility_yaw180"):
         stratum = _stratum(report, capability)
@@ -93,12 +96,12 @@ def test_capabilities_balance_independently_of_each_other() -> None:
 
 def test_unanswerable_questions_never_enter_the_balance() -> None:
     """An abstained or invalid instance carries no label to balance against."""
-    groups = [
-        _group("g0", [("cross_view_snapshot_closer_k3", "first")]),
-        _group("g1", [("cross_view_snapshot_closer_k3", "second")]),
-        _group("g2", [("cross_view_snapshot_closer_k3", None)]),
-        _group("g3", [("cross_view_snapshot_closer_k3", None)]),
-    ]
+    groups = {
+        "e0": _group([("cross_view_snapshot_closer_k3", "first")]),
+        "e1": _group([("cross_view_snapshot_closer_k3", "second")]),
+        "e2": _group([("cross_view_snapshot_closer_k3", None)]),
+        "e3": _group([("cross_view_snapshot_closer_k3", None)]),
+    }
     report = balance_question_labels(groups)
     stratum = _stratum(report, "cross_view_snapshot_closer_k3")
     assert stratum["label_counts"] == {"first": 1, "second": 1}
@@ -106,20 +109,54 @@ def test_unanswerable_questions_never_enter_the_balance() -> None:
     assert report["retained_count"] == 2
 
 
-def test_selection_is_deterministic_and_names_the_groups_it_keeps() -> None:
+def test_selection_is_deterministic_and_names_the_episodes_it_keeps() -> None:
     """Reruns must ship the same questions so a collection stays reproducible."""
-    groups = [
-        _group(f"g{index:02d}", [("cross_view_snapshot_ego_k2", label)])
+    groups = {
+        f"e{index:02d}": _group([("cross_view_snapshot_ego_k2", label)])
         for index, label in enumerate(["left"] * 3 + ["right"] * 5)
-    ]
+    }
     first = balance_question_labels(groups)
-    second = balance_question_labels(list(reversed(groups)))
+    second = balance_question_labels(dict(reversed(list(groups.items()))))
     assert first["retained"] == second["retained"]
-    assert [entry["question_group_id"] for entry in first["retained"]] == [
-        "g00",
-        "g01",
-        "g02",
-        "g03",
-        "g04",
-        "g05",
+    assert [entry["episode_id"] for entry in first["retained"]] == [
+        "e00",
+        "e01",
+        "e02",
+        "e03",
+        "e04",
+        "e05",
+    ]
+
+
+def test_the_dropped_questions_are_written_as_a_qa_exclusions_file() -> None:
+    """Balancing has to reach the training set to mean anything.
+
+    The QA builder excludes by ``(episode_id, capability)``, so the dropped
+    half of a skewed stratum is emitted in exactly that form and the build
+    honours the balance by consuming the file.
+    """
+    groups = {
+        f"e{index:02d}": _group([("cross_view_snapshot_ego_k2", label)])
+        for index, label in enumerate(["left"] * 3 + ["right"] * 5)
+    }
+    report = balance_question_labels(groups)
+    assert report["dropped_count"] == 2
+    lines = [json.loads(line) for line in exclusion_lines(report).splitlines()]
+    assert lines == [
+        {"capability": "cross_view_snapshot_ego_k2", "episode_id": "e06"},
+        {"capability": "cross_view_snapshot_ego_k2", "episode_id": "e07"},
+    ]
+
+
+def test_a_collapsed_stratum_is_excluded_question_by_question() -> None:
+    """Dropping the stratum whole must still name every question it drops."""
+    groups = {
+        f"e{index}": _group([("cross_view_snapshot_anchor_k1", "front")])
+        for index in range(3)
+    }
+    report = balance_question_labels(groups)
+    assert [json.loads(line)["episode_id"] for line in exclusion_lines(report).splitlines()] == [
+        "e0",
+        "e1",
+        "e2",
     ]

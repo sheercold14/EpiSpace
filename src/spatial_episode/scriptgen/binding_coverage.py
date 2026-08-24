@@ -36,7 +36,7 @@ from .generate import generate_plans
 from .library import SCRIPT_LIBRARY
 from .motifs import proposal_occupancy_grid
 from .plan import TrajectoryPlan
-from .question_balance import balance_question_labels, load_groups
+from .question_balance import balance_question_labels, exclusion_lines, load_groups
 from .single import _preflight, _render, _render_failure_is_retryable, _write_recipe
 from .slotting import iter_bindings
 from .source_inventory import SourceIndex, SourceSceneRecord, load_source_index
@@ -1613,11 +1613,11 @@ def package_coverage(manifest_path: Path) -> tuple[Path, Path]:
     # next to the account of what was collected.
     balance = balance_question_labels(
         load_groups(
-            [
-                Path(payload["group"])
-                for _, payload in sorted(status["episodes"].items())
+            {
+                episode_id: Path(payload["group"])
+                for episode_id, payload in sorted(status["episodes"].items())
                 if Path(payload["group"]).is_file()
-            ]
+            }
         )
     )
     dataset = {
@@ -1631,11 +1631,15 @@ def package_coverage(manifest_path: Path) -> tuple[Path, Path]:
         ],
         "coverage_report": "coverage.report.json",
         "question_balance": "coverage.balance.json",
+        "question_balance_exclusions": "coverage.balance.exclusions.jsonl",
     }
     report_path = output_root / "coverage.report.json"
     dataset_path = output_root / "dataset.json"
     _write_json(report_path, report)
     _write_json(output_root / "coverage.balance.json", balance)
+    (output_root / "coverage.balance.exclusions.jsonl").write_text(
+        exclusion_lines(balance), encoding="utf-8"
+    )
     _write_json(dataset_path, dataset)
     index = output_root / "index.html"
     index.write_text(

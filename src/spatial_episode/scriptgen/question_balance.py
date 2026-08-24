@@ -13,6 +13,11 @@ imagined yaw for the reference line (``reference_frame_visibility_yaw90``) -
 so balancing inside a capability is the ``(k, question type)`` stratification
 this collection settled on, and balancing every capability to the same shape
 is what removes the text-only shortcut across capabilities.
+
+A question is identified by the episode that rendered it and the capability it
+compiles, which is the same pair the QA builder's ``--exclusions`` file takes,
+so the report can be handed to the training-set build directly instead of
+being a summary somebody has to remember to act on.
 """
 
 from __future__ import annotations
@@ -32,27 +37,28 @@ MINIMUM_DISTINCT_LABELS = 2
 
 @dataclass(frozen=True)
 class QuestionKey:
-    """Identifies one compiled question inside one rendered question group."""
+    """Identifies one compiled question inside one rendered episode.
 
-    question_group_id: str
+    An episode compiles at most one question per capability - three for a
+    cross-view trajectory, sixteen for a reference survey - so the pair is
+    unique, and it is the pair the QA builder excludes on.
+    """
+
+    episode_id: str
     capability: str
 
     def as_json(self) -> dict[str, str]:
-        return {
-            "question_group_id": self.question_group_id,
-            "capability": self.capability,
-        }
+        return {"episode_id": self.episode_id, "capability": self.capability}
 
 
 def _labelled_questions(
-    groups: list[dict[str, Any]],
+    groups: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, list[QuestionKey]]]:
     """Group answerable questions by capability and then by answer label."""
     by_capability: dict[str, dict[str, list[QuestionKey]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    for group in groups:
-        group_id = group["question_group_id"]
+    for episode_id, group in groups.items():
         for question in group["questions"]:
             # A skipped question has no authoritative label to balance: the
             # compiler either abstained or ruled the instance invalid.
@@ -61,26 +67,28 @@ def _labelled_questions(
             label = question.get("label")
             if label is None:
                 continue
-            key = QuestionKey(group_id, question["capability"])
+            key = QuestionKey(episode_id, question["capability"])
             by_capability[question["capability"]][label].append(key)
     return by_capability
 
 
-def balance_question_labels(groups: list[dict[str, Any]]) -> dict[str, Any]:
+def balance_question_labels(groups: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Select an equal number of questions per label within each capability.
 
-    Returns the retained keys plus a per-capability account of what was
-    dropped, so a collapsed stratum is visible in the report rather than
-    silently absent from the dataset.
+    Returns the retained keys, the dropped keys, and a per-capability account,
+    so a collapsed stratum is visible in the report rather than silently absent
+    from the dataset.
     """
     by_capability = _labelled_questions(groups)
     retained: list[QuestionKey] = []
+    dropped: list[QuestionKey] = []
     strata: list[dict[str, Any]] = []
     for capability in sorted(by_capability):
         by_label = by_capability[capability]
         counts = {label: len(keys) for label, keys in by_label.items()}
         total = sum(counts.values())
         if len(counts) < MINIMUM_DISTINCT_LABELS:
+            dropped.extend(key for keys in by_label.values() for key in keys)
             strata.append(
                 {
                     "capability": capability,
@@ -95,10 +103,9 @@ def balance_question_labels(groups: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         per_label = min(counts.values())
         for label in sorted(by_label):
-            keys = sorted(
-                by_label[label], key=lambda key: (key.question_group_id, key.capability)
-            )
+            keys = sorted(by_label[label], key=_ordering)
             retained.extend(keys[:per_label])
+            dropped.extend(keys[per_label:])
         kept = per_label * len(counts)
         strata.append(
             {
@@ -121,18 +128,35 @@ def balance_question_labels(groups: list[dict[str, Any]]) -> dict[str, Any]:
             len(keys) for by_label in by_capability.values() for keys in by_label.values()
         ),
         "retained_count": len(retained),
+        "dropped_count": len(dropped),
         "collapsed_capabilities": tuple(
             row["capability"] for row in strata if row["collapsed"]
         ),
         "strata": tuple(strata),
-        "retained": tuple(
-            key.as_json()
-            for key in sorted(
-                retained, key=lambda key: (key.question_group_id, key.capability)
-            )
-        ),
+        "retained": tuple(key.as_json() for key in sorted(retained, key=_ordering)),
+        "dropped": tuple(key.as_json() for key in sorted(dropped, key=_ordering)),
     }
 
 
-def load_groups(group_paths: list[Path]) -> list[dict[str, Any]]:
-    return [json.loads(path.read_text(encoding="utf-8")) for path in group_paths]
+def exclusion_lines(report: dict[str, Any]) -> str:
+    """Render the dropped questions as the QA builder's ``--exclusions`` file.
+
+    The builder excludes by ``(episode_id, capability)``, which is what the
+    report already stores, so balancing takes effect by being passed to the
+    build rather than by being read by a person.
+    """
+    return "".join(
+        json.dumps(entry, sort_keys=True) + "\n" for entry in report["dropped"]
+    )
+
+
+def _ordering(key: QuestionKey) -> tuple[str, str]:
+    return (key.episode_id, key.capability)
+
+
+def load_groups(group_paths: dict[str, Path]) -> dict[str, dict[str, Any]]:
+    """Read each episode's question group, keyed by the episode that rendered it."""
+    return {
+        episode_id: json.loads(path.read_text(encoding="utf-8"))
+        for episode_id, path in group_paths.items()
+    }
