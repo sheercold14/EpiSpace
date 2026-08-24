@@ -50,8 +50,10 @@ done
 # long tail of repair searches cannot delay the one artefact the gate needs.
 for name in "${COLLECTIONS[@]}"; do
   echo "[$(date +%T)] review set: $name"
+  # These collections put groups/ at the collection root; only the pilot had
+  # the extra output/ level that make_pilot_review's usage example shows.
   python scripts/make_pilot_review.py \
-    --output-root "$ROOT/outputs/$name/output" --count 20 ||
+    --output-root "$ROOT/outputs/$name" --count 20 ||
     echo "[$(date +%T)] review set $name unavailable"
 done
 
