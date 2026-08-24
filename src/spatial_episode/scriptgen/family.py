@@ -34,6 +34,9 @@ from .library import (
     CROSS_VIEW_CLOSER,
     CROSS_VIEW_RELATION,
     CROSS_VIEW_SCRIPT_SETS,
+    CROSS_VIEW_SNAPSHOT_ANCHOR,
+    CROSS_VIEW_SNAPSHOT_CLOSER,
+    CROSS_VIEW_SNAPSHOT_EGO,
     DISAPPEARANCE_CAUSE,
     EXISTENCE_SUFFICIENCY,
     HOMING,
@@ -73,6 +76,9 @@ QUESTION_ROLES: dict[str, FamilyRole] = {
     **{script.capability: "primary" for script in REFERENCE_FRAME_SCRIPTS},
     **{script.capability: "primary" for script in CROSS_VIEW_RELATION},
     **{script.capability: "probe" for script in CROSS_VIEW_CLOSER},
+    **{script.capability: "primary" for script in CROSS_VIEW_SNAPSHOT_EGO},
+    **{script.capability: "primary" for script in CROSS_VIEW_SNAPSHOT_ANCHOR},
+    **{script.capability: "probe" for script in CROSS_VIEW_SNAPSHOT_CLOSER},
     EXISTENCE_SUFFICIENCY.capability: "primary",
 }
 QUESTION_GROUP_SCRIPTS = (
@@ -363,11 +369,23 @@ def build_question_group(
     seed: int = 17,
     drop_count: int = 2,
     delay_extra: int = 4,
+    canonical_plan: bool = True,
 ) -> Path:
-    """Build every qualifying declared question family over one trajectory."""
+    """Build every qualifying declared question family over one trajectory.
+
+    ``canonical_plan=False`` treats the stored plan as provenance only: the
+    render authority alone defines gold, no script inherits the plan's
+    answerability guarantee, and the geometry cross-check (including its
+    standard-lineage gate) is not run.  Use it to recompile bundles planned
+    under a standard outside the current lineage.
+    """
     from .media import export_bundle_channels
 
     plan = json.loads(plan_record.read_text(encoding="utf-8"))
+    if not canonical_plan:
+        if scripts is None:
+            raise ValueError("canonical_plan=False requires explicit scripts")
+        plan = {**plan, "capability": None}
     view = RenderSceneView.from_bundle(bundle, std, scene_ir=scene_ir)
     binding = dict(plan["binding"])
     question_group_id = f"{plan['plan_id']}.question_group.s{seed}"

@@ -19,6 +19,7 @@ from pydantic import Field
 
 from .behavior import RenderSceneView, layout_from_scene_ir
 from .collection import (
+    CHAIN_MOTIFS,
     CollectionScene,
     REFERENCE_CAPABILITIES,
     _binding_chain_source_covisible,
@@ -64,10 +65,13 @@ DEFERRED_INITIAL_CAPABILITIES = frozenset(
             for capability in REFERENCE_CAPABILITIES
             if capability != "reference_frame_transform"
         ),
+        # Each cross-view trio (ego/anchor/closer, walking and snapshot) is
+        # compiled on one trajectory; the ego spec is the producer, the other
+        # two are credited through the shared question group.
         *(
             capability
             for capability in SCRIPT_LIBRARY
-            if capability.startswith("cross_view_closer_")
+            if capability.startswith("cross_view_") and "_ego_" not in capability
         ),
     }
 )
@@ -226,7 +230,7 @@ def _bindings_for_scene(
             )
             if _reference_binding_eligible(layout, binding, std)
         )
-    if script.motifs == ("visit_landmarks",):
+    if script.motifs in CHAIN_MOTIFS:
         evidence = _source_render_evidence(scene, std)
         return ranked_bindings(
             layout,
@@ -254,8 +258,8 @@ def _binding_cache_key(capability: str) -> tuple[Any, ...]:
         eligibility = capability
     elif capability in REFERENCE_CAPABILITIES:
         eligibility = "reference"
-    elif script.motifs == ("visit_landmarks",):
-        eligibility = "visit_landmarks"
+    elif script.motifs in CHAIN_MOTIFS:
+        eligibility = "landmark_chain"
     else:
         eligibility = "generic"
     return eligibility, slots
@@ -391,7 +395,7 @@ def _geometry_pool(
         ),
         candidate_bindings=(cell.binding,),
         candidate_filter=(
-            _visit_render_robust_filter if script.motifs == ("visit_landmarks",) else None
+            _visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None
         ),
     )
     if cell.desired_answer_label is None:

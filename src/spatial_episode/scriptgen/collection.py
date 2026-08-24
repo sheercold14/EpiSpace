@@ -45,6 +45,11 @@ AUXILIARY_CAMERA_PROBE_RADIUS_M = 0.05
 
 REFERENCE_CAPABILITIES = frozenset(script.capability for script in REFERENCE_FRAME_SCRIPTS)
 
+# Both cross-view motifs bind a target–anchor…–other landmark chain and share
+# the same binding ranking, source-covisibility prefilter and render-robust
+# candidate filter; only the camera choreography differs.
+CHAIN_MOTIFS = (("visit_landmarks",), ("snapshot_landmarks",))
+
 
 @dataclass(frozen=True)
 class SourceRenderEvidence:
@@ -192,12 +197,12 @@ def _scene_can_bind(layout: SceneLayout, script: ScriptSpec) -> bool:
 def _binding_score(script: ScriptSpec, objects: tuple[SceneObject, ...]) -> tuple[Any, ...]:
     if script.capability.startswith("existence_sufficiency_"):
         return (-round(objects[0].size_m, 6), objects[0].name)
-    if script.motifs == ("survey",) and len(objects) >= 3:
+    if script.motifs in (("survey",), ("survey_arc",)) and len(objects) >= 3:
         pair_sum = sum(
             distance_m(left.xy, right.xy) for left, right in itertools.combinations(objects, 2)
         )
         return (round(pair_sum, 6), tuple(obj.name for obj in objects))
-    if script.motifs == ("visit_landmarks",):
+    if script.motifs in CHAIN_MOTIFS:
         adjacent = [distance_m(left.xy, right.xy) for left, right in itertools.pairwise(objects)]
         return (
             round(sum(adjacent), 6),
@@ -314,7 +319,7 @@ def _generate_one(
         max_plans=1,
         candidate_bindings=candidates,
         candidate_filter=(
-            _visit_render_robust_filter if script.motifs == ("visit_landmarks",) else None
+            _visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None
         ),
     )
     aggregate.update(report.rejection_counts)
@@ -426,12 +431,12 @@ def _reference_binding_eligible(
     binding: dict[str, str],
     std: CompileStandard,
 ) -> bool:
-    """Cheap binding-only prefilter for the shared ten-point P2 contract.
+    """Cheap binding-only prefilter for the shared P2 curve contract.
 
-    All ten reference-frame specs share their trajectory clauses. Their two
+    All reference-frame specs share their trajectory clauses. Their two
     binding-only qualifiers each cover the complete registered yaw curve, so
     a binding that fails either can never become valid by resampling a survey.
-    Final acceptance still recompiles all ten specs through the normal checker.
+    Final acceptance still recompiles every spec through the normal checker.
     """
     from .predicates import (
         imagined_curve_sector_margins_ge,
@@ -501,6 +506,13 @@ def _reference_render_robust_filter(
     return True
 
 
+def _aux_view_id(offset: int) -> str:
+    """Identifier-safe auxiliary view name: negative offsets use an "m" marker."""
+    if offset < 0:
+        return f"aux-imagined-yawm{-offset:03d}"
+    return f"aux-imagined-yaw{offset:03d}"
+
+
 def _auxiliary_views(
     plan: TrajectoryPlan,
     layout: SceneLayout,
@@ -522,7 +534,7 @@ def _auxiliary_views(
             raise ValueError(f"ambiguous auxiliary view for {plan.plan_id} yaw={offset}")
         views.append(
             {
-                "view_id": f"aux-imagined-yaw{offset:03d}",
+                "view_id": _aux_view_id(offset),
                 "purpose": "imagined_visibility_render_check",
                 "target_entity_id": target.name,
                 "yaw_offset_deg": offset,
@@ -530,7 +542,7 @@ def _auxiliary_views(
                 "camera_height_m": std.camera_height_m,
                 "world_from_agent": {
                     "parent_frame": "world",
-                    "child_frame": f"agent:aux-imagined-yaw{offset:03d}",
+                    "child_frame": f"agent:{_aux_view_id(offset)}",
                     "convention": "active_child_to_parent",
                     "translation_m": [pose.x, pose.y, 0.0],
                     "rotation_xyzw": list(quaternion_xyzw_from_yaw_deg(pose.yaw_deg)),
@@ -661,7 +673,7 @@ def plan_collection(
                 if failure.capability == capability and failure.replicate == replicate
             }
             if capability in REFERENCE_CAPABILITIES:
-                # All ten reference-frame specs are required to qualify on the
+                # All reference-frame specs are required to qualify on the
                 # same binding. With the same seed, a fully exhausted scene is
                 # therefore a deterministic failure for every sibling source.
                 attempted.update(
@@ -679,7 +691,7 @@ def plan_collection(
                 script: ScriptSpec = script,
             ) -> tuple[int | str, int | str]:
                 stable = _stable_rank(collection_id, capability, replicate, scene.scene_key)
-                if script.motifs == ("visit_landmarks",):
+                if script.motifs in CHAIN_MOTIFS:
                     return stable, usage[scene.scene_key]
                 return usage[scene.scene_key], stable
 
@@ -710,7 +722,7 @@ def plan_collection(
                     )
                     continue
                 render_evidence = None
-                if script.motifs == ("visit_landmarks",):
+                if script.motifs in CHAIN_MOTIFS:
                     render_evidence = source_evidence.get(scene.scene_key)
                     if render_evidence is None:
                         render_evidence = _source_render_evidence(scene, std)

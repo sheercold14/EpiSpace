@@ -22,14 +22,16 @@ from heapq import heappop, heappush
 from itertools import pairwise
 
 from .geometry import (
+    azimuth_deg,
     bearing_deg,
     distance_m,
     point_in_rotated_rect,
     rotated_rect_penetration_depth,
+    sector_margin_deg,
     segment_rotated_rect_interval,
     wrap_deg,
 )
-from .sceneview import Pose2D, SceneLayout, blocking_occluders
+from .sceneview import GeometrySceneView, Pose2D, SceneLayout, blocking_occluders
 
 Motif = Callable[
     [SceneLayout, dict[str, str], int, random.Random], tuple[Pose2D, ...] | None
@@ -1052,19 +1054,82 @@ def walk_through_occlusion(
     return tuple(tracked)
 
 
+def _landmark_view_cap_m(size_m: float) -> float:
+    """Farthest distance at which an object of this size stays clearly visible."""
+    from .standards import STD_V1
+
+    return min(STD_V1.max_view_distance_m, size_m / STD_V1.geom_min_visible_ratio)
+
+
+def _covering_arc_deg(bearings: list[float]) -> tuple[float, float]:
+    """Minimal circular arc containing every bearing: (start_deg, spread_deg)."""
+    ordered = sorted(bearing % 360.0 for bearing in bearings)
+    if len(ordered) == 1:
+        return ordered[0], 0.0
+    gaps = [
+        (ordered[(index + 1) % len(ordered)] - ordered[index]) % 360.0
+        for index in range(len(ordered))
+    ]
+    largest = max(range(len(gaps)), key=gaps.__getitem__)
+    return ordered[(largest + 1) % len(ordered)], 360.0 - gaps[largest]
+
+
 def _survey_station(
-    layout: SceneLayout, landmark_names: tuple[str, ...], rng: random.Random
+    layout: SceneLayout,
+    landmark_names: tuple[str, ...],
+    rng: random.Random,
+    *,
+    min_spread_deg: float = 0.0,
+    max_spread_deg: float = 360.0,
 ) -> tuple[float, float]:
-    """Free point with unobstructed, sufficiently close rays to all landmarks."""
+    """Best free point with unobstructed, close-enough rays to all landmarks.
+
+    A candidate must keep every landmark inside its clearly-visible distance
+    band and, when a spread window is requested over three or more landmarks,
+    keep the minimal bearing arc inside that window.  Among valid candidates
+    the station maximising the worst apparent angular size wins; scenes with
+    no valid candidate raise ``MotifUnavailable`` instead of silently
+    degrading to an arbitrary free cell.
+    """
     grid = _occupancy_grid(layout)
     candidates = list(grid.free_cells)
     rng.shuffle(candidates)
     landmarks = tuple(layout.object(name) for name in landmark_names)
-    for index in candidates[:512]:
+    caps = tuple(_landmark_view_cap_m(landmark.size_m) for landmark in landmarks)
+    check_spread = (min_spread_deg > 0.0 or max_spread_deg < 360.0) and len(landmarks) >= 3
+    best_xy: tuple[float, float] | None = None
+    best_score = -math.inf
+    occlusion_checks = 0
+    valid_count = 0
+    for index in candidates:
+        if occlusion_checks >= 1024 or valid_count >= 16:
+            break
         xy = grid.world_xy(index)
-        if all(not blocking_occluders(layout, xy, landmark) for landmark in landmarks):
-            return xy
-    return grid.world_xy(candidates[0])
+        distances = tuple(distance_m(xy, landmark.xy) for landmark in landmarks)
+        if any(
+            not 0.75 <= distance <= cap
+            for distance, cap in zip(distances, caps, strict=True)
+        ):
+            continue
+        if check_spread:
+            _, spread = _covering_arc_deg(
+                [bearing_deg(xy, landmark.xy) for landmark in landmarks]
+            )
+            if not min_spread_deg <= spread <= max_spread_deg:
+                continue
+        occlusion_checks += 1
+        if any(blocking_occluders(layout, xy, landmark) for landmark in landmarks):
+            continue
+        valid_count += 1
+        score = min(
+            landmark.size_m / distance
+            for landmark, distance in zip(landmarks, distances, strict=True)
+        )
+        if score > best_score:
+            best_score, best_xy = score, xy
+    if best_xy is None:
+        raise MotifUnavailable("survey_station:no_valid_station")
+    return best_xy
 
 
 @motif("survey")
@@ -1083,6 +1148,53 @@ def survey(
     )
 
 
+SURVEY_ARC_MIN_SPREAD_DEG = 100.0
+SURVEY_ARC_MARGIN_DEG = 25.0
+SURVEY_ARC_MIN_MARGIN_DEG = 8.0
+
+
+@motif("survey_arc")
+def survey_arc(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """Stationary rate-limited scan over the minimal arc covering all landmarks.
+
+    Unlike ``survey`` (a full panorama), the sweep covers only the landmark
+    bearing arc plus a small margin on each side.  The station must offer a
+    bearing spread above 100 degrees, so no single 90-degree frustum frame can
+    expose all three landmarks (the never_all_covisible contract), while the
+    whole sweep still fits the per-frame turn cap within the frame budget.
+    """
+    names = tuple(
+        binding[name] for name in ("viewpoint", "facing", "target") if name in binding
+    )
+    max_sweep = (frame_count - 1) * MAX_TURN_PER_FRAME_DEG
+    max_spread = max_sweep - 2.0 * SURVEY_ARC_MIN_MARGIN_DEG
+    if max_spread <= SURVEY_ARC_MIN_SPREAD_DEG:
+        raise MotifUnavailable("survey_arc:frame_budget_too_small")
+    station = _survey_station(
+        layout,
+        names,
+        rng,
+        min_spread_deg=SURVEY_ARC_MIN_SPREAD_DEG,
+        max_spread_deg=max_spread,
+    )
+    start, spread = _covering_arc_deg(
+        [bearing_deg(station, layout.object(name).xy) for name in names]
+    )
+    margin = min(SURVEY_ARC_MARGIN_DEG, (max_sweep - spread) / 2.0)
+    sweep = spread + 2.0 * margin
+    low = start - margin
+    step = sweep / (frame_count - 1)
+    forward = rng.random() < 0.5
+    yaws = (
+        [low + index * step for index in range(frame_count)]
+        if forward
+        else [low + sweep - index * step for index in range(frame_count)]
+    )
+    return tuple(Pose2D(station[0], station[1], wrap_deg(yaw)) for yaw in yaws)
+
+
 def _landmark_chain(binding: dict[str, str]) -> tuple[str, ...]:
     anchors = tuple(
         binding[name]
@@ -1094,7 +1206,7 @@ def _landmark_chain(binding: dict[str, str]) -> tuple[str, ...]:
     return (binding["target"], *anchors, binding["other"])
 
 
-def _pair_station(
+def _edge_station_pool(
     layout: SceneLayout,
     grid: _OccupancyGrid,
     left_name: str,
@@ -1103,47 +1215,147 @@ def _pair_station(
     other_name: str,
     rng: random.Random,
     component_id: int | None,
-) -> tuple[int, float] | None:
-    """Free observation station that frames one chain edge but not X and Y."""
+    *,
+    final_edge: bool = False,
+    pool_size: int = 8,
+) -> tuple[tuple[int, float], ...]:
+    """Ranked stations that frame one chain edge but never X and Y together.
+
+    Stations are constructed geometrically first: near the perpendicular
+    bisector of the edge, far enough out that both endpoints fit one
+    90-degree frustum under the 70-degree separation cap, and inside both
+    endpoints' clearly-visible distance bands.  Random free cells supplement
+    the construction in cluttered scenes where the bisector strip is blocked.
+    Ranking prefers the station whose worse endpoint has the largest apparent
+    angular size.
+
+    Admission judges every candidate with the checker's own visibility model
+    at both yaw-jitter extremes, so an admitted station survives the chain
+    evidence and never-covisible clauses instead of a looser angular proxy.
+    ``final_edge`` marks the station that hosts the question frame: there the
+    target must additionally clear the ego sector-margin requirement.
+    """
+    from .standards import STD_V1 as std
+
     left, right = layout.object(left_name), layout.object(right_name)
-    target, other = layout.object(target_name), layout.object(other_name)
-    candidates = (
-        grid.component_cells[component_id]
-        if component_id is not None
-        else grid.free_cells
-    )
-    for _ in range(min(512, len(candidates))):
-        index = candidates[rng.randrange(len(candidates))]
+    target = layout.object(target_name)
+    cap_left = _landmark_view_cap_m(left.size_m)
+    cap_right = _landmark_view_cap_m(right.size_m)
+    edge = distance_m(left.xy, right.xy)
+    half = edge / 2.0
+    reach = min(cap_left, cap_right)
+    if half >= reach:
+        return ()
+    jitter = std.snapshot_yaw_jitter_deg
+    required_target_margin = std.sector_margin_deg * std.search_tighten_factor + jitter
+
+    def admit(index: int) -> tuple[float, int, float] | None:
+        if component_id is not None and grid.component_ids[index] != component_id:
+            return None
         xy = grid.world_xy(index)
-        if blocking_occluders(layout, xy, left) or blocking_occluders(layout, xy, right):
-            continue
+        left_distance = distance_m(xy, left.xy)
+        right_distance = distance_m(xy, right.xy)
+        if not 0.75 <= left_distance <= cap_left:
+            return None
+        if not 0.75 <= right_distance <= cap_right:
+            return None
         left_yaw = bearing_deg(xy, left.xy)
         separation = wrap_deg(bearing_deg(xy, right.xy) - left_yaw)
         if abs(separation) > 70.0:
-            continue
+            return None
         yaw = wrap_deg(left_yaw + separation / 2.0)
-        target_in_view = abs(
-            wrap_deg(bearing_deg(xy, target.xy) - yaw)
-        ) <= 45.0 and not blocking_occluders(layout, xy, target)
-        other_in_view = abs(
-            wrap_deg(bearing_deg(xy, other.xy) - yaw)
-        ) <= 45.0 and not blocking_occluders(layout, xy, other)
-        if target_in_view and other_in_view:
-            continue
-        return index, yaw
-    return None
+        if final_edge and (
+            sector_margin_deg(azimuth_deg(xy, yaw, target.xy)) < required_target_margin
+        ):
+            return None
+        probes = GeometrySceneView(
+            layout,
+            tuple(
+                Pose2D(xy[0], xy[1], wrap_deg(yaw + delta))
+                for delta in (-jitter, 0.0, jitter)
+            ),
+            std,
+        )
+        for frame in range(3):
+            if probes.visibility(left_name, frame).tristate(std) is not True:
+                return None
+            if probes.visibility(right_name, frame).tristate(std) is not True:
+                return None
+            target_state = probes.visibility(target_name, frame).tristate(std)
+            other_state = probes.visibility(other_name, frame).tristate(std)
+            if target_state is not False and other_state is not False:
+                return None
+        score = min(left.size_m / left_distance, right.size_m / right_distance)
+        return score, index, yaw
+
+    admitted: dict[int, tuple[float, int, float]] = {}
+    mid = ((left.xy[0] + right.xy[0]) / 2.0, (left.xy[1] + right.xy[1]) / 2.0)
+    if edge > 1e-6:
+        axis = ((right.xy[0] - left.xy[0]) / edge, (right.xy[1] - left.xy[1]) / edge)
+    else:
+        angle = rng.uniform(0.0, 2.0 * math.pi)
+        axis = (math.cos(angle), math.sin(angle))
+    normal = (-axis[1], axis[0])
+    # A station on the bisector at height h sees the endpoints separated by
+    # 2*atan(half/h); h >= half/tan(35 deg) keeps that separation under 70.
+    height_min = max(half / math.tan(math.radians(35.0)), 0.75)
+    height_max = math.sqrt(max(reach * reach - half * half, 0.0))
+    if height_min < height_max:
+        for _ in range(96):
+            if len(admitted) >= pool_size * 2:
+                break
+            side = rng.choice((-1.0, 1.0))
+            height = rng.uniform(height_min, height_max)
+            lateral = rng.uniform(-0.6, 0.6) * half
+            proposal = (
+                mid[0] + normal[0] * height * side + axis[0] * lateral,
+                mid[1] + normal[1] * height * side + axis[1] * lateral,
+            )
+            index = grid.nearest_index(proposal)
+            if index in admitted or not grid.is_free(index):
+                continue
+            entry = admit(index)
+            if entry is not None:
+                admitted[index] = entry
+    if len(admitted) < pool_size:
+        candidates = (
+            grid.component_cells[component_id]
+            if component_id is not None
+            else grid.free_cells
+        )
+        for _ in range(min(256, len(candidates))):
+            if len(admitted) >= pool_size * 2:
+                break
+            index = candidates[rng.randrange(len(candidates))]
+            if index in admitted:
+                continue
+            entry = admit(index)
+            if entry is not None:
+                admitted[index] = entry
+    ranked = sorted(admitted.values(), key=lambda entry: entry[0], reverse=True)
+    return tuple((index, yaw) for _, index, yaw in ranked[:pool_size])
 
 
 def _landmark_stations(
     layout: SceneLayout, binding: dict[str, str], rng: random.Random
 ) -> tuple[tuple[int, float], ...] | None:
+    """Backtracking station assignment over ranked per-edge candidate pools.
+
+    The first chosen station fixes the walkable component; later edges only
+    consider stations in that component, so consecutive stations always stay
+    connectable.  Backtracking recovers from an edge whose pool is empty in
+    the chosen component by revisiting earlier choices.
+    """
     grid = _occupancy_grid(layout)
     chain = _landmark_chain(binding)
-    for _ in range(8):
-        stations: list[tuple[int, float]] = []
-        component_id: int | None = None
-        for left, right in pairwise(chain):
-            station = _pair_station(
+    edges = tuple(pairwise(chain))
+    pools: dict[tuple[int, int | None], tuple[tuple[int, float], ...]] = {}
+
+    def pool(edge_index: int, component_id: int | None) -> tuple[tuple[int, float], ...]:
+        key = (edge_index, component_id)
+        if key not in pools:
+            left, right = edges[edge_index]
+            pools[key] = _edge_station_pool(
                 layout,
                 grid,
                 left,
@@ -1152,19 +1364,33 @@ def _landmark_stations(
                 binding["other"],
                 rng,
                 component_id,
+                final_edge=edge_index == len(edges) - 1,
             )
-            if station is None:
-                break
-            stations.append(station)
-            component_id = grid.component_ids[station[0]]
-        if len(stations) != len(chain) - 1:
-            continue
-        if all(
-            _connect_cells(grid, left[0], right[0]) is not None
-            for left, right in pairwise(stations)
-        ):
-            return tuple(stations)
-    return None
+        return pools[key]
+
+    budget = 128
+
+    def extend(prefix: list[tuple[int, float]]) -> tuple[tuple[int, float], ...] | None:
+        nonlocal budget
+        if len(prefix) == len(edges):
+            return tuple(prefix)
+        component_id = grid.component_ids[prefix[-1][0]] if prefix else None
+        stations = list(pool(len(prefix), component_id))
+        rng.shuffle(stations)
+        for station in stations:
+            if budget <= 0:
+                return None
+            budget -= 1
+            if prefix and _connect_cells(grid, prefix[-1][0], station[0]) is None:
+                continue
+            prefix.append(station)
+            result = extend(prefix)
+            if result is not None:
+                return result
+            prefix.pop()
+        return None
+
+    return extend([])
 
 
 @motif("visit_landmarks")
@@ -1175,8 +1401,7 @@ def visit_landmarks(
     grid = _occupancy_grid(layout)
     stations = _landmark_stations(layout, binding, rng)
     if stations is None:
-        fallback = grid.world_xy(grid.free_cells[0])
-        return tuple(Pose2D(fallback[0], fallback[1], 0.0) for _ in range(frame_count))
+        raise MotifUnavailable("visit_landmarks:no_station_assignment")
 
     transition_count = len(stations) - 1
     reserved = 2 + 8 * transition_count
@@ -1191,7 +1416,7 @@ def visit_landmarks(
     for transition, ((start_index, _), (end_index, station_yaw)) in enumerate(pairwise(stations)):
         cells = _connect_cells(grid, start_index, end_index)
         if cells is None:
-            return tuple(poses[-1] for _ in range(frame_count))
+            raise MotifUnavailable("visit_landmarks:station_route_disconnected")
         route = [grid.world_xy(index) for index in _simplify_route(grid, cells)]
         if len(route) == 1:
             walk = tuple(
@@ -1206,4 +1431,53 @@ def visit_landmarks(
         poses.extend(turned)
         poses.extend([Pose2D(end_xy[0], end_xy[1], station_yaw)] * 2)
         current_yaw = station_yaw
+    return tuple(poses)
+
+
+@motif("snapshot_landmarks")
+def snapshot_landmarks(
+    layout: SceneLayout, binding: dict[str, str], frame_count: int, rng: random.Random
+) -> tuple[Pose2D, ...]:
+    """Teleport-cut snapshot pairs framing each chain edge in order.
+
+    Stations need no walkable connection between them: the sequence is a set
+    of static snapshots, so consecutive frames may jump across rooms.  Each
+    station contributes ``snapshot_frames_per_station`` frames whose yaws
+    carry small independent jitter, keeping within-station frames
+    near-duplicates without being pixel-identical.
+    """
+    from .standards import STD_V1
+
+    grid = _occupancy_grid(layout)
+    chain = _landmark_chain(binding)
+    edges = tuple(pairwise(chain))
+    if frame_count < STD_V1.snapshot_frames_per_station * len(edges):
+        raise MotifUnavailable("snapshot_landmarks:frame_budget_below_station_count")
+    stations: list[tuple[int, float]] = []
+    for edge_index, (left, right) in enumerate(edges):
+        pool = _edge_station_pool(
+            layout,
+            grid,
+            left,
+            right,
+            binding["target"],
+            binding["other"],
+            rng,
+            None,
+            final_edge=edge_index == len(edges) - 1,
+        )
+        if not pool:
+            raise MotifUnavailable(f"snapshot_landmarks:no_station:{left}->{right}")
+        stations.append(pool[rng.randrange(min(len(pool), 3))])
+    counts = [frame_count // len(stations)] * len(stations)
+    for index in range(frame_count - sum(counts)):
+        counts[index] += 1
+    jitter = STD_V1.snapshot_yaw_jitter_deg
+    poses: list[Pose2D] = []
+    for (index, yaw), count in zip(stations, counts, strict=True):
+        xy = grid.world_xy(index)
+        poses.extend(
+            Pose2D(xy[0], xy[1], wrap_deg(yaw + rng.uniform(-jitter, jitter)))
+            for _ in range(count)
+        )
     return tuple(poses)

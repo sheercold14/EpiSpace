@@ -53,7 +53,7 @@ def _canonical():
 
 
 def test_p4_registry_standard_and_library_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v10"
+    assert STD_V1.standard_version == "std.v11"
     assert STD_V1.coverage_ratio_levels == (0.50, 0.70, 0.85)
     assert STD_V1.coverage_hidden_object_size_m == 1.0
     assert "existence_sufficiency" in registered_answer_modes()
@@ -252,4 +252,4 @@ def test_existing_survey_motif_generates_the_meta_spec_by_accept_reject() -> Non
     assert plan.clause_witnesses["no_single_frame_shortcut"]["sufficient_frames"] == []
     assert plan.clause_witnesses["drop_key_destroys_evidence"][
         "residual_coverage_ratio"
-    ] == pytest.approx(0.7308)
+    ] == pytest.approx(0.8388)

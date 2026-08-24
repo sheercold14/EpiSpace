@@ -20,7 +20,7 @@ class CompileStandard:
     be used as evidence and rejects the surrounding question candidate.
     """
 
-    standard_version: str = "std.v10"
+    standard_version: str = "std.v11"
 
     # --- geometry-backend visibility (search phase, render-free estimate) ---
     # Value is projected angular size ratio: object_size_m / distance_m.
@@ -87,12 +87,28 @@ class CompileStandard:
     # --- imagined-viewpoint transformation (std.v6) ---
     landmark_min_visible_frames: int = 2
     imagined_min_anchor_distance_m: float = 1.0
-    imagined_viewpoint_offsets_deg: tuple[int, ...] = (0, 45, 90, 135, 180)
+    # Extended in std.v11 with the mirrored negative offsets. The curve
+    # predicates iterate this tuple, so the extension changes how old plans
+    # would be judged — std.v11 therefore declares no compatible ancestors.
+    imagined_viewpoint_offsets_deg: tuple[int, ...] = (
+        0,
+        45,
+        90,
+        135,
+        180,
+        -45,
+        -90,
+        -135,
+    )
 
     # --- cross-view landmark binding (std.v7) ---
     chain_min_covisible_frames: int = 2
     closer_min_distance_ratio: float = 1.25
     landmark_chain_lengths: tuple[int, ...] = (1, 2, 3)
+
+    # --- snapshot cross-view integration (std.v11) ---
+    snapshot_frames_per_station: int = 2
+    snapshot_yaw_jitter_deg: float = 5.0
 
     # --- evidence coverage and absence calibration (std.v8) ---
     # Lower bounds for analysis buckets; the highest tier licenses absence.
@@ -132,6 +148,11 @@ COMPATIBLE_PLAN_STANDARDS: dict[str, tuple[str, ...]] = {
     # std.v10 strengthens the meaning of an occlusion clause with rendered
     # instance/depth attribution. Older plans must be regenerated explicitly.
     "std.v10": (),
+    # std.v11 extends imagined_viewpoint_offsets_deg with negative offsets.
+    # The imagined-curve predicates iterate that tuple, so plans qualified
+    # under the five-point curve would be re-judged over eight points: not a
+    # pure extension, hence no compatible ancestors.
+    "std.v11": (),
 }
 
 STD_V4_ADDED_FIELDS = (
@@ -174,4 +195,9 @@ STD_V10_ADDED_FIELDS = (
     "occlusion_min_dominance_ratio",
     "geom_occlusion_vertical_margin_m",
     "geom_occlusion_footprint_margin_ratio",
+)
+
+STD_V11_ADDED_FIELDS = (
+    "snapshot_frames_per_station",
+    "snapshot_yaw_jitter_deg",
 )

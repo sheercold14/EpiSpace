@@ -244,11 +244,15 @@ def test_geometry_disagreement_sets_mismatch(compiler: CapabilityCompiler) -> No
 
 def test_every_library_spec_has_mandatory_traversal_clauses() -> None:
     for script in SCRIPT_LIBRARY.values():
-        traversal = script.clauses[:2]
-        assert [(clause.name, clause.predicate, clause.phase) for clause in traversal] == [
-            ("poses_clear", "poses_clear", "search_only"),
-            ("path_clear", "path_clear", "search_only"),
-        ]
+        # Snapshot sequences teleport between stations, so only the stations
+        # themselves must be collision-free; there is no walked path to check.
+        expected = [("poses_clear", "poses_clear", "search_only")]
+        if script.motifs != ("snapshot_landmarks",):
+            expected.append(("path_clear", "path_clear", "search_only"))
+        traversal = script.clauses[: len(expected)]
+        assert [
+            (clause.name, clause.predicate, clause.phase) for clause in traversal
+        ] == expected
         assert all(clause.args == {"frames": "0:$t_q"} for clause in traversal)
 
 
@@ -258,13 +262,13 @@ def test_standard_drift_sets_mismatch(compiler: CapabilityCompiler) -> None:
     assert cert.mismatch is not None and cert.mismatch.startswith("standard_version_drift")
 
 
-def test_v10_requires_regeneration_of_prior_plan_standards(
+def test_v11_requires_regeneration_of_prior_plan_standards(
     compiler: CapabilityCompiler,
 ) -> None:
-    for version in ("std.v9", "std.v3", "std.v2"):
+    for version in ("std.v10", "std.v9", "std.v3"):
         plan = {"standard_version": version, "provisional_answer": {"sector": "left"}}
         blocked = compiler.compile(qualifying_fake(), BINDING, geometry_plan=plan)
-        assert blocked.mismatch == f"standard_version_drift:plan={version},compile=std.v10"
+        assert blocked.mismatch == f"standard_version_drift:plan={version},compile=std.v11"
 
 
 # --- integration: the three rendered gates_bedroom trajectories ---

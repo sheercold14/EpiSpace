@@ -62,8 +62,9 @@ def _plan_and_view():
 
 
 def test_p2_registry_and_standard_surface_is_complete() -> None:
-    assert STD_V1.standard_version == "std.v10"
+    assert STD_V1.standard_version == "std.v11"
     assert STD_V1.imagined_viewpoint_offsets_deg == IMAGINED_VIEWPOINT_OFFSETS
+    assert IMAGINED_VIEWPOINT_OFFSETS == (0, 45, 90, 135, 180, -45, -90, -135)
     assert {"imagined_sector", "imagined_visibility"} <= set(registered_answer_modes())
     assert {
         "all_landmarks_visible",
@@ -72,8 +73,18 @@ def test_p2_registry_and_standard_surface_is_complete() -> None:
         "imagined_curve_sector_margins_ge",
         "imagined_curve_visibility_decisive",
     } <= set(registered_predicates())
-    assert len(REFERENCE_FRAME_DEEP) == len(REFERENCE_FRAME_SHALLOW) == 5
-    assert all(script.motifs == ("survey",) for script in REFERENCE_FRAME_SCRIPTS)
+    assert len(REFERENCE_FRAME_DEEP) == len(REFERENCE_FRAME_SHALLOW) == 8
+    assert all(script.motifs == ("survey_arc",) for script in REFERENCE_FRAME_SCRIPTS)
+    assert {script.capability for script in REFERENCE_FRAME_DEEP} == {
+        "reference_frame_transform",
+        "reference_frame_transform_yaw45",
+        "reference_frame_transform_yaw90",
+        "reference_frame_transform_yaw135",
+        "reference_frame_transform_yaw180",
+        "reference_frame_transform_yawm45",
+        "reference_frame_transform_yawm90",
+        "reference_frame_transform_yawm135",
+    }
 
 
 def test_survey_forces_cross_frame_evidence_without_motion_memory() -> None:
@@ -105,8 +116,20 @@ def test_deep_and_shallow_curves_recompile_on_one_trajectory() -> None:
         "back",
         "back",
         "left",
+        "front",
+        "front",
+        "left",
     ]
-    assert [certificate.answer.label for certificate in shallow] == ["not_visible"] * 5
+    assert [certificate.answer.label for certificate in shallow] == [
+        "not_visible",
+        "not_visible",
+        "not_visible",
+        "not_visible",
+        "not_visible",
+        "visible",
+        "visible",
+        "not_visible",
+    ]
 
     base_azimuth = deep[0].answer.witness["azimuth_deg"]
     for offset, certificate in zip(IMAGINED_VIEWPOINT_OFFSETS, deep, strict=True):
@@ -171,11 +194,23 @@ def test_reference_frame_curve_builds_on_real_multiroom_geometry() -> None:
         CapabilityCompiler(script, STD_V1).compile(view, plan.binding).answer.label
         for script in REFERENCE_FRAME_SHALLOW
     ]
-    assert deep_labels == ["front", "right", "right", "back", "back"]
+    assert deep_labels == [
+        "front",
+        "right",
+        "right",
+        "back",
+        "back",
+        "front",
+        "left",
+        "left",
+    ]
     assert shallow_labels == [
         "visible",
         "not_visible",
         "not_visible",
+        "not_visible",
+        "not_visible",
+        "visible",
         "not_visible",
         "not_visible",
     ]

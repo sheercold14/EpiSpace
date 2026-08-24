@@ -213,10 +213,15 @@ def test_binding_enumeration_cache_groups_shared_capability_shapes() -> None:
     assert _binding_cache_key("reference_frame_transform") == _binding_cache_key(
         "reference_frame_visibility_yaw180"
     )
-    assert _binding_cache_key("cross_view_pair_relation_k1") == _binding_cache_key(
+    assert _binding_cache_key("cross_view_ego_k1") == _binding_cache_key(
         "cross_view_closer_k1"
     )
-    assert _binding_cache_key("cross_view_pair_relation_k1") != _binding_cache_key(
+    # Walking and snapshot chains share slots, ranking and prefilters, so the
+    # enumeration cache serves both lines from one entry per chain length.
+    assert _binding_cache_key("cross_view_ego_k1") == _binding_cache_key(
+        "cross_view_snapshot_anchor_k1"
+    )
+    assert _binding_cache_key("cross_view_ego_k1") != _binding_cache_key(
         "cross_view_closer_k2"
     )
 
@@ -225,12 +230,17 @@ def test_shared_question_consumers_defer_initial_geometry_search() -> None:
     assert {
         "path_integration",
         "reference_frame_visibility_yaw90",
+        "reference_frame_visibility_yawm90",
         "cross_view_closer_k1",
+        "cross_view_anchor_k1",
+        "cross_view_snapshot_anchor_k2",
+        "cross_view_snapshot_closer_k3",
         "existence_sufficiency_bed",
     }.issubset(DEFERRED_INITIAL_CAPABILITIES)
     assert "self_motion_update" not in DEFERRED_INITIAL_CAPABILITIES
     assert "reference_frame_transform" not in DEFERRED_INITIAL_CAPABILITIES
-    assert "cross_view_pair_relation_k1" not in DEFERRED_INITIAL_CAPABILITIES
+    assert "cross_view_ego_k1" not in DEFERRED_INITIAL_CAPABILITIES
+    assert "cross_view_snapshot_ego_k1" not in DEFERRED_INITIAL_CAPABILITIES
 
 
 def test_initial_search_uses_a_small_frontier_before_the_150_attempt_cap(

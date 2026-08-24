@@ -10,6 +10,7 @@ from typing import Any
 
 from .occlusion import OCCLUDER_DISPLAY_NAMES_ZH
 from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
+from .standards import STD_V1
 
 _TRAVERSAL_CLAUSES = (
     # Physical validity belongs to the acquired path only. Interventions
@@ -600,7 +601,9 @@ VIEW_SIDE = _script(
 )
 
 
-IMAGINED_VIEWPOINT_OFFSETS = (0, 45, 90, 135, 180)
+# The covariance curve is owned by the standard: the imagined-curve predicates
+# iterate the same tuple, so spec-level and predicate-level offsets cannot drift.
+IMAGINED_VIEWPOINT_OFFSETS = STD_V1.imagined_viewpoint_offsets_deg
 
 
 def _reference_frame_spec(
@@ -610,7 +613,14 @@ def _reference_frame_spec(
 ) -> ScriptSpec:
     """One point on the deep/shallow imagined-viewpoint covariance curve."""
     deep = answer_mode == "imagined_sector"
-    suffix = "" if yaw_offset_deg == 0 else f"_yaw{yaw_offset_deg}"
+    # Capability names must stay identifier-safe: negative offsets use an "m"
+    # (minus) marker instead of the "-" sign.
+    if yaw_offset_deg == 0:
+        suffix = ""
+    elif yaw_offset_deg > 0:
+        suffix = f"_yaw{yaw_offset_deg}"
+    else:
+        suffix = f"_yawm{-yaw_offset_deg}"
     stem = "reference_frame_transform" if deep else "reference_frame_visibility"
     qualifier = Clause(
         name="imagined_answer_decisive",
@@ -624,8 +634,11 @@ def _reference_frame_spec(
         },
         phase="search",
     )
-    if yaw_offset_deg:
+    # Positive azimuth offsets rotate the imagined heading to the left.
+    if yaw_offset_deg > 0:
         facing_text = f"朝向从{{facing}}方向向左旋转{yaw_offset_deg}度"
+    elif yaw_offset_deg < 0:
+        facing_text = f"朝向从{{facing}}方向向右旋转{-yaw_offset_deg}度"
     else:
         facing_text = "面向{facing}"
     if deep:
@@ -702,12 +715,12 @@ def _reference_frame_spec(
                 levels=tuple(float(value) for value in IMAGINED_VIEWPOINT_OFFSETS),
             ),
         ),
-        length=(14, 18),
-        motifs=("survey",),
+        length=(6, 10),
+        motifs=("survey_arc",),
         templates=(
             Template(
                 text=(
-                    f'这段第一人称序列是从同一站位拍摄的环视。{question}如果证据不足,选"无法判断"。'
+                    f'这段第一人称序列是在同一站位转头扫视拍到的。{question}如果证据不足,选"无法判断"。'
                 ),
                 options=options,
             ),
@@ -733,11 +746,11 @@ REFERENCE_FRAME_SHALLOW = tuple(
 REFERENCE_FRAME_SCRIPTS = REFERENCE_FRAME_DEEP + REFERENCE_FRAME_SHALLOW
 
 
-def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
-    """Declare one pair-relation/distance question over an anchor-chain length."""
-    relation = answer_mode == "pair_relation"
-    stem = "cross_view_pair_relation" if relation else "cross_view_closer"
-    slots = {
+_CROSS_VIEW_QUESTIONS = ("ego", "anchor", "closer")
+
+
+def _cross_view_slots(chain_length: int) -> dict[str, SlotSpec]:
+    return {
         "target": SlotSpec(min_size_m=0.3, unique_referent=True),
         **{
             f"anchor{index}": SlotSpec(min_size_m=0.3, unique_referent=True)
@@ -745,6 +758,10 @@ def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
         },
         "other": SlotSpec(min_size_m=0.3, unique_referent=True),
     }
+
+
+def _cross_view_shared_clauses(chain_length: int) -> tuple[Clause, ...]:
+    """The never-covisible gate and the anchor-chain evidence requirement."""
     chain_args: dict[str, str | int | float | bool] = {
         "first": "$target",
         "second": "$other",
@@ -753,42 +770,120 @@ def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
     }
     for index in range(2, chain_length + 1):
         chain_args[f"anchor{index}"] = f"$anchor{index}"
-    if relation:
-        qualifier = Clause(
-            name="relation_margin",
-            predicate="pair_relation_margin_ge",
-            args={"obj": "$target", "reference": "$other"},
-            phase="search",
+    return (
+        Clause(
+            name="queried_pair_never_covisible",
+            predicate="never_covisible",
+            args={"first": "$target", "second": "$other", "frames": "0:$t_q"},
+            phase="compile",
+        ),
+        Clause(
+            name="anchor_chain_evidence",
+            predicate="chain_connected",
+            args=chain_args,
+            phase="compile",
+            on_violation="abstain",
+        ),
+    )
+
+
+def _cross_view_question_parts(
+    *, question: str, chain_length: int
+) -> tuple[tuple[Clause, ...], AnswerSpec, str, tuple[str, ...]]:
+    """Question-mode specifics shared by walking and snapshot cross-view specs.
+
+    ``ego``    — direction of the target in the final frame's real camera
+                 frame; the target must be out of view at that frame so the
+                 answer requires integrating across views.
+    ``anchor`` — direction of the target from the other object when facing its
+                 adjacent chain anchor (an imagined pose fully determined by
+                 two object positions, no intrinsic orientation needed).
+    ``closer`` — which of target/other lies closer to the first anchor.
+    """
+    if question == "ego":
+        clauses = (
+            Clause(
+                name="target_hidden_at_question",
+                predicate="invisible_in_range",
+                args={"obj": "$target", "frames": "$t_q:$t_q"},
+                phase="compile",
+            ),
+            Clause(
+                name="sector_margin",
+                predicate="sector_margin_ge",
+                args={"obj": "$target", "frame": "$t_q"},
+                phase="search",
+            ),
         )
         answer = AnswerSpec(
-            mode="pair_relation",
-            args={"obj": "$target", "reference": "$other"},
+            mode="target_sector",
+            args={"obj": "$target", "frame": "$t_q"},
         )
-        question = (
-            "以{other}自身的朝向为准,{target}在{other}的哪个方向?"
+        text = (
+            "以最后一帧你的位置和朝向为准,{target}现在在你的哪个方向?"
             '如果证据不足,选"无法判断"。'
         )
         options = ("front", "left", "back", "right", "无法判断")
-    else:
-        qualifier = Clause(
-            name="distance_ratio",
-            predicate="closer_ratio_ge",
-            args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
-            phase="search",
+    elif question == "anchor":
+        facing = f"$anchor{chain_length}"
+        imagined_args: dict[str, str | int | float | bool] = {
+            "viewpoint": "$other",
+            "facing": facing,
+            "obj": "$target",
+            "yaw_offset_deg": 0,
+        }
+        clauses = (
+            Clause(
+                name="imagined_pose_stable",
+                predicate="imagined_pose_valid",
+                args={"viewpoint": "$other", "facing": facing},
+                phase="search",
+            ),
+            Clause(
+                name="imagined_sector_margin",
+                predicate="imagined_sector_margin_ge",
+                args=dict(imagined_args),
+                phase="search",
+            ),
+        )
+        answer = AnswerSpec(mode="imagined_sector", args=dict(imagined_args))
+        text = (
+            f"若你站在{{other}}处、面向{{anchor{chain_length}}},"
+            '{target}在你的哪个方向?如果证据不足,选"无法判断"。'
+        )
+        options = ("front", "left", "back", "right", "无法判断")
+    elif question == "closer":
+        clauses = (
+            Clause(
+                name="distance_ratio",
+                predicate="closer_ratio_ge",
+                args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
+                phase="search",
+            ),
         )
         answer = AnswerSpec(
             mode="closer_of",
             args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
         )
-        question = (
+        text = (
             "{target}和{other}中,哪一个离{anchor1}更近?"
             '第一个选项指{target},第二个选项指{other};证据不足时选"无法判断"。'
         )
         options = ("first", "second", "无法判断")
+    else:
+        raise ValueError(f"unknown cross-view question mode: {question!r}")
+    return clauses, answer, text, options
+
+
+def _cross_view_spec(*, chain_length: int, question: str) -> ScriptSpec:
+    """Declare one walking cross-view question over an anchor-chain length."""
+    clauses, answer, text, options = _cross_view_question_parts(
+        question=question, chain_length=chain_length
+    )
     length_ranges = {1: (24, 30), 2: (32, 40), 3: (40, 52)}
     return _script(
-        capability=f"{stem}_k{chain_length}",
-        slots=slots,
+        capability=f"cross_view_{question}_k{chain_length}",
+        slots=_cross_view_slots(chain_length),
         frame_vars={"t_q": "last_frame()"},
         clauses=(
             Clause(
@@ -797,20 +892,8 @@ def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
                 args={"frames": "0:$t_q"},
                 phase="search_only",
             ),
-            Clause(
-                name="queried_pair_never_covisible",
-                predicate="never_covisible",
-                args={"first": "$target", "second": "$other", "frames": "0:$t_q"},
-                phase="compile",
-            ),
-            Clause(
-                name="anchor_chain_evidence",
-                predicate="chain_connected",
-                args=chain_args,
-                phase="compile",
-                on_violation="abstain",
-            ),
-            qualifier,
+            *_cross_view_shared_clauses(chain_length),
+            *clauses,
         ),
         answer=answer,
         knobs=(
@@ -822,8 +905,10 @@ def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
         ),
         length=length_ranges[chain_length],
         motifs=("visit_landmarks",),
-        templates=(Template(text=question, options=options),),
-        intervention_window="0:$t_q",
+        templates=(Template(text=text, options=options),),
+        # The ego answer is defined by the final frame's real camera pose, so
+        # interventions must leave that frame in place.
+        intervention_window="0:$t_q-1" if question == "ego" else "0:$t_q",
         variant_expectations={
             "permute": "same",
             "drop_key": "abstain",
@@ -833,19 +918,103 @@ def _cross_view_spec(*, chain_length: int, answer_mode: str) -> ScriptSpec:
     )
 
 
-CROSS_VIEW_RELATION = tuple(
-    _cross_view_spec(chain_length=length, answer_mode="pair_relation")
-    for length in (1, 2, 3)
+def _cross_view_snapshot_spec(*, chain_length: int, question: str) -> ScriptSpec:
+    """Declare one snapshot cross-view question: station photos, no walking.
+
+    The sequence is a series of per-station snapshots with hard cuts between
+    stations, so the walking gates (path_clear, step-motion trackability) do
+    not apply; only per-pose collision clearance is enforced.
+    """
+    clauses, answer, text, options = _cross_view_question_parts(
+        question=question, chain_length=chain_length
+    )
+    frames = STD_V1.snapshot_frames_per_station * (chain_length + 1)
+    return ScriptSpec(
+        capability=f"cross_view_snapshot_{question}_k{chain_length}",
+        slots=_cross_view_slots(chain_length),
+        frame_vars={"t_q": "last_frame()"},
+        clauses=(
+            Clause(
+                name="poses_clear",
+                predicate="poses_clear",
+                args={"frames": "0:$t_q"},
+                phase="search_only",
+            ),
+            *_cross_view_shared_clauses(chain_length),
+            *clauses,
+        ),
+        answer=answer,
+        knobs=(
+            Knob(
+                name="anchor_chain_length",
+                expr=str(chain_length),
+                levels=(1.0, 2.0, 3.0),
+            ),
+        ),
+        length=(frames, frames),
+        motifs=("snapshot_landmarks",),
+        templates=(
+            Template(
+                text=(
+                    "这段序列由同一套房内不同站位拍摄的照片组成,相邻照片之间视角会跳切。"
+                    + text
+                ),
+                options=options,
+            ),
+        ),
+        intervention_window="0:$t_q-1" if question == "ego" else "0:$t_q",
+        # Two frames per station leaves no filler: every frame is chain
+        # evidence, so drop_filler (which must drop at least one frame to
+        # certify robustness) is structurally impossible and is not declared.
+        variant_expectations={
+            "permute": "same",
+            "drop_key": "abstain",
+            "delay": "same",
+        },
+    )
+
+
+CROSS_VIEW_EGO = tuple(
+    _cross_view_spec(chain_length=length, question="ego") for length in (1, 2, 3)
+)
+CROSS_VIEW_ANCHOR = tuple(
+    _cross_view_spec(chain_length=length, question="anchor") for length in (1, 2, 3)
 )
 CROSS_VIEW_CLOSER = tuple(
-    _cross_view_spec(chain_length=length, answer_mode="closer_of")
+    _cross_view_spec(chain_length=length, question="closer") for length in (1, 2, 3)
+)
+CROSS_VIEW_RELATION = CROSS_VIEW_EGO + CROSS_VIEW_ANCHOR
+CROSS_VIEW_SNAPSHOT_EGO = tuple(
+    _cross_view_snapshot_spec(chain_length=length, question="ego") for length in (1, 2, 3)
+)
+CROSS_VIEW_SNAPSHOT_ANCHOR = tuple(
+    _cross_view_snapshot_spec(chain_length=length, question="anchor")
     for length in (1, 2, 3)
 )
-CROSS_VIEW_SCRIPTS = CROSS_VIEW_RELATION + CROSS_VIEW_CLOSER
+CROSS_VIEW_SNAPSHOT_CLOSER = tuple(
+    _cross_view_snapshot_spec(chain_length=length, question="closer")
+    for length in (1, 2, 3)
+)
+CROSS_VIEW_SNAPSHOT_SCRIPTS = (
+    CROSS_VIEW_SNAPSHOT_EGO + CROSS_VIEW_SNAPSHOT_ANCHOR + CROSS_VIEW_SNAPSHOT_CLOSER
+)
+CROSS_VIEW_SCRIPTS = (
+    CROSS_VIEW_RELATION + CROSS_VIEW_CLOSER + CROSS_VIEW_SNAPSHOT_SCRIPTS
+)
+# Every capability in a trio maps to the full trio: the three questions are
+# compiled together on the same trajectory as one cross-view question group.
 CROSS_VIEW_SCRIPT_SETS = {
-    script.capability: (CROSS_VIEW_RELATION[index], CROSS_VIEW_CLOSER[index])
+    script.capability: trio
     for index in range(3)
-    for script in (CROSS_VIEW_RELATION[index], CROSS_VIEW_CLOSER[index])
+    for trio in (
+        (CROSS_VIEW_EGO[index], CROSS_VIEW_ANCHOR[index], CROSS_VIEW_CLOSER[index]),
+        (
+            CROSS_VIEW_SNAPSHOT_EGO[index],
+            CROSS_VIEW_SNAPSHOT_ANCHOR[index],
+            CROSS_VIEW_SNAPSHOT_CLOSER[index],
+        ),
+    )
+    for script in trio
 }
 
 

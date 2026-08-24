@@ -227,13 +227,22 @@ def test_reference_render_plan_keeps_auxiliary_views_outside_sequence() -> None:
 
     assert len(payload["views"]) == 14
     assert [view["step"] for view in payload["views"]] == list(range(14))
-    assert len(payload["auxiliary_views"]) == 5
+    assert len(payload["auxiliary_views"]) == 8
     assert [view["yaw_offset_deg"] for view in payload["auxiliary_views"]] == [
         0,
         45,
         90,
         135,
         180,
+        -45,
+        -90,
+        -135,
+    ]
+    assert [view["view_id"] for view in payload["auxiliary_views"][4:]] == [
+        "aux-imagined-yaw180",
+        "aux-imagined-yawm045",
+        "aux-imagined-yawm090",
+        "aux-imagined-yawm135",
     ]
     assert payload["clearance"] == {
         "body_radius_m": 0.3,
