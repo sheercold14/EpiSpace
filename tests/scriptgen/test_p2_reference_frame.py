@@ -10,6 +10,10 @@ import pytest
 from spatial_episode.scriptgen import generate_plans
 from spatial_episode.scriptgen.answers import registered_answer_modes
 from spatial_episode.scriptgen.behavior import layout_from_scene_ir
+from spatial_episode.scriptgen.collection import (
+    _reference_binding_eligible,
+    ranked_bindings,
+)
 from spatial_episode.scriptgen.compiler import CapabilityCompiler
 from spatial_episode.scriptgen.family import QUESTION_SCRIPT_SETS, build_family_doc
 from spatial_episode.scriptgen.geometry import distance_m, wrap_deg
@@ -21,7 +25,10 @@ from spatial_episode.scriptgen.library import (
     REFERENCE_FRAME_SHALLOW,
 )
 from spatial_episode.scriptgen.motifs import _landmark_view_floor_m
-from spatial_episode.scriptgen.predicates import registered_predicates
+from spatial_episode.scriptgen.predicates import (
+    imagined_visibility_decisive,
+    registered_predicates,
+)
 from spatial_episode.scriptgen.sceneview import (
     GeometrySceneView,
     Pose2D,
@@ -244,3 +251,61 @@ def test_survey_stations_keep_their_standoff_from_every_bound_landmark() -> None
             distance_m((pose.x, pose.y), landmark.xy) for pose in plan.poses
         )
         assert closest >= floor, f"{slot} ({landmark.category}) crowded at {closest:.2f}m"
+
+
+def test_shallow_curve_labels_do_not_follow_the_rotation_named_in_the_question() -> None:
+    """Which imagined heading sees the target must not be a scene constant.
+
+    The curve asks one binding about eight headings 45 degrees apart, the
+    sensor spans 90 degrees, and the shared sector-margin qualifier keeps the
+    target 15 degrees clear of every heading. The target therefore sits inside
+    one 45-degree wedge and exactly the two headings bracketing it answer
+    "visible" - a property of the binding, fixed before any survey is searched.
+    Ranking by compactness put nearly every target in the wedge next to the
+    facing landmark, so "rotate 0 degrees" meant visible and "rotate 180
+    degrees" meant not visible, and the question text alone scored far above
+    the majority class. Stratifying by wedge is what removes that.
+    """
+    layout = layout_from_scene_ir(HOME_SCENE_IR, std=STD_V1)
+    script = REFERENCE_FRAME_DEEP[0]
+    bindings = [
+        binding
+        for binding in ranked_bindings(layout, script, maximum=200, std=STD_V1)
+        if _reference_binding_eligible(layout, binding, STD_V1)
+    ][:8]
+    assert len(bindings) == 8
+
+    visible: list[tuple[bool, ...]] = []
+    for binding in bindings:
+        viewpoint = layout.object(binding["viewpoint"])
+        probe = GeometrySceneView(
+            layout, (Pose2D(viewpoint.xy[0], viewpoint.xy[1], 0.0),), STD_V1
+        )
+        visible.append(
+            tuple(
+                imagined_visibility_decisive(
+                    probe,
+                    STD_V1,
+                    viewpoint=binding["viewpoint"],
+                    facing=binding["facing"],
+                    obj=binding["target"],
+                    yaw_offset_deg=offset,
+                ).witness["visibility_state"]
+                == "visible"
+                for offset in IMAGINED_VIEWPOINT_OFFSETS
+            )
+        )
+
+    # The bracketing pair is a theorem about the sensor and the margin gate,
+    # not a property of this scene, so it holds for every binding.
+    assert {sum(row) for row in visible} == {2}
+
+    # Ranking by compactness alone returns five eligible bindings on this
+    # scene carrying two distinct patterns, and heading 0 is visible in all
+    # five - the question text then scores 90% against a 75% majority class.
+    assert len(set(visible)) >= 4
+    seen_per_offset = [
+        sum(row[index] for row in visible)
+        for index in range(len(IMAGINED_VIEWPOINT_OFFSETS))
+    ]
+    assert max(seen_per_offset) <= 5, seen_per_offset

@@ -36,6 +36,7 @@ from .generate import generate_plans
 from .library import SCRIPT_LIBRARY
 from .motifs import proposal_occupancy_grid
 from .plan import TrajectoryPlan
+from .question_balance import balance_question_labels, load_groups
 from .single import _preflight, _render, _render_failure_is_retryable, _write_recipe
 from .slotting import iter_bindings
 from .source_inventory import SourceIndex, SourceSceneRecord, load_source_index
@@ -227,6 +228,7 @@ def _bindings_for_scene(
                 layout,
                 script,
                 maximum=maximum_multislot_bindings,
+                std=std,
             )
             if _reference_binding_eligible(layout, binding, std)
         )
@@ -1604,6 +1606,20 @@ def package_coverage(manifest_path: Path) -> tuple[Path, Path]:
         "exhausted_cell_count": sum(row["status"] == "exhausted" for row in cell_rows),
         "cells": cell_rows,
     }
+    output_root = Path(manifest.output_root)
+    # Questions are compiled in bulk on trajectories that are already rendered,
+    # so trimming a skewed stratum costs no frames. Balancing here, rather than
+    # in whatever builds the training set, keeps the account of what shipped
+    # next to the account of what was collected.
+    balance = balance_question_labels(
+        load_groups(
+            [
+                Path(payload["group"])
+                for _, payload in sorted(status["episodes"].items())
+                if Path(payload["group"]).is_file()
+            ]
+        )
+    )
     dataset = {
         "schema_version": COVERAGE_DATASET_SCHEMA_VERSION,
         "collection_id": manifest.collection_id,
@@ -1614,11 +1630,12 @@ def package_coverage(manifest_path: Path) -> tuple[Path, Path]:
             for episode_id, payload in sorted(status["episodes"].items())
         ],
         "coverage_report": "coverage.report.json",
+        "question_balance": "coverage.balance.json",
     }
-    output_root = Path(manifest.output_root)
     report_path = output_root / "coverage.report.json"
     dataset_path = output_root / "dataset.json"
     _write_json(report_path, report)
+    _write_json(output_root / "coverage.balance.json", balance)
     _write_json(dataset_path, dataset)
     index = output_root / "index.html"
     index.write_text(

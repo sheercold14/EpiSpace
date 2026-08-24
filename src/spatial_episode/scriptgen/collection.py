@@ -81,6 +81,23 @@ CHAIN_CLOSER_SIDES = ("first", "second")
 # person's shoulder width so the gap is one a viewer could stand in.
 LANDMARK_SEPARATION_MARGIN_M = 0.5
 
+# The P2 curve asks the same binding about eight imagined headings spaced 45
+# degrees apart, and the sensor spans 90 degrees, so a heading sees the target
+# exactly when the target lies within 45 degrees of it. The shared sector-margin
+# qualifier already keeps the target 15 degrees clear of every heading, so the
+# target always falls strictly inside one 45-degree wedge and exactly the two
+# headings bracketing that wedge report "visible" - never one, never three.
+#
+# Which two is therefore a property of the binding alone, fixed before any
+# trajectory is searched. Ranking by compactness clusters bindings into the
+# wedge adjacent to the facing landmark, where the visible pair is always
+# {0, +-45}; the rendered curve then answers "visible" at 0 degrees and
+# "not visible" at 180, and the rotation named in the question text predicts
+# the label without looking at the images. Stratifying the shortlist by wedge
+# spreads the visible pair uniformly over the curve, which is what makes the
+# offset uninformative.
+REFERENCE_VISIBLE_WEDGE_DEG = 45.0
+
 
 @dataclass(frozen=True)
 class SourceRenderEvidence:
@@ -274,6 +291,53 @@ def chain_label_stratum(
     return sector_of(azimuth), ("first" if first_distance < second_distance else "second")
 
 
+def reference_visibility_stratum(
+    script: ScriptSpec, objects: tuple[SceneObject, ...], std: CompileStandard
+) -> int | None:
+    """Index of the wedge the target occupies around the facing direction.
+
+    Two bindings share an index exactly when the same pair of imagined headings
+    can see their targets, so the index is the label the whole shallow curve is
+    bound to produce. ``None`` marks a target too close to a wedge boundary for
+    the shared sector-margin qualifier, which would reject the binding anyway.
+    """
+    by_slot = dict(zip(script.slots, objects, strict=True))
+    viewpoint, facing, target = by_slot["viewpoint"], by_slot["facing"], by_slot["target"]
+    azimuth = azimuth_deg(
+        viewpoint.xy, bearing_deg(viewpoint.xy, facing.xy), target.xy
+    )
+    wedge, remainder = divmod(azimuth % 360.0, REFERENCE_VISIBLE_WEDGE_DEG)
+    boundary = min(remainder, REFERENCE_VISIBLE_WEDGE_DEG - remainder)
+    if boundary < std.sector_margin_deg:
+        return None
+    return int(wedge)
+
+
+def _round_robin_by_stratum(
+    strata: dict[Any, list[tuple[Any, tuple[SceneObject, ...]]]],
+    maximum: int,
+) -> list[tuple[SceneObject, ...]]:
+    """Draw one binding per stratum in turn, unlabelled bindings last."""
+    queues = [
+        heapq.nsmallest(maximum, strata[key], key=lambda item: item[0])
+        for key in sorted(key for key in strata if key is not None)
+    ]
+    selected: list[tuple[SceneObject, ...]] = []
+    index = 0
+    while len(selected) < maximum and any(index < len(queue) for queue in queues):
+        for queue in queues:
+            if index < len(queue):
+                selected.append(queue[index][1])
+                if len(selected) == maximum:
+                    return selected
+        index += 1
+    for _, objects in heapq.nsmallest(
+        maximum - len(selected), strata.get(None, ()), key=lambda item: item[0]
+    ):
+        selected.append(objects)
+    return selected
+
+
 def _interleave(left: list[Any], right: list[Any]) -> list[Any]:
     merged: list[Any] = []
     for first, second in itertools.zip_longest(left, right):
@@ -352,6 +416,15 @@ def ranked_bindings(
             if len(bucket) >= 4 * maximum:
                 strata[key] = heapq.nsmallest(maximum, bucket, key=lambda item: item[0])
         chosen = _round_robin_strata(strata, maximum)
+    elif script.capability in REFERENCE_CAPABILITIES:
+        wedges: dict[Any, list[tuple[Any, tuple[SceneObject, ...]]]] = {}
+        for objects in combinations():
+            key = reference_visibility_stratum(script, objects, std)
+            bucket = wedges.setdefault(key, [])
+            bucket.append((_binding_score(script, objects), objects))
+            if len(bucket) >= 4 * maximum:
+                wedges[key] = heapq.nsmallest(maximum, bucket, key=lambda item: item[0])
+        chosen = _round_robin_by_stratum(wedges, maximum)
     else:
         chosen = [
             objects
@@ -398,7 +471,7 @@ def _generate_one(
     aggregate: Counter[str] = Counter()
     if script.capability in REFERENCE_CAPABILITIES:
         candidates = []
-        for binding in ranked_bindings(layout, script):
+        for binding in ranked_bindings(layout, script, std=std):
             if _reference_binding_eligible(layout, binding, std):
                 candidates.append(binding)
             else:
