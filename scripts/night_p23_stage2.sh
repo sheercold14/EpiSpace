@@ -47,9 +47,19 @@ python scripts/screen_scene_yield.py \
   --maximum-multislot-bindings 128 \
   --workers 12
 
-# The snapshot line is the main training line; the walking line is held out
-# for evaluation, so the two are planned as separate collections and only the
-# snapshot collection is rendered tonight.
+python scripts/report_scene_concentration.py \
+  --yield-report "$ROOT/outputs/p23_yield_all_v1.json" | tee "$ROOT/outputs/p23_concentration_v1.txt"
+
+# Three collections, because the per-scene binding cap has to differ by line
+# and coverage-plan takes one value per collection.  Shared credit runs inside
+# the reference curve and inside each cross-view trio, never between them, so
+# splitting on that boundary costs no coverage.
+#
+# P2 draws from twenty scenes with the top two holding a quarter of the supply,
+# so it can afford the wide cap.  The chain lines come from a handful of rooms -
+# at a cap of 32 two rooms hold 60% of k1 and 81% of k3 - so they take a
+# tighter cap, which trades supply for the scene diversity that decides whether
+# the model learns the relation or the room.
 P2=(reference_frame_transform reference_frame_transform_yaw45 reference_frame_transform_yaw90
     reference_frame_transform_yaw135 reference_frame_transform_yaw180
     reference_frame_transform_yawm45 reference_frame_transform_yawm90
@@ -65,22 +75,43 @@ WALKING=(cross_view_ego_k1 cross_view_ego_k2 cross_view_ego_k3
          cross_view_anchor_k1 cross_view_anchor_k2 cross_view_anchor_k3
          cross_view_closer_k1 cross_view_closer_k2 cross_view_closer_k3)
 
-echo "[$(date +%T)] planning main collection (P2 + P3 snapshot)"
-python -m spatial_episode.scriptgen.dataset_cli coverage-plan \
-  --source-index "$SOURCES/source.index.json" \
-  --output-root "$ROOT/outputs/p23_main_v1" \
-  --collection-id p23_main_v1 \
-  --capabilities "${P2[@]}" "${SNAPSHOT[@]}" \
-  --limit-bindings-per-capability 32 \
-  --accepted-per-binding 2
+plan_collection() {
+  local name=$1 limit=$2; shift 2
+  echo "[$(date +%T)] planning $name (limit $limit)"
+  python -m spatial_episode.scriptgen.dataset_cli coverage-plan \
+    --source-index "$SOURCES/source.index.json" \
+    --output-root "$ROOT/outputs/$name" \
+    --collection-id "$name" \
+    --capabilities "$@" \
+    --limit-bindings-per-capability "$limit" \
+    --accepted-per-binding 2
+}
 
-echo "[$(date +%T)] planning holdout collection (P3 walking)"
-python -m spatial_episode.scriptgen.dataset_cli coverage-plan \
-  --source-index "$SOURCES/source.index.json" \
-  --output-root "$ROOT/outputs/p23_holdout_v1" \
-  --collection-id p23_holdout_v1 \
-  --capabilities "${WALKING[@]}" \
-  --limit-bindings-per-capability 32 \
-  --accepted-per-binding 2
+plan_collection p23_p2_v1      32 "${P2[@]}"
+plan_collection p23_p3snap_v1  16 "${SNAPSHOT[@]}"
+plan_collection p23_holdout_v1 16 "${WALKING[@]}"
+
+for name in p23_p2_v1 p23_p3snap_v1 p23_holdout_v1; do
+  echo "[$(date +%T)] --- $name"
+  python - "$ROOT/outputs/$name/coverage.plan.json" <<'PY'
+import collections, json, pathlib, sys
+
+plan = json.loads(pathlib.Path(sys.argv[1]).read_text())
+cells = plan["cells"]
+scenes = {cell["scene_key"] for cell in cells}
+print(f"  {len(cells)} cells over {len(scenes)} scenes, "
+      f"{plan['accepted_per_binding']} accepted per cell "
+      f"=> {len(cells) * plan['accepted_per_binding']} trajectories at full quota")
+by_capability = collections.Counter(cell["capability"] for cell in cells)
+per_scene = collections.defaultdict(collections.Counter)
+for cell in cells:
+    per_scene[cell["capability"]][cell["scene_key"]] += 1
+for capability, count in sorted(by_capability.items()):
+    spread = per_scene[capability]
+    top = sum(n for _, n in spread.most_common(2))
+    print(f"    {capability:<40} {count:>4} cells  {len(spread):>3} scenes  "
+          f"top2 {top / count:>5.1%}")
+PY
+done
 
 echo "[$(date +%T)] stage 2 complete"
