@@ -1301,6 +1301,58 @@ def _pair_framable(layout: SceneLayout, left_name: str, right_name: str) -> bool
     return False
 
 
+def chain_edge_station_exists(
+    layout: SceneLayout,
+    left_name: str,
+    right_name: str,
+    target_name: str,
+    other_name: str,
+    *,
+    final_edge: bool,
+) -> bool:
+    """Some station realises this chain edge under the full motif constraints.
+
+    Unlike ``pair_framable_station_exists`` this admits stations with the same
+    judge the motif uses, including the never-covisible exclusion of the
+    queried pair and the final-edge target sector margin, so a binding passing
+    every edge here is one ``snapshot_landmarks`` can actually realise.
+    """
+    if not pair_framable_station_exists(layout, left_name, right_name):
+        return False
+    return _edge_station_exists(
+        layout, left_name, right_name, target_name, other_name, final_edge
+    )
+
+
+@lru_cache(maxsize=65536)
+def _edge_station_exists(
+    layout: SceneLayout,
+    left_name: str,
+    right_name: str,
+    target_name: str,
+    other_name: str,
+    final_edge: bool,
+) -> bool:
+    grid = _occupancy_grid(layout)
+    rng = random.Random(
+        f"edge_station|{left_name}|{right_name}|{target_name}|{other_name}|{final_edge}"
+    )
+    return bool(
+        _edge_station_pool(
+            layout,
+            grid,
+            left_name,
+            right_name,
+            target_name,
+            other_name,
+            rng,
+            None,
+            final_edge=final_edge,
+            pool_size=1,
+        )
+    )
+
+
 def _edge_station_pool(
     layout: SceneLayout,
     grid: _OccupancyGrid,

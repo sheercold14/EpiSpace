@@ -26,7 +26,7 @@ from .compiler import CapabilityCompiler
 from .generate import generate_plans
 from .geometry import azimuth_deg, bearing_deg, distance_m, point_in_rotated_rect, wrap_deg
 from .library import REFERENCE_FRAME_SCRIPTS, SCRIPT_LIBRARY
-from .motifs import _landmark_chain, pair_framable_station_exists
+from .motifs import _landmark_chain, chain_edge_station_exists
 from .plan import TrajectoryPlan
 from .sceneview import GeometrySceneView, Pose2D, SceneLayout, SceneObject
 from .spec import ScriptSpec, SpecModel
@@ -418,16 +418,27 @@ def _binding_chain_source_covisible(
 def _binding_chain_stations_framable(
     layout: SceneLayout, binding: dict[str, str]
 ) -> bool:
-    """Every chain edge admits some snapshot station in pure geometry.
+    """Every chain edge admits some snapshot station under motif constraints.
 
     Snapshot stations are searched over the whole free grid, so the static
-    source survey's covisible pairs are far too strict a proxy for them; the
-    geometry backend's own pair admission is the necessary condition instead.
+    source survey's covisible pairs are far too strict a proxy for them.  Pair
+    framability alone is too loose the other way: short chains keep the
+    queried pair close together, and the never-covisible exclusion then
+    empties station pools that pure pair geometry admits.  Judging each edge
+    with the motif's own station admission keeps ranked bindings realisable.
     """
     chain = _landmark_chain(binding)
+    edges = tuple(itertools.pairwise(chain))
     return all(
-        pair_framable_station_exists(layout, left, right)
-        for left, right in itertools.pairwise(chain)
+        chain_edge_station_exists(
+            layout,
+            left,
+            right,
+            binding["target"],
+            binding["other"],
+            final_edge=index == len(edges) - 1,
+        )
+        for index, (left, right) in enumerate(edges)
     )
 
 

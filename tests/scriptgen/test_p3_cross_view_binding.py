@@ -294,6 +294,33 @@ def test_snapshot_chain_prefilter_uses_geometric_pair_framability() -> None:
     assert snapshot_filter(binding)
 
 
+def test_snapshot_chain_prefilter_models_never_covisible_exclusion() -> None:
+    from spatial_episode.scriptgen.collection import _binding_chain_stations_framable
+    from spatial_episode.scriptgen.motifs import (
+        chain_edge_station_exists,
+        pair_framable_station_exists,
+    )
+
+    # X sits 0.9 m from Y: every station framing the final edge A1->Y sees X
+    # alongside Y, so the never-covisible exclusion empties the station pool
+    # even though the pair A1/Y is perfectly framable on its own.
+    layout = SceneLayout(
+        "covis",
+        (
+            SceneObject("X", "xcat", (0.0, 0.0), 0.6, "x"),
+            SceneObject("Y", "ycat", (0.9, 0.0), 0.6, "y"),
+            SceneObject("A1", "acat", (3.0, 0.0), 0.6, "a1"),
+        ),
+        walkable_min=(-8.0, -8.0),
+        walkable_max=(8.0, 8.0),
+    )
+    assert pair_framable_station_exists(layout, "A1", "Y")
+    assert not chain_edge_station_exists(layout, "A1", "Y", "X", "Y", final_edge=True)
+    assert not _binding_chain_stations_framable(
+        layout, {"target": "X", "anchor1": "A1", "other": "Y"}
+    )
+
+
 def test_anchor_frame_ignores_reference_objects_intrinsic_yaw() -> None:
     ego_script, plan, view = _case(1)
     anchor_script = _fixed_binding(CROSS_VIEW_ANCHOR[0], 1)
