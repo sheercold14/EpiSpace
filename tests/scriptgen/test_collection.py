@@ -23,6 +23,7 @@ from spatial_episode.scriptgen.collection import (
 )
 from spatial_episode.scriptgen.library import (
     CROSS_VIEW_RELATION,
+    CROSS_VIEW_SNAPSHOT_EGO,
     EXISTENCE_SUFFICIENCY,
     REFERENCE_FRAME_DEEP,
 )
@@ -249,6 +250,39 @@ def test_reference_render_plan_keeps_auxiliary_views_outside_sequence() -> None:
         "z_low_m": 0.1,
         "z_high_m": 1.7,
     }
+    assert payload["path_contract"] == "walked"
+
+
+def test_snapshot_render_plan_declares_teleport_cut_path_contract() -> None:
+    layout = SceneLayout(
+        "snapshot",
+        (
+            _object("target", "target_cat", 0.0, 0.0),
+            _object("other", "other_cat", 2.0, 0.0),
+        ),
+        walkable_min=(-5.0, -5.0),
+        walkable_max=(5.0, 5.0),
+    )
+    plan = TrajectoryPlan(
+        plan_id="snapshot.plan",
+        scene_id=layout.scene_id,
+        capability=CROSS_VIEW_SNAPSHOT_EGO[0].capability,
+        standard_version=STD_V1.standard_version,
+        seed=17,
+        binding={"target": "target", "other": "other"},
+        frame_vars={},
+        poses=tuple(
+            PlannedPose(frame=i, x=1.0, y=float(i), yaw_deg=90.0) for i in range(4)
+        ),
+        knob_levels={},
+        clause_witnesses={},
+        provisional_answer=ProvisionalAnswer(mode="ego_frame", label="left", witness={}),
+    )
+
+    payload = render_plan_payload(plan, layout, STD_V1)
+
+    assert payload["path_contract"] == "teleport_cuts"
+    assert payload["auxiliary_views"] == []
 
 
 def test_clean_scene_inventory_binds_bundle_to_replay_recipe(tmp_path: Path) -> None:

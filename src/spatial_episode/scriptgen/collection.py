@@ -573,11 +573,16 @@ def render_plan_payload(
     layout: SceneLayout,
     std: CompileStandard,
 ) -> dict[str, Any]:
+    # Snapshot motifs teleport between stations: only the station poses exist
+    # physically, so the renderer must not clearance-check interpolated
+    # segments between them. Walked plans keep the default full-path contract.
+    snapshot = SCRIPT_LIBRARY[plan.capability].motifs == ("snapshot_landmarks",)
     return {
         "schema_version": RENDER_PLAN_SCHEMA_VERSION,
         "plan_id": plan.plan_id,
         "capability": plan.capability,
         "standard_version": plan.standard_version,
+        "path_contract": "teleport_cuts" if snapshot else "walked",
         "views": plan_to_agent_views(plan),
         "auxiliary_views": _auxiliary_views(plan, layout, std),
         "clearance": {
