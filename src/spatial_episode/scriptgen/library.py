@@ -853,20 +853,26 @@ def _cross_view_question_parts(
         )
         options = ("front", "left", "back", "right", "无法判断")
     elif question == "closer":
+        # Anchoring at anchor1 makes the answer nearly a constant. The chain is
+        # target-anchor1-...-anchor{k}-other, every edge is capped at the
+        # distance where a landmark still reads clearly, and only the queried
+        # pair is required to be far apart. The target is therefore one capped
+        # hop from anchor1 while the other end is k hops away, so "first" wins
+        # by construction. Anchoring at the middle of the chain puts both ends
+        # the same number of hops away and lets the layout decide.
+        middle = f"$anchor{(chain_length + 1) // 2}"
+        closer_args = {"first": "$target", "second": "$other", "anchor": middle}
         clauses = (
             Clause(
                 name="distance_ratio",
                 predicate="closer_ratio_ge",
-                args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
+                args=dict(closer_args),
                 phase="search",
             ),
         )
-        answer = AnswerSpec(
-            mode="closer_of",
-            args={"first": "$target", "second": "$other", "anchor": "$anchor1"},
-        )
+        answer = AnswerSpec(mode="closer_of", args=dict(closer_args))
         text = (
-            "{target}和{other}中,哪一个离{anchor1}更近?"
+            "{target}和{other}中,哪一个离{" + middle.removeprefix("$") + "}更近?"
             '第一个选项指{target},第二个选项指{other};证据不足时选"无法判断"。'
         )
         options = ("first", "second", "无法判断")

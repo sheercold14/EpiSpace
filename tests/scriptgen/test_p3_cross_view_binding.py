@@ -57,10 +57,13 @@ def _fixture_layout(chain_length: int, *, reference_yaw_deg: float = 0.0) -> Sce
         other_xy[0] + 8.0 * math.cos(angle),
         other_xy[1] + 8.0 * math.sin(angle),
     )
+    # The middle anchor is deliberately off-centre. It is the one the k3 closer
+    # question compares against, and an evenly spaced chain would put it near
+    # the midpoint of X and Y, where the distance ratio never clears its gate.
     fractions = {
         1: (0.6,),
         2: (0.20, 0.60),
-        3: (0.15, 0.45, 0.75),
+        3: (0.15, 0.40, 0.75),
     }[chain_length]
     objects = [
         SceneObject("X", "xcat", target_xy, 0.6, "x"),
@@ -235,14 +238,16 @@ def test_landmark_chain_forces_cross_frame_evidence(
 
 
 # Labels and witnesses below are copied from the compiler's deterministic
-# output, never hand-adjusted gold.
+# output, never hand-adjusted gold. The k3 ratio is far smaller than the k1 and
+# k2 ones because the k3 closer question is anchored at the middle of the
+# chain rather than at the target's neighbour.
 TRIO_EXPECTATIONS = {
     (1, False): ("left", "second", 1.5),
     (2, False): ("left", "first", 4.0),
-    (3, False): ("right", "first", 5.667),
+    (3, False): ("right", "first", 1.5),
     (1, True): ("left", "second", 1.5),
     (2, True): ("left", "first", 4.0),
-    (3, True): ("right", "first", 5.667),
+    (3, True): ("right", "first", 1.5),
 }
 
 
