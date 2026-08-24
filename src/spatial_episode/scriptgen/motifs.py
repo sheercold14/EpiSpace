@@ -1054,11 +1054,26 @@ def walk_through_occlusion(
     return tuple(tracked)
 
 
+MIN_STATION_RANGE_M = 0.75
+# A 90-degree frustum only contains an object of extent ``s`` from about 1.2*s
+# away; closer than that the object is clipped by the frame edge and reads as an
+# anonymous surface rather than as its category, so a question naming it has no
+# groundable referent however many pixels it covers. Pilot frames put the
+# boundary just past 1.4*s, and the factor keeps margin beyond it so the object
+# is framed with some surrounding context.
+LANDMARK_STANDOFF_FACTOR = 1.5
+
+
 def _landmark_view_cap_m(size_m: float) -> float:
     """Farthest distance at which an object of this size stays clearly visible."""
     from .standards import STD_V1
 
     return min(STD_V1.max_view_distance_m, size_m / STD_V1.geom_min_visible_ratio)
+
+
+def _landmark_view_floor_m(size_m: float) -> float:
+    """Closest distance at which an object of this size still frames whole."""
+    return max(MIN_STATION_RANGE_M, LANDMARK_STANDOFF_FACTOR * size_m)
 
 
 def _covering_arc_deg(bearings: list[float]) -> tuple[float, float]:
@@ -1096,6 +1111,7 @@ def _survey_station(
     rng.shuffle(candidates)
     landmarks = tuple(layout.object(name) for name in landmark_names)
     caps = tuple(_landmark_view_cap_m(landmark.size_m) for landmark in landmarks)
+    floors = tuple(_landmark_view_floor_m(landmark.size_m) for landmark in landmarks)
     check_spread = (min_spread_deg > 0.0 or max_spread_deg < 360.0) and len(landmarks) >= 3
     best_xy: tuple[float, float] | None = None
     best_score = -math.inf
@@ -1107,8 +1123,8 @@ def _survey_station(
         xy = grid.world_xy(index)
         distances = tuple(distance_m(xy, landmark.xy) for landmark in landmarks)
         if any(
-            not 0.75 <= distance <= cap
-            for distance, cap in zip(distances, caps, strict=True)
+            not floor <= distance <= cap
+            for distance, floor, cap in zip(distances, floors, caps, strict=True)
         ):
             continue
         if check_spread:
@@ -1231,6 +1247,8 @@ def _pair_framable(layout: SceneLayout, left_name: str, right_name: str) -> bool
     left, right = layout.object(left_name), layout.object(right_name)
     cap_left = _landmark_view_cap_m(left.size_m)
     cap_right = _landmark_view_cap_m(right.size_m)
+    floor_left = _landmark_view_floor_m(left.size_m)
+    floor_right = _landmark_view_floor_m(right.size_m)
     edge = distance_m(left.xy, right.xy)
     half = edge / 2.0
     reach = min(cap_left, cap_right)
@@ -1243,9 +1261,9 @@ def _pair_framable(layout: SceneLayout, left_name: str, right_name: str) -> bool
         xy = grid.world_xy(index)
         left_distance = distance_m(xy, left.xy)
         right_distance = distance_m(xy, right.xy)
-        if not 0.75 <= left_distance <= cap_left:
+        if not floor_left <= left_distance <= cap_left:
             return False
-        if not 0.75 <= right_distance <= cap_right:
+        if not floor_right <= right_distance <= cap_right:
             return False
         left_yaw = bearing_deg(xy, left.xy)
         separation = wrap_deg(bearing_deg(xy, right.xy) - left_yaw)
@@ -1388,6 +1406,8 @@ def _edge_station_pool(
     target = layout.object(target_name)
     cap_left = _landmark_view_cap_m(left.size_m)
     cap_right = _landmark_view_cap_m(right.size_m)
+    floor_left = _landmark_view_floor_m(left.size_m)
+    floor_right = _landmark_view_floor_m(right.size_m)
     edge = distance_m(left.xy, right.xy)
     half = edge / 2.0
     reach = min(cap_left, cap_right)
@@ -1402,9 +1422,9 @@ def _edge_station_pool(
         xy = grid.world_xy(index)
         left_distance = distance_m(xy, left.xy)
         right_distance = distance_m(xy, right.xy)
-        if not 0.75 <= left_distance <= cap_left:
+        if not floor_left <= left_distance <= cap_left:
             return None
-        if not 0.75 <= right_distance <= cap_right:
+        if not floor_right <= right_distance <= cap_right:
             return None
         left_yaw = bearing_deg(xy, left.xy)
         separation = wrap_deg(bearing_deg(xy, right.xy) - left_yaw)

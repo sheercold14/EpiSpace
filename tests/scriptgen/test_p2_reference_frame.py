@@ -12,7 +12,7 @@ from spatial_episode.scriptgen.answers import registered_answer_modes
 from spatial_episode.scriptgen.behavior import layout_from_scene_ir
 from spatial_episode.scriptgen.compiler import CapabilityCompiler
 from spatial_episode.scriptgen.family import QUESTION_SCRIPT_SETS, build_family_doc
-from spatial_episode.scriptgen.geometry import wrap_deg
+from spatial_episode.scriptgen.geometry import distance_m, wrap_deg
 from spatial_episode.scriptgen.library import (
     EXISTENCE_SUFFICIENCY,
     IMAGINED_VIEWPOINT_OFFSETS,
@@ -20,6 +20,7 @@ from spatial_episode.scriptgen.library import (
     REFERENCE_FRAME_SCRIPTS,
     REFERENCE_FRAME_SHALLOW,
 )
+from spatial_episode.scriptgen.motifs import _landmark_view_floor_m
 from spatial_episode.scriptgen.predicates import registered_predicates
 from spatial_episode.scriptgen.sceneview import (
     GeometrySceneView,
@@ -214,3 +215,32 @@ def test_reference_frame_curve_builds_on_real_multiroom_geometry() -> None:
         "not_visible",
         "not_visible",
     ]
+
+
+def test_survey_stations_keep_their_standoff_from_every_bound_landmark() -> None:
+    """No station may crowd a landmark past the distance where it frames whole.
+
+    Pixel coverage is not the same as recognisability: a station one metre from
+    an oven fills an eighth of the frame with an anonymous metal surface that
+    the frame edge cuts in half. The station search used to maximise apparent
+    size against a fixed 0.75 m floor, which drove exactly that. The floor is
+    now proportional to the landmark's own extent.
+    """
+    layout = layout_from_scene_ir(HOME_SCENE_IR, std=STD_V1)
+    report = generate_plans(
+        layout,
+        REFERENCE_FRAME_DEEP[0],
+        STD_V1,
+        seed=17,
+        attempts_per_binding=20,
+        max_plans=1,
+    )
+    assert report.plans, report.rejection_counts
+    plan = report.plans[0]
+    for slot, name in plan.binding.items():
+        landmark = layout.object(name)
+        floor = _landmark_view_floor_m(landmark.size_m)
+        closest = min(
+            distance_m((pose.x, pose.y), landmark.xy) for pose in plan.poses
+        )
+        assert closest >= floor, f"{slot} ({landmark.category}) crowded at {closest:.2f}m"
