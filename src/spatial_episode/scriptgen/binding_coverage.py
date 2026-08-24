@@ -238,6 +238,7 @@ def _bindings_for_scene(
             maximum=maximum_multislot_bindings,
             allowed_entity_ids=evidence.visible_entities,
             binding_filter=_chain_binding_filter(layout, script, evidence),
+            std=std,
         )
     return ranked_bindings(layout, script, maximum=maximum_multislot_bindings)
 

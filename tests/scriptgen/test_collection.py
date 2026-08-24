@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,9 +13,12 @@ from spatial_episode.scriptgen.collection import (
     CollectionManifest,
     SourceRenderEvidence,
     _binding_chain_source_covisible,
+    _binding_score,
+    _chain_slots_are_distinct_places,
     _reference_binding_eligible,
     _reference_render_robust_filter,
     _visit_render_robust_filter,
+    chain_label_stratum,
     discover_scenes,
     load_collection,
     ranked_bindings,
@@ -23,6 +27,7 @@ from spatial_episode.scriptgen.collection import (
 )
 from spatial_episode.scriptgen.library import (
     CROSS_VIEW_RELATION,
+    CROSS_VIEW_SNAPSHOT_CLOSER,
     CROSS_VIEW_SNAPSHOT_EGO,
     EXISTENCE_SUFFICIENCY,
     REFERENCE_FRAME_DEEP,
@@ -390,3 +395,148 @@ def test_post_render_rejection_returns_replicate_to_planner(tmp_path: Path) -> N
     assert not updated.jobs
     assert updated.failures[0].scene_key == scene.scene_key
     assert updated.failures[0].reason == "post_render_rejected:canonical_mismatch"
+
+
+def _sector_fixture_layout() -> SceneLayout:
+    """One target candidate per anchor-frame sector, front ones ranked best.
+
+    ``other`` sits at (4, 0) facing ``anchor1`` at the origin, so a target's
+    anchor-frame sector is fixed by where it lies relative to that ray. The
+    three front candidates sit on the ray just past the anchor, which makes
+    them the shortest chains and therefore the ones a purely geometric ranking
+    would pick to the exclusion of every other sector.
+    """
+    objects = [
+        SceneObject("Y", "ycat", (4.0, 0.0), 0.6, "y"),
+        SceneObject("A1", "acat1", (0.0, 0.0), 0.6, "a1"),
+        SceneObject("Xf1", "xf1", (-2.0, 0.0), 0.6, "xf1"),
+        SceneObject("Xf2", "xf2", (-2.5, 0.0), 0.6, "xf2"),
+        SceneObject("Xf3", "xf3", (-3.0, 0.0), 0.6, "xf3"),
+        SceneObject("Xl", "xl", (4.0, -5.0), 0.6, "xl"),
+        SceneObject("Xr", "xr", (4.0, 5.0), 0.6, "xr"),
+        SceneObject("Xb", "xb", (9.0, 0.0), 0.6, "xb"),
+    ]
+    return SceneLayout(
+        scene_id="sector_fixture",
+        objects=tuple(objects),
+        walkable_min=(-8.0, -8.0),
+        walkable_max=(12.0, 8.0),
+    )
+
+
+def _sector_fixture_script():
+    script = CROSS_VIEW_SNAPSHOT_EGO[0]
+    categories = {
+        "target": ("xf1", "xf2", "xf3", "xl", "xr", "xb"),
+        "anchor1": ("acat1",),
+        "other": ("ycat",),
+    }
+    return script.model_copy(
+        update={
+            "slots": {
+                name: slot.model_copy(update={"categories": categories[name]})
+                for name, slot in script.slots.items()
+            }
+        }
+    )
+
+
+def test_chain_label_stratum_reports_anchor_sector_and_closer_side() -> None:
+    layout = _sector_fixture_layout()
+    script = _sector_fixture_script()
+    by_name = {obj.name: obj for obj in layout.objects}
+
+    def stratum(target: str) -> tuple[str, str] | None:
+        objects = (by_name[target], by_name["A1"], by_name["Y"])
+        return chain_label_stratum(script, objects, STD_V1)
+
+    assert stratum("Xf1") == ("front", "first")
+    assert stratum("Xl") == ("left", "second")
+    assert stratum("Xr") == ("right", "second")
+    assert stratum("Xb") == ("back", "second")
+
+
+def test_chain_label_stratum_rejects_bindings_whose_questions_are_invalid() -> None:
+    script = _sector_fixture_script()
+    anchor = SceneObject("A1", "acat1", (0.0, 0.0), 0.6, "a1")
+    other = SceneObject("Y", "ycat", (4.0, 0.0), 0.6, "y")
+    # Equidistant from the anchor: the closer question cannot clear its ratio.
+    equidistant = SceneObject("Xf1", "xf1", (-4.0, 0.0), 0.6, "xf1")
+    assert chain_label_stratum(script, (equidistant, anchor, other), STD_V1) is None
+    # On a sector boundary: the anchor question cannot clear its margin.
+    on_boundary = SceneObject("Xf1", "xf1", (4.0 - 2.0, -2.0), 0.6, "xf1")
+    assert chain_label_stratum(script, (on_boundary, anchor, other), STD_V1) is None
+
+
+def test_chain_binding_shortlist_is_balanced_across_anchor_sectors() -> None:
+    layout = _sector_fixture_layout()
+    script = _sector_fixture_script()
+    by_name = {obj.name: obj for obj in layout.objects}
+
+    bindings = ranked_bindings(layout, script, maximum=4, std=STD_V1)
+    sectors = [
+        chain_label_stratum(
+            script,
+            tuple(by_name[binding[slot]] for slot in script.slots),
+            STD_V1,
+        )[0]
+        for binding in bindings
+    ]
+    assert sorted(sectors) == ["back", "front", "left", "right"]
+
+    # Without stratification the same pool concentrates on the straightest
+    # chains, which crowd one sector -- that is the skew being fixed.
+    geometric_order = sorted(
+        (
+            (_binding_score(script, tuple(by_name[binding[slot]] for slot in script.slots)), binding)
+            for binding in ranked_bindings(layout, script, maximum=64, std=STD_V1)
+        ),
+        key=lambda item: item[0],
+    )
+    unstratified = [
+        chain_label_stratum(
+            script,
+            tuple(by_name[binding[slot]] for slot in script.slots),
+            STD_V1,
+        )[0]
+        for _, binding in geometric_order[:4]
+    ]
+    assert Counter(unstratified).most_common(1) == [("front", 3)]
+
+
+def test_chain_slots_stacked_in_one_fixture_are_not_distinct_places() -> None:
+    """An oven and the microwave above it are one place, not two landmarks."""
+    layout = SceneLayout(
+        scene_id="stacked_fixture",
+        objects=(
+            SceneObject("oven", "oven", (-1.949, 15.880), 0.84, "oven"),
+            SceneObject("microwave", "microwave", (-1.949, 15.877), 0.83, "microwave"),
+            SceneObject("chest", "cedar_chest", (-1.239, 11.194), 0.57, "chest"),
+            SceneObject("burner", "burner", (-1.759, 13.707), 0.89, "burner"),
+        ),
+        walkable_min=(-6.0, 9.0),
+        walkable_max=(3.0, 18.0),
+    )
+    stacked = {"target": "oven", "anchor1": "microwave", "other": "chest"}
+    separated = {"target": "oven", "anchor1": "burner", "other": "chest"}
+    assert not _chain_slots_are_distinct_places(layout, stacked)
+    assert _chain_slots_are_distinct_places(layout, separated)
+
+
+def test_closer_question_is_anchored_at_the_middle_of_the_chain() -> None:
+    """The anchor adjacent to the target would make the answer near-constant."""
+    anchors = {
+        script.capability: script.answer.args["anchor"]
+        for script in CROSS_VIEW_SNAPSHOT_CLOSER
+    }
+    assert anchors == {
+        "cross_view_snapshot_closer_k1": "$anchor1",
+        "cross_view_snapshot_closer_k2": "$anchor1",
+        # Only a three-anchor chain has a middle that is equidistant in hops
+        # from both queried ends, so only k3 moves off the target's neighbour.
+        "cross_view_snapshot_closer_k3": "$anchor2",
+    }
+    for script in CROSS_VIEW_SNAPSHOT_CLOSER:
+        slot = script.answer.args["anchor"].removeprefix("$")
+        assert f"{{{slot}}}" in script.templates[0].text
+        assert script.clauses[-1].args["anchor"] == script.answer.args["anchor"]

@@ -24,7 +24,15 @@ from .behavior import (
 )
 from .compiler import CapabilityCompiler
 from .generate import generate_plans
-from .geometry import azimuth_deg, bearing_deg, distance_m, point_in_rotated_rect, wrap_deg
+from .geometry import (
+    azimuth_deg,
+    bearing_deg,
+    distance_m,
+    point_in_rotated_rect,
+    sector_margin_deg,
+    sector_of,
+    wrap_deg,
+)
 from .library import REFERENCE_FRAME_SCRIPTS, SCRIPT_LIBRARY
 from .motifs import _landmark_chain, chain_edge_station_exists
 from .plan import TrajectoryPlan
@@ -50,6 +58,28 @@ REFERENCE_CAPABILITIES = frozenset(script.capability for script in REFERENCE_FRA
 # the same binding ranking, source-covisibility prefilter and render-robust
 # candidate filter; only the camera choreography differs.
 CHAIN_MOTIFS = (("visit_landmarks",), ("snapshot_landmarks",))
+
+# The anchor-frame sector and the closer side are functions of object positions
+# alone, so the trajectory search can never rebalance them: whichever labels the
+# binding shortlist carries are the labels the collection ships. Ranking chains
+# by geometry picks the straightest ones, which pins the anchor question to
+# "front" and the closer question to "first". The shortlist is therefore built
+# per label stratum and emitted round robin.
+#
+# The sector is the primary axis because it is always realisable. The closer
+# side is secondary because the two are coupled at k=1: with a single anchor the
+# sector is the angle at ``other`` in the triangle ``target``-``other``-anchor,
+# so a "back" sector forces that angle to be the largest and the target to be
+# the farther object. Sectors therefore cycle on the outside and sides
+# interleave within a sector, with the starting side rotating so the secondary
+# axis still balances wherever the geometry admits both.
+CHAIN_SECTORS = ("front", "left", "back", "right")
+CHAIN_CLOSER_SIDES = ("first", "second")
+
+# Clearance two chain landmarks must keep beyond their own footprints before
+# they count as separate places rather than parts of one fixture. Sized to a
+# person's shoulder width so the gap is one a viewer could stand in.
+LANDMARK_SEPARATION_MARGIN_M = 0.5
 
 
 @dataclass(frozen=True)
@@ -214,6 +244,77 @@ def _binding_score(script: ScriptSpec, objects: tuple[SceneObject, ...]) -> tupl
     return tuple(obj.name for obj in objects)
 
 
+def chain_label_stratum(
+    script: ScriptSpec, objects: tuple[SceneObject, ...], std: CompileStandard
+) -> tuple[str, str] | None:
+    """Anchor-frame sector and closer side a chain binding is bound to compile to.
+
+    Mirrors ``imagined_sector`` / ``closer_of`` and their search-phase gates.
+    Returns ``None`` when either question would be rejected as invalid, so those
+    bindings sink below the labelled strata instead of consuming a slot.
+    """
+    by_slot = dict(zip(script.slots, objects, strict=True))
+    anchors = sorted(
+        (name for name in script.slots if name.startswith("anchor")),
+        key=lambda name: int(name.removeprefix("anchor")),
+    )
+    if not anchors:
+        return None
+    target, other = by_slot["target"], by_slot["other"]
+    yaw = bearing_deg(other.xy, by_slot[anchors[-1]].xy)
+    azimuth = azimuth_deg(other.xy, yaw, target.xy)
+    if sector_margin_deg(azimuth) < std.sector_margin_deg:
+        return None
+    first_anchor_xy = by_slot[anchors[0]].xy
+    first_distance = distance_m(target.xy, first_anchor_xy)
+    second_distance = distance_m(other.xy, first_anchor_xy)
+    smaller, larger = sorted((first_distance, second_distance))
+    if larger / max(smaller, 1e-9) < std.closer_min_distance_ratio:
+        return None
+    return sector_of(azimuth), ("first" if first_distance < second_distance else "second")
+
+
+def _interleave(left: list[Any], right: list[Any]) -> list[Any]:
+    merged: list[Any] = []
+    for first, second in itertools.zip_longest(left, right):
+        merged.extend(item for item in (first, second) if item is not None)
+    return merged
+
+
+def _round_robin_strata(
+    strata: dict[tuple[str, str] | None, list[tuple[Any, tuple[SceneObject, ...]]]],
+    maximum: int,
+) -> list[tuple[SceneObject, ...]]:
+    """Interleave per-stratum shortlists, unlabelled bindings last."""
+
+    def shortlist(key: tuple[str, str]) -> list[Any]:
+        return heapq.nsmallest(maximum, strata.get(key, ()), key=lambda item: item[0])
+
+    queues: list[list[Any]] = []
+    for index, sector in enumerate(CHAIN_SECTORS):
+        leading, trailing = (
+            CHAIN_CLOSER_SIDES if index % 2 == 0 else CHAIN_CLOSER_SIDES[::-1]
+        )
+        queue = _interleave(shortlist((sector, leading)), shortlist((sector, trailing)))
+        if queue:
+            queues.append(queue)
+
+    selected: list[tuple[SceneObject, ...]] = []
+    index = 0
+    while len(selected) < maximum and any(index < len(queue) for queue in queues):
+        for queue in queues:
+            if index < len(queue):
+                selected.append(queue[index][1])
+                if len(selected) == maximum:
+                    return selected
+        index += 1
+    for _, objects in heapq.nsmallest(
+        maximum - len(selected), strata.get(None, ()), key=lambda item: item[0]
+    ):
+        selected.append(objects)
+    return selected
+
+
 def ranked_bindings(
     layout: SceneLayout,
     script: ScriptSpec,
@@ -221,6 +322,7 @@ def ranked_bindings(
     maximum: int = MAX_RANKED_BINDINGS,
     allowed_entity_ids: frozenset[str] | None = None,
     binding_filter: Callable[[dict[str, str]], bool] | None = None,
+    std: CompileStandard = STD_V1,
 ) -> tuple[dict[str, str], ...]:
     """Return a bounded deterministic binding shortlist for expensive motifs."""
     candidates = _eligible_objects(
@@ -239,13 +341,28 @@ def ranked_bindings(
             if binding_filter is None or binding_filter(binding):
                 yield objects
 
-    best = heapq.nsmallest(
-        maximum,
-        ((_binding_score(script, objects), objects) for objects in combinations()),
-        key=lambda item: item[0],
-    )
+    if script.motifs in CHAIN_MOTIFS:
+        strata: dict[tuple[str, str] | None, list[tuple[Any, tuple[SceneObject, ...]]]] = {}
+        for objects in combinations():
+            key = chain_label_stratum(script, objects, std)
+            bucket = strata.setdefault(key, [])
+            bucket.append((_binding_score(script, objects), objects))
+            # Bounded memory over pools that reach seven figures at k=3; the
+            # shortlist never needs more than ``maximum`` entries per stratum.
+            if len(bucket) >= 4 * maximum:
+                strata[key] = heapq.nsmallest(maximum, bucket, key=lambda item: item[0])
+        chosen = _round_robin_strata(strata, maximum)
+    else:
+        chosen = [
+            objects
+            for _, objects in heapq.nsmallest(
+                maximum,
+                ((_binding_score(script, objects), objects) for objects in combinations()),
+                key=lambda item: item[0],
+            )
+        ]
     return tuple(
-        dict(zip(slot_names, (obj.name for obj in objects), strict=True)) for _, objects in best
+        dict(zip(slot_names, (obj.name for obj in objects), strict=True)) for objects in chosen
     )
 
 
@@ -442,6 +559,29 @@ def _binding_chain_stations_framable(
     )
 
 
+def _chain_slots_are_distinct_places(
+    layout: SceneLayout, binding: dict[str, str]
+) -> bool:
+    """Every pair of bound landmarks names a separate place in the room.
+
+    Scene inventories list stacked and built-in fixtures as independent
+    entities: an oven, the microwave above it and the fridge beside it are
+    three names for one kitchen block, within centimetres of each other in
+    plan view. A chain over them still passes every angular gate, but the
+    questions it produces are degenerate - the closer question compares a
+    distance to itself, and the anchor question asks for a direction that is
+    only defined up to the extent of a single appliance. Requiring the two
+    footprints to clear each other by a walkable margin drops exactly those
+    bindings and leaves genuinely separated landmarks untouched.
+    """
+    objects = tuple(layout.object(name) for name in binding.values())
+    return all(
+        distance_m(left.xy, right.xy)
+        >= 0.5 * (left.size_m + right.size_m) + LANDMARK_SEPARATION_MARGIN_M
+        for left, right in itertools.combinations(objects, 2)
+    )
+
+
 def _chain_binding_filter(
     layout: SceneLayout,
     script: ScriptSpec,
@@ -449,8 +589,12 @@ def _chain_binding_filter(
 ) -> Callable[[dict[str, str]], bool]:
     """Prefilter chain bindings by the evidence a chain edge actually needs."""
     if script.motifs == ("snapshot_landmarks",):
-        return lambda binding: _binding_chain_stations_framable(layout, binding)
-    return lambda binding: _binding_chain_source_covisible(binding, evidence)
+        return lambda binding: _chain_slots_are_distinct_places(
+            layout, binding
+        ) and _binding_chain_stations_framable(layout, binding)
+    return lambda binding: _chain_slots_are_distinct_places(
+        layout, binding
+    ) and _binding_chain_source_covisible(binding, evidence)
 
 
 def _reference_binding_eligible(
