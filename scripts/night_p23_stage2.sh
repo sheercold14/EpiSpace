@@ -20,6 +20,24 @@ echo "[$(date +%T)] waiting on prepare-scenes pid=$PREPARE_PID"
 while kill -0 "$PREPARE_PID" 2>/dev/null; do sleep 60; done
 echo "[$(date +%T)] sources done: $(grep -c 'source ready' /tmp/prepare_all51.log) scenes"
 
+# A scene that died on a full disk is worth one retry before it is written off:
+# the garden scenes are the only ones that have ever produced deep chains, and
+# losing one to an environment fault would quietly shrink the P3 scene pool.
+mapfile -t FAILED < <(grep -o 'source failed scene=\S*' /tmp/prepare_all51.log |
+  cut -d= -f2 | sort -u)
+if [ "${#FAILED[@]}" -gt 0 ]; then
+  echo "[$(date +%T)] retrying failed sources: ${FAILED[*]}"
+  python -m spatial_episode.scriptgen.dataset_cli prepare-scenes \
+    --scenes "${FAILED[@]}" \
+    --source-root "$SOURCES" \
+    --source-id p23_sources_all_v1 \
+    --og-root /data/shichao/data/dataV100/code/OminiGibson \
+    --conda-env behavior-spatialep \
+    --data-root /data/shichao/data/dataV100/code/OminiGibson/.data/omnigibson \
+    --gpu-ids 0 1 2 3 --workers 4 --accept-eula \
+    >> /tmp/prepare_all51.log 2>&1 || echo "[$(date +%T)] retry did not fully succeed"
+fi
+
 echo "[$(date +%T)] screening per-scene binding yield"
 # 128 is coverage-plan's own binding pool size, so the screened counts are the
 # counts the plan will see rather than a raw capacity figure.
