@@ -239,8 +239,21 @@ def start_sector(
     )
 
 
-def _imagined_pose(view: SceneView, viewpoint: str, facing: str, yaw_offset_deg: float) -> Pose2D:
-    origin = view.object(viewpoint).xy
+def _imagined_pose(
+    view: SceneView,
+    std: CompileStandard,
+    viewpoint: str,
+    facing: str,
+    yaw_offset_deg: float,
+) -> Pose2D:
+    from .motifs import imagined_station
+
+    origin = imagined_station(view.layout, viewpoint, facing, std.camera_height_m)
+    if origin is None:
+        raise ValueError(
+            f"no imagined station for viewpoint={viewpoint} facing={facing}; "
+            "imagined_pose_valid should have rejected this binding"
+        )
     yaw = wrap_deg(bearing_deg(origin, view.object(facing).xy) + yaw_offset_deg)
     return Pose2D(origin[0], origin[1], yaw)
 
@@ -256,8 +269,7 @@ def imagined_sector(
     yaw_offset_deg: float = 0.0,
 ) -> AnswerResult:
     """Target sector from a constructed position-and-facing reference frame."""
-    del std
-    pose = _imagined_pose(view, viewpoint, facing, yaw_offset_deg)
+    pose = _imagined_pose(view, std, viewpoint, facing, yaw_offset_deg)
     azimuth = azimuth_deg(pose.xy, pose.yaw_deg, view.object(obj).xy)
     label = sector_of(azimuth)
     return AnswerResult(
@@ -284,7 +296,7 @@ def imagined_visibility(
     yaw_offset_deg: float = 0.0,
 ) -> AnswerResult:
     """Geometric visibility from a constructed pose, independent of sequence frames."""
-    pose = _imagined_pose(view, viewpoint, facing, yaw_offset_deg)
+    pose = _imagined_pose(view, std, viewpoint, facing, yaw_offset_deg)
     probe = GeometrySceneView(layout=view.layout, poses=(pose,), std=std)
     observation = probe.visibility(obj, 0)
     state = observation.tristate(std)

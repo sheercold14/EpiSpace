@@ -670,9 +670,20 @@ def never_all_covisible(
 
 
 def _imagined_pose_values(
-    view: SceneView, viewpoint: str, facing: str, yaw_offset_deg: float
+    view: SceneView,
+    std: CompileStandard,
+    viewpoint: str,
+    facing: str,
+    yaw_offset_deg: float,
 ) -> tuple[tuple[float, float], float]:
-    origin = view.object(viewpoint).xy
+    from .motifs import imagined_station
+
+    origin = imagined_station(view.layout, viewpoint, facing, std.camera_height_m)
+    if origin is None:
+        raise ValueError(
+            f"no imagined station for viewpoint={viewpoint} facing={facing}; "
+            "imagined_pose_valid should have rejected this binding"
+        )
     yaw = wrap_deg(bearing_deg(origin, view.object(facing).xy) + yaw_offset_deg)
     return origin, yaw
 
@@ -685,13 +696,38 @@ def imagined_pose_valid(
     viewpoint: str,
     facing: str,
 ) -> Verdict:
-    """P and Q are separated enough to define a stable imagined heading."""
-    distance = distance_m(view.object(viewpoint).xy, view.object(facing).xy)
+    """A person can stand at P, look at Q, and have a stable heading doing it.
+
+    Two things have to hold and both are about the camera, not the objects.
+    There must be somewhere to stand: the reference object's own centre if it
+    is clear at eye height, otherwise a point just outside its footprint on the
+    side it faces.  And the station has to be far enough from the object being
+    faced that the heading is well defined - close up, a few centimetres of
+    station offset would swing the imagined heading through a large angle.
+
+    The distance is measured from the station rather than from the reference
+    object's centre, because the station is where the render puts the camera
+    and where the answer is derived.
+    """
+    from .motifs import imagined_station
+
+    origin = imagined_station(view.layout, viewpoint, facing, std.camera_height_m)
+    if origin is None:
+        return Verdict(
+            False,
+            {
+                "reason": "no_clear_station",
+                "required_m": std.imagined_min_anchor_distance_m,
+            },
+        )
+    distance = distance_m(origin, view.object(facing).xy)
+    centre = view.object(viewpoint).xy
     return Verdict(
         distance >= std.imagined_min_anchor_distance_m,
         {
             "anchor_distance_m": round(distance, 3),
             "required_m": std.imagined_min_anchor_distance_m,
+            "station_offset_m": round(distance_m(centre, origin), 3),
         },
     )
 
@@ -707,7 +743,7 @@ def imagined_sector_margin_ge(
     yaw_offset_deg: float = 0.0,
 ) -> Verdict:
     """Target direction clears sector boundaries in the constructed frame."""
-    origin, yaw = _imagined_pose_values(view, viewpoint, facing, yaw_offset_deg)
+    origin, yaw = _imagined_pose_values(view, std, viewpoint, facing, yaw_offset_deg)
     azimuth = azimuth_deg(origin, yaw, view.object(obj).xy)
     margin = sector_margin_deg(azimuth)
     return Verdict(
@@ -735,7 +771,7 @@ def imagined_curve_sector_margins_ge(
     """Every preregistered imagined-yaw point clears a sector boundary."""
     margins: list[tuple[int, float]] = []
     for offset in std.imagined_viewpoint_offsets_deg:
-        origin, yaw = _imagined_pose_values(view, viewpoint, facing, offset)
+        origin, yaw = _imagined_pose_values(view, std, viewpoint, facing, offset)
         azimuth = azimuth_deg(origin, yaw, view.object(obj).xy)
         margins.append((offset, sector_margin_deg(azimuth)))
     minimum = min(margin for _, margin in margins)
@@ -760,7 +796,7 @@ def imagined_visibility_decisive(
     yaw_offset_deg: float = 0.0,
 ) -> Verdict:
     """Constructed-pose visibility lies outside the geometry ambiguity band."""
-    origin, yaw = _imagined_pose_values(view, viewpoint, facing, yaw_offset_deg)
+    origin, yaw = _imagined_pose_values(view, std, viewpoint, facing, yaw_offset_deg)
     probe = GeometrySceneView(
         layout=view.layout,
         poses=(Pose2D(origin[0], origin[1], yaw),),
@@ -794,7 +830,7 @@ def imagined_curve_visibility_decisive(
     """Every preregistered imagined-yaw point has a decisive visibility state."""
     states: list[tuple[int, str]] = []
     for offset in std.imagined_viewpoint_offsets_deg:
-        origin, yaw = _imagined_pose_values(view, viewpoint, facing, offset)
+        origin, yaw = _imagined_pose_values(view, std, viewpoint, facing, offset)
         probe = GeometrySceneView(
             layout=view.layout,
             poses=(Pose2D(origin[0], origin[1], yaw),),

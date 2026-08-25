@@ -28,13 +28,12 @@ from .geometry import (
     azimuth_deg,
     bearing_deg,
     distance_m,
-    point_in_rotated_rect,
     sector_margin_deg,
     sector_of,
     wrap_deg,
 )
 from .library import REFERENCE_FRAME_SCRIPTS, SCRIPT_LIBRARY
-from .motifs import _landmark_chain, chain_edge_station_exists
+from .motifs import _landmark_chain, chain_edge_station_exists, imagined_station
 from .plan import TrajectoryPlan
 from .sceneview import GeometrySceneView, Pose2D, SceneLayout, SceneObject
 from .spec import ScriptSpec, SpecModel
@@ -47,11 +46,6 @@ DEFAULT_SEEDS = (17, 29)
 MAX_RANKED_OBJECTS = 18
 MAX_RANKED_BINDINGS = 128
 MAX_VISIT_BINDINGS = 128
-# The scripted backend validates auxiliary cameras with a sphere whose radius
-# equals the source sensor near plane. behavior51 source recipes all use 5 cm;
-# mirror that acquisition constraint in the cheap P2 binding prefilter.
-AUXILIARY_CAMERA_PROBE_RADIUS_M = 0.05
-
 REFERENCE_CAPABILITIES = frozenset(script.capability for script in REFERENCE_FRAME_SCRIPTS)
 
 # Both cross-view motifs bind a target–anchor…–other landmark chain and share
@@ -688,22 +682,12 @@ def _reference_binding_eligible(
         imagined_pose_valid,
     )
 
-    viewpoint = layout.object(binding["viewpoint"])
-    if any(
-        obstacle.z_low <= std.camera_height_m <= obstacle.z_high
-        and point_in_rotated_rect(
-            viewpoint.xy,
-            obstacle.center_xy,
-            (
-                obstacle.half_extents_xy[0] + AUXILIARY_CAMERA_PROBE_RADIUS_M,
-                obstacle.half_extents_xy[1] + AUXILIARY_CAMERA_PROBE_RADIUS_M,
-            ),
-            obstacle.yaw_deg,
-        )
-        for obstacle in layout.obstacles
-    ):
+    station = imagined_station(
+        layout, binding["viewpoint"], binding["facing"], std.camera_height_m
+    )
+    if station is None:
         return False
-    probe = GeometrySceneView(layout, (Pose2D(viewpoint.xy[0], viewpoint.xy[1], 0.0),), std)
+    probe = GeometrySceneView(layout, (Pose2D(station[0], station[1], 0.0),), std)
     args = {
         "viewpoint": binding["viewpoint"],
         "facing": binding["facing"],
@@ -728,12 +712,16 @@ def _reference_render_robust_filter(
     std: CompileStandard,
 ) -> bool:
     """Do not license invisibility solely from conservative proxy occlusion."""
-    viewpoint = layout.object(binding["viewpoint"])
+    station = imagined_station(
+        layout, binding["viewpoint"], binding["facing"], std.camera_height_m
+    )
+    if station is None:
+        return False
     facing = layout.object(binding["facing"])
     target = layout.object(binding["target"])
-    base_yaw = bearing_deg(viewpoint.xy, facing.xy)
+    base_yaw = bearing_deg(station, facing.xy)
     for offset in std.imagined_viewpoint_offsets_deg:
-        pose = Pose2D(viewpoint.xy[0], viewpoint.xy[1], wrap_deg(base_yaw + offset))
+        pose = Pose2D(station[0], station[1], wrap_deg(base_yaw + offset))
         observation = GeometrySceneView(layout, (pose,), std).visibility(target.name, 0)
         if observation.tristate(std) is not False:
             continue
@@ -764,14 +752,18 @@ def _auxiliary_views(
 ) -> list[dict[str, Any]]:
     if plan.capability not in REFERENCE_CAPABILITIES:
         return []
-    viewpoint = layout.object(plan.binding["viewpoint"])
+    station = imagined_station(
+        layout, plan.binding["viewpoint"], plan.binding["facing"], std.camera_height_m
+    )
+    if station is None:
+        raise ValueError(f"no imagined station for {plan.plan_id}")
     facing = layout.object(plan.binding["facing"])
     target = layout.object(plan.binding["target"])
-    base_yaw = bearing_deg(viewpoint.xy, facing.xy)
+    base_yaw = bearing_deg(station, facing.xy)
     views: list[dict[str, Any]] = []
     for offset in std.imagined_viewpoint_offsets_deg:
         yaw = wrap_deg(base_yaw + offset)
-        pose = Pose2D(viewpoint.xy[0], viewpoint.xy[1], yaw)
+        pose = Pose2D(station[0], station[1], yaw)
         observation = GeometrySceneView(layout, (pose,), std).visibility(target.name, 0)
         state = observation.tristate(std)
         if state is None:

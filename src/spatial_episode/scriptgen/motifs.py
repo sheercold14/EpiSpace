@@ -1319,6 +1319,103 @@ def _pair_framable(layout: SceneLayout, left_name: str, right_name: str) -> bool
     return False
 
 
+IMAGINED_CAMERA_PROBE_RADIUS_M = 0.05
+# How far past its own footprint the imagined camera may stand.  About one
+# step: far enough to clear a wardrobe's depth, close enough that "stand at the
+# wardrobe" still describes where the camera is.
+IMAGINED_STATION_STANDOFF_M = 0.6
+
+
+def _camera_blocked(layout: SceneLayout, xy: tuple[float, float], height_m: float) -> bool:
+    """Some obstacle occupies this point at camera height."""
+    return any(
+        obstacle.z_low <= height_m <= obstacle.z_high
+        and point_in_rotated_rect(
+            xy,
+            obstacle.center_xy,
+            (
+                obstacle.half_extents_xy[0] + IMAGINED_CAMERA_PROBE_RADIUS_M,
+                obstacle.half_extents_xy[1] + IMAGINED_CAMERA_PROBE_RADIUS_M,
+            ),
+            obstacle.yaw_deg,
+        )
+        for obstacle in layout.obstacles
+    )
+
+
+def _footprint_reach_m(
+    layout: SceneLayout, entity_id: str, unit: tuple[float, float], fallback_m: float
+) -> float:
+    """How far the object's own footprint extends from its centre along ``unit``."""
+    reach = 0.0
+    for obstacle in layout.obstacles:
+        if obstacle.entity_id != entity_id:
+            continue
+        angle = math.radians(obstacle.yaw_deg)
+        local_x = unit[0] * math.cos(angle) + unit[1] * math.sin(angle)
+        local_y = -unit[0] * math.sin(angle) + unit[1] * math.cos(angle)
+        reach = max(
+            reach,
+            abs(local_x) * obstacle.half_extents_xy[0]
+            + abs(local_y) * obstacle.half_extents_xy[1],
+        )
+    return reach or fallback_m
+
+
+@lru_cache(maxsize=65536)
+def imagined_station(
+    layout: SceneLayout,
+    viewpoint_name: str,
+    facing_name: str,
+    camera_height_m: float,
+) -> tuple[float, float] | None:
+    """Where a person standing at ``viewpoint`` and looking at ``facing`` stands.
+
+    The imagined viewpoint used to be the reference object's horizontal centre
+    at eye height, which is only inhabitable for furniture shorter than a
+    person.  Anything whose own vertical extent contains eye height - a
+    wardrobe, a locker, a fridge, a door - put the camera inside itself, and the
+    binding was dropped.  That is a limit of where the code put the camera, not
+    of whether the question is answerable: you stand *at* the wardrobe and look
+    out from it, not inside it.
+
+    So when the centre is occupied, step out along the ray toward the object
+    being faced until the camera is clear of the furniture and standing on
+    walkable floor.  Pushing along that ray leaves the imagined heading
+    numerically unchanged - centre, station and facing object stay collinear -
+    so only the position moves and the answer is still derived at the pose the
+    render will use.
+
+    Returns ``None`` when no honest station exists: the object is walled in, or
+    every clear point on its facing side is beyond the standoff, which would
+    make "stand at this object" a false description of the camera.
+    """
+    viewpoint = layout.object(viewpoint_name)
+    facing = layout.object(facing_name)
+    origin = viewpoint.xy
+    span = distance_m(origin, facing.xy)
+    if span < 1e-6:
+        return None
+    if not _camera_blocked(layout, origin, camera_height_m):
+        return origin
+
+    unit = ((facing.xy[0] - origin[0]) / span, (facing.xy[1] - origin[1]) / span)
+    limit = min(
+        _footprint_reach_m(layout, viewpoint_name, unit, 0.5 * viewpoint.size_m)
+        + IMAGINED_STATION_STANDOFF_M,
+        0.5 * span,
+    )
+    grid = _occupancy_grid(layout)
+    for step in range(1, int(limit / GRID_RESOLUTION_M) + 1):
+        push = step * GRID_RESOLUTION_M
+        xy = (origin[0] + unit[0] * push, origin[1] + unit[1] * push)
+        if _camera_blocked(layout, xy, camera_height_m):
+            continue
+        if grid.is_free(grid.nearest_index(xy)):
+            return xy
+    return None
+
+
 def chain_edge_station_exists(
     layout: SceneLayout,
     left_name: str,
