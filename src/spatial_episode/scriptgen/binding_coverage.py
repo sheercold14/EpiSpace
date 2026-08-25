@@ -23,6 +23,7 @@ from .collection import (
     REFERENCE_CAPABILITIES,
     CollectionScene,
     _chain_binding_filter,
+    _eligible_objects,
     _reference_binding_eligible,
     _scene_can_bind,
     _source_render_evidence,
@@ -216,11 +217,42 @@ def _bindings_for_scene(
     *,
     maximum_multislot_bindings: int,
     std: CompileStandard,
+    binding_candidates: tuple[dict[str, str], ...] | None = None,
 ) -> tuple[dict[str, str], ...]:
     script = SCRIPT_LIBRARY[capability]
     layout = layout_from_scene_ir(scene.scene_ir, std=std)
     if not _scene_can_bind(layout, script):
         return ()
+    if binding_candidates is not None:
+        evidence = _source_render_evidence(scene, std) if script.motifs in CHAIN_MOTIFS else None
+        eligible = _eligible_objects(
+            layout,
+            script,
+            allowed_entity_ids=(evidence.visible_entities if evidence is not None else None),
+        )
+        eligible_names = {slot: {obj.name for obj in objects} for slot, objects in eligible.items()}
+        chain_filter = (
+            _chain_binding_filter(layout, script, evidence) if evidence is not None else None
+        )
+        retained: list[dict[str, str]] = []
+        for binding in binding_candidates:
+            if set(binding) != set(script.slots):
+                continue
+            if any(binding[slot] not in eligible_names[slot] for slot in script.slots):
+                continue
+            if len(set(binding.values())) != len(binding):
+                continue
+            if capability in REFERENCE_CAPABILITIES:
+                valid = _reference_binding_eligible(layout, binding, std)
+            elif chain_filter is not None:
+                valid = chain_filter(binding)
+            else:
+                valid = True
+            if valid:
+                retained.append(binding)
+            if len(retained) >= maximum_multislot_bindings:
+                break
+        return tuple(retained)
     if len(script.slots) == 1:
         bindings, _ = iter_bindings(layout, script)
         return tuple(bindings)
@@ -243,6 +275,9 @@ def _bindings_for_scene(
             maximum=maximum_multislot_bindings,
             allowed_entity_ids=evidence.visible_entities,
             binding_filter=_chain_binding_filter(layout, script, evidence),
+            chain_adjacency=(
+                evidence.covisible_pairs if script.motifs == ("visit_landmarks",) else None
+            ),
             std=std,
         )
     return ranked_bindings(layout, script, maximum=maximum_multislot_bindings)
@@ -396,7 +431,9 @@ def _geometry_pool(
             attempts_per_binding if cell.desired_answer_label is not None else plans_per_binding
         ),
         candidate_bindings=(cell.binding,),
-        candidate_filter=(_visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None),
+        candidate_filter=(
+            _visit_render_robust_filter if script.motifs == ("snapshot_landmarks",) else None
+        ),
     )
     if cell.desired_answer_label is None:
         return report.plans, report.rejection_counts
@@ -623,6 +660,11 @@ def plan_coverage(
                     capability,
                     maximum_multislot_bindings=maximum_multislot_bindings,
                     std=std,
+                    binding_candidates=(
+                        tuple(binding_allowlist.get(scene.scene_key, ()))
+                        if binding_allowlist is not None
+                        else None
+                    ),
                 )
                 binding_cache[cache_key] = bindings
             if limit_bindings_per_capability is not None:

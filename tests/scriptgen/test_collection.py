@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections import Counter
+from itertools import pairwise
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -107,6 +108,44 @@ def test_ranked_bindings_apply_pair_filter_before_shortlisting() -> None:
 
     assert len(bindings) == 4
     assert all(binding["target"] in {"o6", "o7"} for binding in bindings)
+
+
+def test_ranked_walking_bindings_grow_only_along_evidence_graph_edges() -> None:
+    layout = SceneLayout(
+        "evidence-graph",
+        tuple(_object(f"o{i}", "repeated", float(i), 0.0) for i in range(8)),
+    )
+    adjacency = frozenset(frozenset((f"o{i}", f"o{i + 1}")) for i in range(7))
+
+    bindings = ranked_bindings(
+        layout,
+        CROSS_VIEW_RELATION[2],
+        maximum=32,
+        chain_adjacency=adjacency,
+    )
+
+    assert bindings
+    for binding in bindings:
+        chain = [binding[slot] for slot in CROSS_VIEW_RELATION[2].slots]
+        assert all(frozenset(pair) in adjacency for pair in pairwise(chain))
+
+
+def test_marker_pool_accepts_repeated_categories_and_drops_giant_structures() -> None:
+    layout = SceneLayout(
+        "marker-pool",
+        (
+            _object("chair1", "chair", 0.0, 0.0),
+            _object("chair2", "chair", 2.0, 0.0),
+            _object("table", "table", 4.0, 0.0),
+            SceneObject("fence", "fence", (6.0, 0.0), 12.0, "fence"),
+        ),
+    )
+
+    bindings = ranked_bindings(layout, REFERENCE_FRAME_DEEP[0], maximum=20)
+
+    assert bindings
+    assert any({"chair1", "chair2"} <= set(binding.values()) for binding in bindings)
+    assert all("fence" not in binding.values() for binding in bindings)
 
 
 def test_existence_binding_ranking_prefers_large_targets() -> None:

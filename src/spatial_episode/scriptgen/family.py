@@ -52,6 +52,7 @@ from .library import (
     SELF_MOTION,
     VIEW_SIDE,
 )
+from .markers import assign_badges, marker_tokens, ordered_binding_items, script_uses_markers
 from .sceneview import SceneLayout
 from .spec import ScriptSpec, SpecModel, Template
 from .standards import CompileStandard
@@ -253,10 +254,20 @@ def build_family_doc(
         for slot, entity_id in binding.items()
     }
     template = compiler.template
-    question_text = template.text.format(
-        **{slot: referent.category for slot, referent in referents.items()}
+    marked = script_uses_markers(script)
+    if marked:
+        format_values = marker_tokens(binding)
+    else:
+        format_values = {slot: referent.category for slot, referent in referents.items()}
+    question_text = template.text.format(**format_values)
+    checks = _audit(
+        question_text,
+        template,
+        tuple(referents.values()),
+        view.layout,
+        canonical,
+        marker_referents=marked,
     )
-    checks = _audit(question_text, template, tuple(referents.values()), view.layout, canonical)
     if not checks.referent_unique:
         raise FamilyBlocked(f"referent not unique in scene: {target.category}")
     if checks.unfilled_placeholders or checks.frame_number_leak or checks.answer_token_leak:
@@ -280,7 +291,8 @@ def build_family_doc(
             label=canonical.answer.label,
             certificate=canonical,
         ),
-    ) + tuple(_episode(family_id, variant) for variant in variants)
+        *(_episode(family_id, variant) for variant in variants),
+    )
 
     frames = tuple(
         FrameMedia(
@@ -352,7 +364,26 @@ def build_family_site(
         for referent in doc.referents.values()
         for runtime_id in view.entity_runtime_ids.get(referent.entity_id, ())
     ]
-    export_bundle_channels(bundle, target_ids, view.frame_count, out / "media")
+    assignments = (
+        assign_badges(
+            [entity_id for _, entity_id in ordered_binding_items(plan["binding"])],
+            view.entity_runtime_ids,
+        )
+        if script_uses_markers(script)
+        else ()
+    )
+    if script_uses_markers(script) and len(assignments) != len(plan["binding"]):
+        missing = sorted(set(plan["binding"].values()) - {item.entity_id for item in assignments})
+        raise FamilyBlocked("marker runtime id missing: " + ",".join(missing))
+    export_bundle_channels(
+        bundle,
+        target_ids,
+        view.frame_count,
+        out / "media",
+        badge_assignments=assignments,
+        badge_min_pixels=std.render_min_visible_pixels,
+        badge_min_frames=std.landmark_min_visible_frames,
+    )
     (out / "family.json").write_text(doc.model_dump_json(indent=1), encoding="utf-8")
     shutil.copyfile(WEB_TEMPLATE, out / "index.html")
     return out / "family.json"
@@ -406,7 +437,31 @@ def build_question_group(
         for entity_id in binding.values()
         for runtime_id in view.entity_runtime_ids.get(entity_id, ())
     ]
-    export_bundle_channels(bundle, target_ids, view.frame_count, out / "media")
+    source_script = SCRIPT_LIBRARY[plan["capability"]] if plan.get("capability") else None
+    assignments = (
+        assign_badges(
+            [entity_id for _, entity_id in ordered_binding_items(binding)],
+            view.entity_runtime_ids,
+        )
+        if source_script is not None and script_uses_markers(source_script)
+        else ()
+    )
+    if (
+        source_script is not None
+        and script_uses_markers(source_script)
+        and len(assignments) != len(binding)
+    ):
+        missing = sorted(set(binding.values()) - {item.entity_id for item in assignments})
+        raise FamilyBlocked("marker runtime id missing: " + ",".join(missing))
+    export_bundle_channels(
+        bundle,
+        target_ids,
+        view.frame_count,
+        out / "media",
+        badge_assignments=assignments,
+        badge_min_pixels=std.render_min_visible_pixels,
+        badge_min_frames=std.landmark_min_visible_frames,
+    )
 
     questions: list[QuestionGroupEntry] = []
     for script in scripts:
@@ -536,8 +591,10 @@ def _audit(
     referents: tuple[FamilyTarget, ...],
     layout: SceneLayout,
     canonical: Certificate,
+    *,
+    marker_referents: bool = False,
 ) -> FamilyChecks:
-    categories_unique = all(
+    categories_unique = marker_referents or all(
         sum(obj.category == referent.category for obj in layout.objects) == 1
         for referent in referents
     )

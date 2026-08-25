@@ -102,10 +102,7 @@ def _fixed_binding(script: ScriptSpec, chain_length: int) -> ScriptSpec:
     categories = {
         "target": ("xcat",),
         "other": ("ycat",),
-        **{
-            f"anchor{index}": (f"acat{index}",)
-            for index in range(1, chain_length + 1)
-        },
+        **{f"anchor{index}": (f"acat{index}",) for index in range(1, chain_length + 1)},
     }
     return script.model_copy(
         update={
@@ -155,9 +152,7 @@ def test_p3_registry_standard_and_library_surface_is_complete() -> None:
     assert STD_V1.standard_version == "std.v11"
     assert STD_V1.landmark_chain_lengths == (1, 2, 3)
     assert STD_V1.snapshot_frames_per_station == 2
-    assert {"target_sector", "imagined_sector", "closer_of"} <= set(
-        registered_answer_modes()
-    )
+    assert {"target_sector", "imagined_sector", "closer_of"} <= set(registered_answer_modes())
     assert {
         "never_covisible",
         "chain_connected",
@@ -179,9 +174,7 @@ def test_p3_registry_standard_and_library_surface_is_complete() -> None:
     assert len(CROSS_VIEW_SCRIPTS) == 18
     walking = CROSS_VIEW_EGO + CROSS_VIEW_ANCHOR + CROSS_VIEW_CLOSER
     assert all(script.motifs == ("visit_landmarks",) for script in walking)
-    assert all(
-        script.motifs == ("snapshot_landmarks",) for script in CROSS_VIEW_SNAPSHOT_SCRIPTS
-    )
+    assert all(script.motifs == ("snapshot_landmarks",) for script in CROSS_VIEW_SNAPSHOT_SCRIPTS)
     assert all(SCRIPT_LIBRARY[script.capability] is script for script in CROSS_VIEW_SCRIPTS)
     for index in range(3):
         chain_length = index + 1
@@ -210,9 +203,7 @@ def test_p3_registry_standard_and_library_surface_is_complete() -> None:
 
 @pytest.mark.parametrize("snapshot", (False, True), ids=("walk", "snapshot"))
 @pytest.mark.parametrize("chain_length", (1, 2, 3))
-def test_landmark_chain_forces_cross_frame_evidence(
-    chain_length: int, snapshot: bool
-) -> None:
+def test_landmark_chain_forces_cross_frame_evidence(chain_length: int, snapshot: bool) -> None:
     _, plan, _ = _case(chain_length, snapshot)
     assert plan.binding == {
         "target": "X",
@@ -226,8 +217,7 @@ def test_landmark_chain_forces_cross_frame_evidence(
     chain = plan.clause_witnesses["anchor_chain_evidence"]
     assert len(chain["covisible_counts"]) == chain_length + 1
     assert all(
-        count >= STD_V1.chain_min_covisible_frames
-        for count in chain["covisible_counts"].values()
+        count >= STD_V1.chain_min_covisible_frames for count in chain["covisible_counts"].values()
     )
     assert plan.clause_witnesses["poses_clear"]["collision_count"] == 0
     if snapshot:
@@ -294,7 +284,9 @@ def test_snapshot_chain_prefilter_uses_geometric_pair_framability() -> None:
     assert not pair_framable_station_exists(layout, "X", "Y")
     assert not _binding_chain_stations_framable(layout, {"target": "X", "other": "Y"})
     snapshot_filter = _chain_binding_filter(
-        layout, CROSS_VIEW_SNAPSHOT_EGO[1], evidence=None  # type: ignore[arg-type]
+        layout,
+        CROSS_VIEW_SNAPSHOT_EGO[1],
+        evidence=None,  # type: ignore[arg-type]
     )
     assert snapshot_filter(binding)
 
@@ -327,7 +319,7 @@ def test_snapshot_chain_prefilter_models_never_covisible_exclusion() -> None:
 
 
 def test_anchor_frame_ignores_reference_objects_intrinsic_yaw() -> None:
-    ego_script, plan, view = _case(1)
+    _ego_script, plan, view = _case(1)
     anchor_script = _fixed_binding(CROSS_VIEW_ANCHOR[0], 1)
     base = CapabilityCompiler(anchor_script, STD_V1).compile(view, plan.binding)
     rotated_view = GeometrySceneView(
@@ -353,9 +345,7 @@ def test_cross_view_variant_signature_is_machine_verified(snapshot: bool) -> Non
     variants = VariantBuilder(compiler, view, plan.binding, canonical).build_all(seed=17)
     by_kind = {variant.kind: variant for variant in variants}
 
-    expected_kinds = {"permute", "drop_key", "delay"} | (
-        set() if snapshot else {"drop_filler"}
-    )
+    expected_kinds = {"permute", "drop_key", "delay"} | (set() if snapshot else {"drop_filler"})
     assert set(by_kind) == expected_kinds
     assert by_kind["permute"].gold == canonical.answer.label  # type: ignore[union-attr]
     assert by_kind["drop_key"].certificate.status == "abstain"
@@ -373,6 +363,10 @@ def test_cross_view_family_packages_every_chain_referent(snapshot: bool) -> None
     assert set(family.referents) == {"target", "anchor1", "other"}
     assert family.episodes[0].label == "left"
     assert all(token not in family.question.text for token in ("{target}", "{other}"))
+    if snapshot:
+        assert "①" not in family.question.text
+    else:
+        assert "①" in family.question.text
 
 
 @pytest.mark.skipif(not HOME_SCENE_IR.exists(), reason="Beechwood scene_ir is unavailable")
@@ -409,7 +403,5 @@ def test_k1_chain_builds_on_real_multiroom_geometry() -> None:
     assert plan.clause_witnesses["queried_pair_never_covisible"]["covisible_frames"] == []
     assert all(
         count >= STD_V1.chain_min_covisible_frames
-        for count in plan.clause_witnesses["anchor_chain_evidence"][
-            "covisible_counts"
-        ].values()
+        for count in plan.clause_witnesses["anchor_chain_evidence"]["covisible_counts"].values()
     )

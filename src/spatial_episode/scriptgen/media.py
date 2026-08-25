@@ -8,11 +8,14 @@ with the target rendered bright red.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+from .markers import BadgeAssignment, annotate_frame
 
 CHANNEL_SIZE = 512  # per-channel export resolution
 
@@ -50,21 +53,88 @@ def export_bundle_channels(
     target_runtime_ids: Sequence[int],
     frame_count: int,
     media_dir: Path,
+    *,
+    badge_assignments: Sequence[BadgeAssignment] = (),
+    badge_min_pixels: int = 900,
+    badge_min_frames: int = 2,
 ) -> list[int]:
-    """Write rgb/depth/instance PNGs per frame; return target pixel counts."""
+    """Write aligned channels, optionally making badged RGB canonical.
+
+    Marker collections retain the untouched render as ``*.raw.png`` and put
+    the annotated image at the normal ``*.rgb.png`` path consumed by family
+    documents.  Every referent must earn a badge in at least two rendered
+    frames; otherwise packaging fails before the episode can ship.
+    """
     media_dir.mkdir(parents=True, exist_ok=True)
     pixels: list[int] = []
+    badge_counts = {assignment.entity_id: 0 for assignment in badge_assignments}
+    audit_frames: list[dict[str, object]] = []
     for t in range(frame_count):
         with np.load(bundle / "views" / f"view-{t:03d}.sensors.npz") as arrays:
             instance = arrays["instance_id"]
             pixels.append(int(np.isin(instance, target_runtime_ids).sum()))
-            save_channel_png(arrays["rgb"], media_dir / f"view-{t:03d}.rgb.png")
+            if badge_assignments:
+                save_channel_png(arrays["rgb"], media_dir / f"view-{t:03d}.raw.png")
+                annotated, placements = annotate_frame(
+                    arrays["rgb"],
+                    instance,
+                    badge_assignments,
+                    size=CHANNEL_SIZE,
+                    min_pixels=badge_min_pixels,
+                )
+                Image.fromarray(annotated).save(media_dir / f"view-{t:03d}.rgb.png")
+                for placement in placements:
+                    badge_counts[placement.entity_id] += 1
+                audit_frames.append(
+                    {
+                        "frame": t,
+                        "placements": [
+                            {
+                                "number": placement.number,
+                                "entity_id": placement.entity_id,
+                                "x": placement.x,
+                                "y": placement.y,
+                                "pixels": placement.pixels,
+                            }
+                            for placement in placements
+                        ],
+                    }
+                )
+            else:
+                save_channel_png(arrays["rgb"], media_dir / f"view-{t:03d}.rgb.png")
             save_channel_png(
                 depth_to_image(arrays["depth_m"]), media_dir / f"view-{t:03d}.depth.png"
             )
             save_channel_png(
                 instance_to_image(instance, target_runtime_ids),
                 media_dir / f"view-{t:03d}.inst.png",
+            )
+    if badge_assignments:
+        audit = {
+            "schema_version": "scriptgen_marker_audit.v1",
+            "min_visible_pixels": badge_min_pixels,
+            "min_badged_frames": badge_min_frames,
+            "assignments": [
+                {
+                    "number": assignment.number,
+                    "entity_id": assignment.entity_id,
+                    "runtime_ids": list(assignment.runtime_ids),
+                    "badged_frames": badge_counts[assignment.entity_id],
+                }
+                for assignment in badge_assignments
+            ],
+            "frames": audit_frames,
+        }
+        (media_dir / "marker.audit.json").write_text(
+            json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        insufficient = [
+            entity_id for entity_id, count in badge_counts.items() if count < badge_min_frames
+        ]
+        if insufficient:
+            raise ValueError(
+                "marker_visibility_insufficient:"
+                + ",".join(f"{entity_id}={badge_counts[entity_id]}" for entity_id in insufficient)
             )
     return pixels
 

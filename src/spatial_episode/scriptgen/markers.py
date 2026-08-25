@@ -33,6 +33,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage
 
+from .spec import ScriptSpec
+
 # Distinct hues rather than one colour for every badge: the number carries the
 # identity, but two badges in one frame are easier to tell apart at a glance
 # when they also differ in colour.  The palette is indexed by badge number, not
@@ -52,6 +54,7 @@ CONTOUR_WIDTH_PX = 2
 BADGE_LEADER_GAP_PX = 4  # clearance between a silhouette and a badge parked outside it
 
 _FONT_CANDIDATES = ("DejaVuSans-Bold.ttf", "DejaVuSans.ttf")
+_CIRCLED_NUMBERS = ("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨")
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,34 @@ class BadgePlacement:
     x: int
     y: int
     pixels: int
+
+
+def script_uses_markers(script: ScriptSpec) -> bool:
+    """Whether category placeholders in this script name persistent badges."""
+    return script.capability.startswith("reference_frame_") or script.motifs == ("visit_landmarks",)
+
+
+def ordered_binding_items(binding: Mapping[str, str]) -> list[tuple[str, str]]:
+    """Stable semantic badge order: P2 viewpoint/facing/target, P3 chain order."""
+    if "viewpoint" in binding:
+        preferred = ("viewpoint", "facing", "target")
+    else:
+        anchors = sorted(
+            (slot for slot in binding if slot.startswith("anchor")),
+            key=lambda slot: int(slot.removeprefix("anchor")),
+        )
+        preferred = ("target", *anchors, "other")
+    seen = set(preferred)
+    trailing = sorted(slot for slot in binding if slot not in seen)
+    return [(slot, binding[slot]) for slot in (*preferred, *trailing) if slot in binding]
+
+
+def marker_tokens(binding: Mapping[str, str]) -> dict[str, str]:
+    """Template values matching the numbers assigned by :func:`assign_badges`."""
+    items = ordered_binding_items(binding)
+    if len(items) > len(_CIRCLED_NUMBERS):
+        raise ValueError(f"too many marker referents: {len(items)}")
+    return {slot: _CIRCLED_NUMBERS[index] for index, (slot, _) in enumerate(items)}
 
 
 def assign_badges(

@@ -170,6 +170,7 @@ def test_family_packages_every_bound_referent_and_fills_question_slots() -> None
     assert set(doc.referents) == {"viewpoint", "facing", "target"}
     assert len({referent.entity_id for referent in doc.referents.values()}) == 3
     assert all(token not in doc.question.text for token in ("{viewpoint}", "{facing}", "{target}"))
+    assert all(marker in doc.question.text for marker in ("①", "②", "③"))
     assert QUESTION_SCRIPT_SETS[REFERENCE_FRAME_DEEP[0].capability] == (
         *REFERENCE_FRAME_SCRIPTS,
         EXISTENCE_SUFFICIENCY,
@@ -247,9 +248,7 @@ def test_survey_stations_keep_their_standoff_from_every_bound_landmark() -> None
     for slot, name in plan.binding.items():
         landmark = layout.object(name)
         floor = _landmark_view_floor_m(landmark.size_m)
-        closest = min(
-            distance_m((pose.x, pose.y), landmark.xy) for pose in plan.poses
-        )
+        closest = min(distance_m((pose.x, pose.y), landmark.xy) for pose in plan.poses)
         assert closest >= floor, f"{slot} ({landmark.category}) crowded at {closest:.2f}m"
 
 
@@ -278,9 +277,7 @@ def test_shallow_curve_labels_do_not_follow_the_rotation_named_in_the_question()
     visible: list[tuple[bool, ...]] = []
     for binding in bindings:
         viewpoint = layout.object(binding["viewpoint"])
-        probe = GeometrySceneView(
-            layout, (Pose2D(viewpoint.xy[0], viewpoint.xy[1], 0.0),), STD_V1
-        )
+        probe = GeometrySceneView(layout, (Pose2D(viewpoint.xy[0], viewpoint.xy[1], 0.0),), STD_V1)
         visible.append(
             tuple(
                 imagined_visibility_decisive(
@@ -305,7 +302,6 @@ def test_shallow_curve_labels_do_not_follow_the_rotation_named_in_the_question()
     # five - the question text then scores 90% against a 75% majority class.
     assert len(set(visible)) >= 4
     seen_per_offset = [
-        sum(row[index] for row in visible)
-        for index in range(len(IMAGINED_VIEWPOINT_OFFSETS))
+        sum(row[index] for row in visible) for index in range(len(IMAGINED_VIEWPOINT_OFFSETS))
     ]
     assert max(seen_per_offset) <= 5, seen_per_offset

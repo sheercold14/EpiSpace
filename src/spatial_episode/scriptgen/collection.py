@@ -51,11 +51,17 @@ DEFAULT_SEEDS = (17, 29)
 MAX_RANKED_OBJECTS = 18
 MAX_RANKED_BINDINGS = 128
 MAX_VISIT_BINDINGS = 128
+MAX_MARKER_OBJECT_SIZE_M = 4.0
+# A complete k3 graph has P(18, 5) paths.  Keeping a deterministic beam at
+# every depth makes chain discovery O(k * beam * degree), not O(18**5), while
+# still sampling far more paths than the 128 bindings any scene can retain.
+MAX_CHAIN_SEARCH_FRONTIER = 8192
+MAX_REFERENCE_PAIR_SEARCH = 16
 REFERENCE_CAPABILITIES = frozenset(script.capability for script in REFERENCE_FRAME_SCRIPTS)
 
-# Both cross-view motifs bind a target–anchor…–other landmark chain and share
-# the same binding ranking, source-covisibility prefilter and render-robust
-# candidate filter; only the camera choreography differs.
+# Both cross-view motifs bind a target-anchor...-other landmark chain and share
+# the same binding shape and label stratification. Their evidence and
+# render-robustness filters remain choreography-specific.
 CHAIN_MOTIFS = (("visit_landmarks",), ("snapshot_landmarks",))
 
 # The anchor-frame sector and the closer side are functions of object positions
@@ -217,15 +223,27 @@ def _eligible_objects(
     category_counts = Counter(obj.category for obj in layout.objects)
     candidates: dict[str, list[SceneObject]] = {}
     for slot_name, slot in script.slots.items():
+        marker_referents = script.capability in REFERENCE_CAPABILITIES or script.motifs == (
+            "visit_landmarks",
+        )
         accepted = [
             obj
             for obj in layout.objects
             if (allowed_entity_ids is None or obj.name in allowed_entity_ids)
             and obj.size_m >= slot.min_size_m
+            and (not marker_referents or obj.size_m <= MAX_MARKER_OBJECT_SIZE_M)
             and (not slot.categories or obj.category in slot.categories)
-            and (not slot.unique_referent or category_counts[obj.category] == 1)
+            # P2 and streaming P3 use persistent numeric markers, so category
+            # uniqueness is not part of their production binding contract.
+            and (marker_referents or not slot.unique_referent or category_counts[obj.category] == 1)
         ]
-        accepted.sort(key=lambda obj: (-min(obj.size_m, 2.0), obj.category, obj.name))
+        if marker_referents:
+            # Once category uniqueness is relaxed, size/alphabetical ranking
+            # overwhelmingly selects repeated architecture (fences, doors,
+            # bushes).  Stable hashing is an unbiased, reproducible sample.
+            accepted.sort(key=lambda obj: _stable_rank(layout.scene_id, obj.name))
+        else:
+            accepted.sort(key=lambda obj: (-min(obj.size_m, 2.0), obj.category, obj.name))
         candidates[slot_name] = accepted[:MAX_RANKED_OBJECTS]
     return candidates
 
@@ -266,6 +284,7 @@ def chain_label_stratum(
     std: CompileStandard,
     *,
     layout: SceneLayout | None = None,
+    imagined_origin: tuple[float, float] | None = None,
 ) -> tuple[str, str] | None:
     """Anchor-frame sector and closer side a chain binding is bound to compile to.
 
@@ -282,7 +301,9 @@ def chain_label_stratum(
         return None
     target, other = by_slot["target"], by_slot["other"]
     origin = other.xy
-    if layout is not None:
+    if imagined_origin is not None:
+        origin = imagined_origin
+    elif layout is not None:
         origin = imagined_station(
             layout, other.name, by_slot[anchors[-1]].name, std.camera_height_m
         )
@@ -307,6 +328,7 @@ def reference_visibility_stratum(
     std: CompileStandard,
     *,
     layout: SceneLayout | None = None,
+    imagined_origin: tuple[float, float] | None = None,
 ) -> int | None:
     """Index of the wedge the target occupies around the facing direction.
 
@@ -318,7 +340,9 @@ def reference_visibility_stratum(
     by_slot = dict(zip(script.slots, objects, strict=True))
     viewpoint, facing, target = by_slot["viewpoint"], by_slot["facing"], by_slot["target"]
     origin = viewpoint.xy
-    if layout is not None:
+    if imagined_origin is not None:
+        origin = imagined_origin
+    elif layout is not None:
         origin = imagined_station(layout, viewpoint.name, facing.name, std.camera_height_m)
         if origin is None:
             return None
@@ -401,6 +425,7 @@ def ranked_bindings(
     maximum: int = MAX_RANKED_BINDINGS,
     allowed_entity_ids: frozenset[str] | None = None,
     binding_filter: Callable[[dict[str, str]], bool] | None = None,
+    chain_adjacency: frozenset[frozenset[str]] | None = None,
     std: CompileStandard = STD_V1,
 ) -> tuple[dict[str, str], ...]:
     """Return a bounded deterministic binding shortlist for expensive motifs."""
@@ -419,21 +444,117 @@ def ranked_bindings(
             if binding_filter is None or binding_filter(binding):
                 yield objects
 
+    def bounded_chain_combinations() -> Any:
+        """Search simple paths through the evidence graph with a fixed beam.
+
+        The old Cartesian product evaluated every slot tuple before it learned
+        that adjacent landmarks were not co-visible.  This grows paths one
+        graph edge at a time.  On a dense graph, a stable-hash beam bounds the
+        work; on the sparse source-evidence graphs it normally retains every
+        path.  The full binding filter remains authoritative at the leaf.
+        """
+        if not slot_names:
+            return
+        frontier: list[tuple[SceneObject, ...]] = [(obj,) for obj in candidates[slot_names[0]]]
+        for slot_name in slot_names[1:]:
+            expanded: list[tuple[SceneObject, ...]] = []
+            for path in frontier:
+                used = {obj.name for obj in path}
+                for obj in candidates[slot_name]:
+                    if obj.name in used:
+                        continue
+                    if (
+                        chain_adjacency is not None
+                        and frozenset((path[-1].name, obj.name)) not in chain_adjacency
+                    ):
+                        continue
+                    expanded.append((*path, obj))
+            if len(expanded) > MAX_CHAIN_SEARCH_FRONTIER:
+                expanded = heapq.nsmallest(
+                    MAX_CHAIN_SEARCH_FRONTIER,
+                    expanded,
+                    key=lambda path: _stable_rank(
+                        layout.scene_id,
+                        script.capability,
+                        *(obj.name for obj in path),
+                    ),
+                )
+            frontier = expanded
+            if not frontier:
+                break
+        for objects in frontier:
+            binding = dict(zip(slot_names, (obj.name for obj in objects), strict=True))
+            if binding_filter is None or binding_filter(binding):
+                yield objects
+
+    def reference_combinations() -> Any:
+        """Expand targets only from viewpoint/facing pairs with a valid station."""
+        viewpoint_slot, facing_slot, target_slot = "viewpoint", "facing", "target"
+        pairs = [
+            (viewpoint, facing)
+            for viewpoint in candidates[viewpoint_slot]
+            for facing in candidates[facing_slot]
+            if facing.name != viewpoint.name
+        ]
+        pairs = heapq.nsmallest(
+            MAX_REFERENCE_PAIR_SEARCH,
+            pairs,
+            key=lambda pair: _stable_rank(
+                layout.scene_id, script.capability, pair[0].name, pair[1].name
+            ),
+        )
+        for viewpoint, facing in pairs:
+            origin = imagined_station(layout, viewpoint.name, facing.name, std.camera_height_m)
+            if origin is None:
+                continue
+            for target in candidates[target_slot]:
+                if target.name in {viewpoint.name, facing.name}:
+                    continue
+                objects = (viewpoint, facing, target)
+                binding = {
+                    viewpoint_slot: viewpoint.name,
+                    facing_slot: facing.name,
+                    target_slot: target.name,
+                }
+                if binding_filter is None or binding_filter(binding):
+                    yield objects, origin
+
     if script.motifs in CHAIN_MOTIFS:
         strata: dict[tuple[str, str] | None, list[tuple[Any, tuple[SceneObject, ...]]]] = {}
-        for objects in combinations():
-            key = chain_label_stratum(script, objects, std, layout=layout)
+        station_cache: dict[tuple[str, str], tuple[float, float] | None] = {}
+        for admitted, objects in enumerate(bounded_chain_combinations(), start=1):
+            by_slot = dict(zip(slot_names, objects, strict=True))
+            anchors = sorted(
+                (name for name in slot_names if name.startswith("anchor")),
+                key=lambda name: int(name.removeprefix("anchor")),
+            )
+            station_key = (by_slot["other"].name, by_slot[anchors[-1]].name)
+            if station_key not in station_cache:
+                station_cache[station_key] = imagined_station(
+                    layout, *station_key, std.camera_height_m
+                )
+            origin = station_cache[station_key]
+            key = (
+                chain_label_stratum(script, objects, std, imagined_origin=origin)
+                if origin is not None
+                else None
+            )
             bucket = strata.setdefault(key, [])
             bucket.append((_binding_score(script, objects), objects))
             # Bounded memory over pools that reach seven figures at k=3; the
             # shortlist never needs more than ``maximum`` entries per stratum.
             if len(bucket) >= 4 * maximum:
                 strata[key] = heapq.nsmallest(maximum, bucket, key=lambda item: item[0])
+            # Once the expensive binding filter has admitted a two-deep pool,
+            # more paths only change tie-breaking.  Stop before scanning the
+            # rest of a dense 8192-path beam.
+            if admitted >= 2 * maximum:
+                break
         chosen = _round_robin_strata(strata, maximum)
     elif script.capability in REFERENCE_CAPABILITIES:
         wedges: dict[Any, list[tuple[Any, tuple[SceneObject, ...]]]] = {}
-        for objects in combinations():
-            key = reference_visibility_stratum(script, objects, std, layout=layout)
+        for objects, origin in reference_combinations():
+            key = reference_visibility_stratum(script, objects, std, imagined_origin=origin)
             bucket = wedges.setdefault(key, [])
             bucket.append((_binding_score(script, objects), objects))
             if len(bucket) >= 4 * maximum:
@@ -507,6 +628,11 @@ def _generate_one(
                     if source_render_evidence is not None
                     else None
                 ),
+                chain_adjacency=(
+                    source_render_evidence.covisible_pairs
+                    if source_render_evidence is not None and script.motifs == ("visit_landmarks",)
+                    else None
+                ),
             )
         )
         attempts = 20
@@ -518,7 +644,14 @@ def _generate_one(
         attempts_per_binding=attempts,
         max_plans=1,
         candidate_bindings=candidates,
-        candidate_filter=(_visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None),
+        # Walking already enforces never-covisible on every concrete pose.
+        # The angular proxy ignores real occlusion and rejected otherwise valid
+        # routes merely because both objects could fit the frustum in empty
+        # space.  Keep that conservative proxy for hard-cut snapshots only;
+        # walking is recompiled authoritatively after rendering.
+        candidate_filter=(
+            _visit_render_robust_filter if script.motifs == ("snapshot_landmarks",) else None
+        ),
     )
     aggregate.update(report.rejection_counts)
     if not report.plans:
@@ -672,6 +805,7 @@ def _chain_binding_filter(
     return lambda binding: (
         _chain_slots_are_distinct_places(layout, binding)
         and _binding_chain_source_covisible(binding, evidence)
+        and _binding_chain_stations_framable(layout, binding)
     )
 
 

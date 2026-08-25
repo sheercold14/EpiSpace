@@ -1090,6 +1090,23 @@ def _survey_station(
     min_spread_deg: float = 0.0,
     max_spread_deg: float = 360.0,
 ) -> tuple[float, float]:
+    """Return the binding's cached deterministic survey station."""
+    del rng  # trajectory randomness belongs to the scan, not station viability
+    return _survey_station_cached(
+        layout,
+        landmark_names,
+        min_spread_deg,
+        max_spread_deg,
+    )
+
+
+@lru_cache(maxsize=65536)
+def _survey_station_cached(
+    layout: SceneLayout,
+    landmark_names: tuple[str, ...],
+    min_spread_deg: float,
+    max_spread_deg: float,
+) -> tuple[float, float]:
     """Best free point with unobstructed, close-enough rays to all landmarks.
 
     A candidate must keep every landmark inside its clearly-visible distance
@@ -1101,6 +1118,9 @@ def _survey_station(
     """
     grid = _occupancy_grid(layout)
     candidates = list(grid.free_cells)
+    rng = random.Random(
+        "survey_station|" + "|".join(landmark_names) + f"|{min_spread_deg:.6f}|{max_spread_deg:.6f}"
+    )
     rng.shuffle(candidates)
     landmarks = tuple(layout.object(name) for name in landmark_names)
     caps = tuple(_landmark_view_cap_m(landmark.size_m) for landmark in landmarks)

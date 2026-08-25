@@ -163,8 +163,7 @@ def _evidence(bundle: Path, ir: dict) -> SourceRenderEvidence:
     pairs = frozenset(
         frozenset((left, right))
         for left, right in itertools.combinations(visible, 2)
-        if len(visible_frames[left] & visible_frames[right])
-        >= STD_V1.chain_min_covisible_frames
+        if len(visible_frames[left] & visible_frames[right]) >= STD_V1.chain_min_covisible_frames
     )
     return SourceRenderEvidence(visible_entities=visible, covisible_pairs=pairs)
 
@@ -181,7 +180,7 @@ def screen(
     layout = layout_from_scene_ir(ir, std=STD_V1)
     try:
         evidence = _evidence(bundle, ir)
-    except Exception as error:  # noqa: BLE001 - a broken bundle is a datum
+    except Exception as error:  # A broken bundle is itself a screening datum.
         return {"scene": bundle.name, "error": f"{type(error).__name__}: {error}"}
     pool = (
         unbiased_pool(
@@ -230,6 +229,9 @@ def screen(
                     maximum=maximum,
                     allowed_entity_ids=allowed,
                     binding_filter=_chain_binding_filter(layout, script, evidence),
+                    chain_adjacency=(
+                        evidence.covisible_pairs if script.motifs == ("visit_landmarks",) else None
+                    ),
                     std=STD_V1,
                 )
             )
@@ -260,7 +262,7 @@ def _worker(item: tuple[str, int, bool, bool, int, bool]) -> dict:
             unbiased=unbiased,
             standable_viewpoint=standable,
         )
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         return {"scene": Path(bundle).name, "error": f"{type(error).__name__}: {error}"}
 
 
@@ -299,9 +301,7 @@ def main() -> None:
 
     root = Path(args.bundles_root)
     bundles = sorted(
-        path
-        for path in root.iterdir()
-        if path.is_dir() and (path / "scene_ir.json").is_file()
+        path for path in root.iterdir() if path.is_dir() and (path / "scene_ir.json").is_file()
     )
     if args.scenes:
         wanted = set(args.scenes)
@@ -323,9 +323,7 @@ def main() -> None:
             rows.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
     rows.sort(key=lambda row: row["scene"])
-    Path(args.output).write_text(
-        json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    Path(args.output).write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
