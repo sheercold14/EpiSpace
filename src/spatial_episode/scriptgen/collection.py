@@ -33,7 +33,12 @@ from .geometry import (
     wrap_deg,
 )
 from .library import REFERENCE_FRAME_SCRIPTS, SCRIPT_LIBRARY
-from .motifs import _landmark_chain, chain_edge_station_exists, imagined_station
+from .motifs import (
+    _landmark_chain,
+    chain_edge_station_exists,
+    imagined_station,
+    imagined_station_placement,
+)
 from .plan import TrajectoryPlan
 from .sceneview import GeometrySceneView, Pose2D, SceneLayout, SceneObject
 from .spec import ScriptSpec, SpecModel
@@ -256,7 +261,11 @@ def _binding_score(script: ScriptSpec, objects: tuple[SceneObject, ...]) -> tupl
 
 
 def chain_label_stratum(
-    script: ScriptSpec, objects: tuple[SceneObject, ...], std: CompileStandard
+    script: ScriptSpec,
+    objects: tuple[SceneObject, ...],
+    std: CompileStandard,
+    *,
+    layout: SceneLayout | None = None,
 ) -> tuple[str, str] | None:
     """Anchor-frame sector and closer side a chain binding is bound to compile to.
 
@@ -272,8 +281,15 @@ def chain_label_stratum(
     if not anchors:
         return None
     target, other = by_slot["target"], by_slot["other"]
-    yaw = bearing_deg(other.xy, by_slot[anchors[-1]].xy)
-    azimuth = azimuth_deg(other.xy, yaw, target.xy)
+    origin = other.xy
+    if layout is not None:
+        origin = imagined_station(
+            layout, other.name, by_slot[anchors[-1]].name, std.camera_height_m
+        )
+        if origin is None:
+            return None
+    yaw = bearing_deg(origin, by_slot[anchors[-1]].xy)
+    azimuth = azimuth_deg(origin, yaw, target.xy)
     if sector_margin_deg(azimuth) < std.sector_margin_deg:
         return None
     first_anchor_xy = by_slot[anchors[0]].xy
@@ -286,7 +302,11 @@ def chain_label_stratum(
 
 
 def reference_visibility_stratum(
-    script: ScriptSpec, objects: tuple[SceneObject, ...], std: CompileStandard
+    script: ScriptSpec,
+    objects: tuple[SceneObject, ...],
+    std: CompileStandard,
+    *,
+    layout: SceneLayout | None = None,
 ) -> int | None:
     """Index of the wedge the target occupies around the facing direction.
 
@@ -297,9 +317,12 @@ def reference_visibility_stratum(
     """
     by_slot = dict(zip(script.slots, objects, strict=True))
     viewpoint, facing, target = by_slot["viewpoint"], by_slot["facing"], by_slot["target"]
-    azimuth = azimuth_deg(
-        viewpoint.xy, bearing_deg(viewpoint.xy, facing.xy), target.xy
-    )
+    origin = viewpoint.xy
+    if layout is not None:
+        origin = imagined_station(layout, viewpoint.name, facing.name, std.camera_height_m)
+        if origin is None:
+            return None
+    azimuth = azimuth_deg(origin, bearing_deg(origin, facing.xy), target.xy)
     wedge, remainder = divmod(azimuth % 360.0, REFERENCE_VISIBLE_WEDGE_DEG)
     boundary = min(remainder, REFERENCE_VISIBLE_WEDGE_DEG - remainder)
     if boundary < std.sector_margin_deg:
@@ -350,9 +373,7 @@ def _round_robin_strata(
 
     queues: list[list[Any]] = []
     for index, sector in enumerate(CHAIN_SECTORS):
-        leading, trailing = (
-            CHAIN_CLOSER_SIDES if index % 2 == 0 else CHAIN_CLOSER_SIDES[::-1]
-        )
+        leading, trailing = CHAIN_CLOSER_SIDES if index % 2 == 0 else CHAIN_CLOSER_SIDES[::-1]
         queue = _interleave(shortlist((sector, leading)), shortlist((sector, trailing)))
         if queue:
             queues.append(queue)
@@ -389,20 +410,19 @@ def ranked_bindings(
         allowed_entity_ids=allowed_entity_ids,
     )
     slot_names = tuple(script.slots)
+
     def combinations() -> Any:
         for objects in itertools.product(*(candidates[name] for name in slot_names)):
             if len({obj.name for obj in objects}) != len(objects):
                 continue
-            binding = dict(
-                zip(slot_names, (obj.name for obj in objects), strict=True)
-            )
+            binding = dict(zip(slot_names, (obj.name for obj in objects), strict=True))
             if binding_filter is None or binding_filter(binding):
                 yield objects
 
     if script.motifs in CHAIN_MOTIFS:
         strata: dict[tuple[str, str] | None, list[tuple[Any, tuple[SceneObject, ...]]]] = {}
         for objects in combinations():
-            key = chain_label_stratum(script, objects, std)
+            key = chain_label_stratum(script, objects, std, layout=layout)
             bucket = strata.setdefault(key, [])
             bucket.append((_binding_score(script, objects), objects))
             # Bounded memory over pools that reach seven figures at k=3; the
@@ -413,7 +433,7 @@ def ranked_bindings(
     elif script.capability in REFERENCE_CAPABILITIES:
         wedges: dict[Any, list[tuple[Any, tuple[SceneObject, ...]]]] = {}
         for objects in combinations():
-            key = reference_visibility_stratum(script, objects, std)
+            key = reference_visibility_stratum(script, objects, std, layout=layout)
             bucket = wedges.setdefault(key, [])
             bucket.append((_binding_score(script, objects), objects))
             if len(bucket) >= 4 * maximum:
@@ -498,9 +518,7 @@ def _generate_one(
         attempts_per_binding=attempts,
         max_plans=1,
         candidate_bindings=candidates,
-        candidate_filter=(
-            _visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None
-        ),
+        candidate_filter=(_visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None),
     )
     aggregate.update(report.rejection_counts)
     if not report.plans:
@@ -537,16 +555,11 @@ def _visit_render_robust_filter(
         for obj in (target, other):
             distance = distance_m(pose.xy, obj.xy)
             half_width = (
-                180.0
-                if distance < 1e-6
-                else math.degrees(math.atan2(obj.size_m / 2.0, distance))
+                180.0 if distance < 1e-6 else math.degrees(math.atan2(obj.size_m / 2.0, distance))
             )
             potential.append(
                 abs(azimuth_deg(pose.xy, pose.yaw_deg, obj.xy))
-                <= (
-                    view.std.fov_half_angle_deg * view.std.search_tighten_factor
-                    + half_width
-                )
+                <= (view.std.fov_half_angle_deg * view.std.search_tighten_factor + half_width)
             )
         if all(potential):
             return "queried_pair_angular_overlap"
@@ -599,9 +612,7 @@ def _binding_chain_source_covisible(
     )
 
 
-def _binding_chain_stations_framable(
-    layout: SceneLayout, binding: dict[str, str]
-) -> bool:
+def _binding_chain_stations_framable(layout: SceneLayout, binding: dict[str, str]) -> bool:
     """Every chain edge admits some snapshot station under motif constraints.
 
     Snapshot stations are searched over the whole free grid, so the static
@@ -626,9 +637,7 @@ def _binding_chain_stations_framable(
     )
 
 
-def _chain_slots_are_distinct_places(
-    layout: SceneLayout, binding: dict[str, str]
-) -> bool:
+def _chain_slots_are_distinct_places(layout: SceneLayout, binding: dict[str, str]) -> bool:
     """Every pair of bound landmarks names a separate place in the room.
 
     Scene inventories list stacked and built-in fixtures as independent
@@ -656,12 +665,14 @@ def _chain_binding_filter(
 ) -> Callable[[dict[str, str]], bool]:
     """Prefilter chain bindings by the evidence a chain edge actually needs."""
     if script.motifs == ("snapshot_landmarks",):
-        return lambda binding: _chain_slots_are_distinct_places(
-            layout, binding
-        ) and _binding_chain_stations_framable(layout, binding)
-    return lambda binding: _chain_slots_are_distinct_places(
-        layout, binding
-    ) and _binding_chain_source_covisible(binding, evidence)
+        return lambda binding: (
+            _chain_slots_are_distinct_places(layout, binding)
+            and _binding_chain_stations_framable(layout, binding)
+        )
+    return lambda binding: (
+        _chain_slots_are_distinct_places(layout, binding)
+        and _binding_chain_source_covisible(binding, evidence)
+    )
 
 
 def _reference_binding_eligible(
@@ -682,9 +693,7 @@ def _reference_binding_eligible(
         imagined_pose_valid,
     )
 
-    station = imagined_station(
-        layout, binding["viewpoint"], binding["facing"], std.camera_height_m
-    )
+    station = imagined_station(layout, binding["viewpoint"], binding["facing"], std.camera_height_m)
     if station is None:
         return False
     probe = GeometrySceneView(layout, (Pose2D(station[0], station[1], 0.0),), std)
@@ -712,9 +721,7 @@ def _reference_render_robust_filter(
     std: CompileStandard,
 ) -> bool:
     """Do not license invisibility solely from conservative proxy occlusion."""
-    station = imagined_station(
-        layout, binding["viewpoint"], binding["facing"], std.camera_height_m
-    )
+    station = imagined_station(layout, binding["viewpoint"], binding["facing"], std.camera_height_m)
     if station is None:
         return False
     facing = layout.object(binding["facing"])
@@ -727,9 +734,7 @@ def _reference_render_robust_filter(
             continue
         distance = distance_m(pose.xy, target.xy)
         half_width = (
-            180.0
-            if distance < 1e-6
-            else math.degrees(math.atan2(target.size_m / 2.0, distance))
+            180.0 if distance < 1e-6 else math.degrees(math.atan2(target.size_m / 2.0, distance))
         )
         if abs(azimuth_deg(pose.xy, pose.yaw_deg, target.xy)) <= (
             std.fov_half_angle_deg * std.search_tighten_factor + half_width
@@ -752,11 +757,12 @@ def _auxiliary_views(
 ) -> list[dict[str, Any]]:
     if plan.capability not in REFERENCE_CAPABILITIES:
         return []
-    station = imagined_station(
+    placement = imagined_station_placement(
         layout, plan.binding["viewpoint"], plan.binding["facing"], std.camera_height_m
     )
-    if station is None:
+    if placement is None:
         raise ValueError(f"no imagined station for {plan.plan_id}")
+    station = placement.xy
     facing = layout.object(plan.binding["facing"])
     target = layout.object(plan.binding["target"])
     base_yaw = bearing_deg(station, facing.xy)
@@ -776,6 +782,10 @@ def _auxiliary_views(
                 "yaw_offset_deg": offset,
                 "geometry_label": "visible" if state else "not_visible",
                 "camera_height_m": std.camera_height_m,
+                "station_method": placement.method,
+                "station_offset_m": placement.offset_m,
+                "station_heading_shift_deg": placement.heading_shift_deg,
+                "station_surface_standoff_m": placement.surface_standoff_m,
                 "world_from_agent": {
                     "parent_frame": "world",
                     "child_frame": f"agent:{_aux_view_id(offset)}",

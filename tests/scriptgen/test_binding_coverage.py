@@ -7,18 +7,20 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from spatial_episode.scriptgen.binding_coverage import (
+    DEFERRED_INITIAL_CAPABILITIES,
     CandidateSearchResult,
     CoverageCandidate,
     CoverageCell,
     CoverageManifest,
-    DEFERRED_INITIAL_CAPABILITIES,
+    _audit_coverage_auxiliary_views,
     _binding_cache_key,
     _bindings_for_scene,
-    _confirmed_render_unresolvable_targets,
     _completed_scene_prefix,
+    _confirmed_render_unresolvable_targets,
     _derived_seed,
     _geometry_pool,
     _new_candidates,
@@ -207,23 +209,17 @@ def test_source_registry_absence_does_not_drop_otherwise_valid_bindings(
 
 
 def test_binding_enumeration_cache_groups_shared_capability_shapes() -> None:
-    assert _binding_cache_key("self_motion_update") == _binding_cache_key(
-        "path_integration"
-    )
+    assert _binding_cache_key("self_motion_update") == _binding_cache_key("path_integration")
     assert _binding_cache_key("reference_frame_transform") == _binding_cache_key(
         "reference_frame_visibility_yaw180"
     )
-    assert _binding_cache_key("cross_view_ego_k1") == _binding_cache_key(
-        "cross_view_closer_k1"
-    )
+    assert _binding_cache_key("cross_view_ego_k1") == _binding_cache_key("cross_view_closer_k1")
     # Walking and snapshot chains share slots, ranking and prefilters, so the
     # enumeration cache serves both lines from one entry per chain length.
     assert _binding_cache_key("cross_view_ego_k1") == _binding_cache_key(
         "cross_view_snapshot_anchor_k1"
     )
-    assert _binding_cache_key("cross_view_ego_k1") != _binding_cache_key(
-        "cross_view_closer_k2"
-    )
+    assert _binding_cache_key("cross_view_ego_k1") != _binding_cache_key("cross_view_closer_k2")
 
 
 def test_shared_question_consumers_defer_initial_geometry_search() -> None:
@@ -282,9 +278,7 @@ def test_initial_search_uses_a_small_frontier_before_the_150_attempt_cap(
         observed["plans"] = kwargs["plans_per_binding"]
         return (), {"binding_exhausted": 1}
 
-    monkeypatch.setattr(
-        "spatial_episode.scriptgen.binding_coverage._geometry_pool", geometry_pool
-    )
+    monkeypatch.setattr("spatial_episode.scriptgen.binding_coverage._geometry_pool", geometry_pool)
     monkeypatch.setattr(
         "spatial_episode.scriptgen.binding_coverage.layout_from_scene_ir",
         lambda *args, **kwargs: object(),
@@ -321,22 +315,14 @@ def test_label_aware_geometry_pool_scans_frontier_and_keeps_only_desired_label(
         geometry_pool_size=0,
         diverse_pool_size=0,
     )
-    left = _plan(
-        "left.a0", capability="self_motion_update_pure_rotation"
-    ).model_copy(
+    left = _plan("left.a0", capability="self_motion_update_pure_rotation").model_copy(
         update={
-            "provisional_answer": ProvisionalAnswer(
-                mode="target_sector", label="left", witness={}
-            )
+            "provisional_answer": ProvisionalAnswer(mode="target_sector", label="left", witness={})
         }
     )
-    back = _plan(
-        "back.a1", capability="self_motion_update_pure_rotation"
-    ).model_copy(
+    back = _plan("back.a1", capability="self_motion_update_pure_rotation").model_copy(
         update={
-            "provisional_answer": ProvisionalAnswer(
-                mode="target_sector", label="back", witness={}
-            )
+            "provisional_answer": ProvisionalAnswer(mode="target_sector", label="back", witness={})
         }
     )
     observed = {}
@@ -349,9 +335,7 @@ def test_label_aware_geometry_pool_scans_frontier_and_keeps_only_desired_label(
         "spatial_episode.scriptgen.binding_coverage.layout_from_scene_ir",
         lambda *args, **kwargs: object(),
     )
-    monkeypatch.setattr(
-        "spatial_episode.scriptgen.binding_coverage.generate_plans", fake_generate
-    )
+    monkeypatch.setattr("spatial_episode.scriptgen.binding_coverage.generate_plans", fake_generate)
 
     plans, rejection_counts = _geometry_pool(
         cell,
@@ -565,9 +549,7 @@ def test_question_variant_assertion_is_a_candidate_rejection(
         group=str(tmp_path / "group"),
         log=str(tmp_path / "candidate.log"),
     )
-    Path(candidate.plan_record).write_text(
-        plan.model_dump_json(indent=2) + "\n", encoding="utf-8"
-    )
+    Path(candidate.plan_record).write_text(plan.model_dump_json(indent=2) + "\n", encoding="utf-8")
     monkeypatch.setattr(
         "spatial_episode.scriptgen.binding_coverage.RenderSceneView.from_bundle",
         lambda *args, **kwargs: object(),
@@ -612,6 +594,62 @@ def test_question_variant_assertion_is_a_candidate_rejection(
             scene,
             std=STD_V1,
         )
+
+
+def test_coverage_auxiliary_audit_checks_rendered_target_pixels(tmp_path: Path) -> None:
+    bundle = tmp_path / "bundle"
+    auxiliary_dir = bundle / "auxiliary_views"
+    auxiliary_dir.mkdir(parents=True)
+    visible = np.full((30, 30), 7, dtype=np.uint32)
+    invisible = np.zeros((30, 30), dtype=np.uint32)
+    np.savez_compressed(auxiliary_dir / "aux-visible.sensors.npz", instance_id=visible)
+    np.savez_compressed(auxiliary_dir / "aux-hidden.sensors.npz", instance_id=invisible)
+    render_plan = tmp_path / "candidate.views.json"
+    render_plan.write_text(
+        json.dumps(
+            {
+                "auxiliary_views": [
+                    {
+                        "view_id": "aux-visible",
+                        "yaw_offset_deg": 0,
+                        "target_entity_id": "target",
+                        "geometry_label": "visible",
+                    },
+                    {
+                        "view_id": "aux-hidden",
+                        "yaw_offset_deg": 180,
+                        "target_entity_id": "target",
+                        "geometry_label": "not_visible",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidate = CoverageCandidate(
+        candidate_id="candidate",
+        plan_id="plan",
+        attempt_index=0,
+        plan_record=str(tmp_path / "candidate.record.json"),
+        render_plan=str(render_plan),
+        recipe=str(tmp_path / "candidate.yaml"),
+        bundle=str(bundle),
+        group=str(tmp_path / "group"),
+        log=str(tmp_path / "candidate.log"),
+    )
+    view = SimpleNamespace(entity_runtime_ids={"target": (7,)})
+
+    rows = _audit_coverage_auxiliary_views(candidate, view, std=STD_V1)
+
+    assert [row["render_label"] for row in rows] == ["visible", "not_visible"]
+    audit = json.loads((tmp_path / "group" / "auxiliary.audit.json").read_text())
+    assert audit["status"] == "pass"
+
+    payload = json.loads(render_plan.read_text(encoding="utf-8"))
+    payload["auxiliary_views"][0]["geometry_label"] = "not_visible"
+    render_plan.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(FamilyBlocked, match="auxiliary_geometry_render_mismatch:aux-visible"):
+        _audit_coverage_auxiliary_views(candidate, view, std=STD_V1)
 
 
 def test_family_mismatch_rejects_candidates_without_killing_worker(
@@ -923,9 +961,7 @@ def test_authority_keyerror_rejection_is_revalidated_after_restart(
 
     status = json.loads(status_path.read_text(encoding="utf-8"))
     assert status["cells"]["cell"]["status"] == "complete"
-    assert status["cells"]["cell"]["candidate_statuses"]["candidate"]["status"] == (
-        "accepted"
-    )
+    assert status["cells"]["cell"]["candidate_statuses"]["candidate"]["status"] == ("accepted")
 
 
 def test_legacy_zero_pool_cell_is_exhausted_without_replaying_150_attempts(
@@ -1200,11 +1236,7 @@ def test_pipeline_renders_completed_scenes_without_manifest_backfill_races(
     assert result == tmp_path / "coverage.status.json"
     assert any(call["allow_backfill"] is False for call in calls[:-1])
     assert calls[-1]["allow_backfill"] is True
-    rendered_scenes = {
-        scene
-        for call in calls[:-1]
-        for scene in (call.get("scene_keys") or ())
-    }
+    rendered_scenes = {scene for call in calls[:-1] for scene in (call.get("scene_keys") or ())}
     assert rendered_scenes == {"scene-a", "scene-b"}
     assert _completed_scene_prefix(manifest) == ()
 
@@ -1340,9 +1372,7 @@ def test_full_producer_continues_for_explicit_derived_credit_deficit(
                     "producer": {
                         "status": "complete",
                         "accepted_episode_ids": ["existing"],
-                        "candidate_statuses": {
-                            "candidate": {"status": "pending", "reason": None}
-                        },
+                        "candidate_statuses": {"candidate": {"status": "pending", "reason": None}},
                     },
                     "derived": {
                         "status": "planned",
@@ -1408,9 +1438,9 @@ def test_full_producer_continues_for_explicit_derived_credit_deficit(
     status = json.loads(status_path.read_text(encoding="utf-8"))
     assert status["cells"]["producer"]["status"] == "complete"
     assert status["cells"]["derived"]["accepted_episode_ids"] == ["candidate"]
-    assert status["cells"]["producer"]["candidate_statuses"]["candidate"][
-        "credited_cells"
-    ] == ["derived"]
+    assert status["cells"]["producer"]["candidate_statuses"]["candidate"]["credited_cells"] == [
+        "derived"
+    ]
 
 
 def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeypatch) -> None:
@@ -1537,6 +1567,4 @@ def test_scene_with_empty_occupancy_proxy_is_explicitly_skipped(
     )
     reason = _scene_occupancy_proxy_rejection(scene, std=STD_V1)
 
-    assert reason == (
-        "invalid_occupancy_proxy:no_free_cells:grid=623x867:obstacles=0"
-    )
+    assert reason == ("invalid_occupancy_proxy:no_free_cells:grid=623x867:obstacles=0")

@@ -22,6 +22,7 @@ from spatial_episode.scriptgen.collection import (
     discover_scenes,
     load_collection,
     ranked_bindings,
+    reference_visibility_stratum,
     reject_jobs,
     render_plan_payload,
 )
@@ -31,6 +32,10 @@ from spatial_episode.scriptgen.library import (
     CROSS_VIEW_SNAPSHOT_EGO,
     EXISTENCE_SUFFICIENCY,
     REFERENCE_FRAME_DEEP,
+)
+from spatial_episode.scriptgen.motifs import (
+    IMAGINED_STATION_MAX_HEADING_SHIFT_DEG,
+    imagined_station_placement,
 )
 from spatial_episode.scriptgen.plan import PlannedPose, ProvisionalAnswer, TrajectoryPlan
 from spatial_episode.scriptgen.rendering import rendered_bundle_complete
@@ -130,9 +135,7 @@ def test_visit_render_filter_rejects_angular_overlap_without_using_occlusion() -
     separated = GeometrySceneView(layout, (Pose2D(0.0, 0.0, 90.0),), STD_V1)
     binding = {"target": "target", "other": "other"}
 
-    assert _visit_render_robust_filter(overlapping, binding) == (
-        "queried_pair_angular_overlap"
-    )
+    assert _visit_render_robust_filter(overlapping, binding) == ("queried_pair_angular_overlap")
     assert _visit_render_robust_filter(separated, binding) is None
 
 
@@ -155,8 +158,7 @@ def test_source_render_evidence_must_cover_every_chain_edge() -> None:
     )
     missing_middle = SourceRenderEvidence(
         visible_entities=complete.visible_entities,
-        covisible_pairs=complete.covisible_pairs
-        - {frozenset(("anchor1", "anchor2"))},
+        covisible_pairs=complete.covisible_pairs - {frozenset(("anchor1", "anchor2"))},
     )
 
     assert _binding_chain_source_covisible(binding, complete)
@@ -174,9 +176,7 @@ def test_reference_render_filter_rejects_proxy_only_occlusion() -> None:
     blocked = SceneLayout(
         "blocked",
         objects,
-        occlusion_obstacles=(
-            Obstacle("wall", (2.0, 0.0), (0.1, 1.0), 0.0, 0.0, 2.0),
-        ),
+        occlusion_obstacles=(Obstacle("wall", (2.0, 0.0), (0.1, 1.0), 0.0, 0.0, 2.0),),
     )
 
     assert _reference_render_robust_filter(clear, binding, STD_V1)
@@ -200,6 +200,85 @@ def test_reference_binding_reserves_auxiliary_camera_probe_radius() -> None:
 
     assert _reference_binding_eligible(clear, binding, STD_V1)
     assert not _reference_binding_eligible(probe_collision, binding, STD_V1)
+
+
+def _tall_reference_layout(*, block_facing_ray: bool) -> SceneLayout:
+    objects = (
+        SceneObject(
+            "viewpoint",
+            "locker",
+            (0.0, 0.0),
+            1.0,
+            "viewpoint",
+            center_z=1.0,
+            half_height=1.0,
+        ),
+        _object("facing", "chair", 6.0, 0.0),
+        _object("target", "table", -0.7680421975, 1.4850641810),
+    )
+    obstacles = [
+        Obstacle(
+            "viewpoint",
+            (0.0, 0.0),
+            (0.5, 0.5),
+            0.0,
+            0.0,
+            2.0,
+            "viewpoint",
+        )
+    ]
+    if block_facing_ray:
+        obstacles.append(Obstacle("blocker", (1.1, 0.0), (0.2, 0.25), 0.0, 0.0, 2.0, "blocker"))
+    return SceneLayout(
+        "tall-reference",
+        objects,
+        obstacles=tuple(obstacles),
+        walkable_min=(-3.0, -3.0),
+        walkable_max=(8.0, 3.0),
+    )
+
+
+def test_imagined_station_keeps_ray_then_uses_constrained_perimeter() -> None:
+    ray = imagined_station_placement(
+        _tall_reference_layout(block_facing_ray=False),
+        "viewpoint",
+        "facing",
+        STD_V1.camera_height_m,
+    )
+    perimeter = imagined_station_placement(
+        _tall_reference_layout(block_facing_ray=True),
+        "viewpoint",
+        "facing",
+        STD_V1.camera_height_m,
+    )
+
+    assert ray is not None and ray.method == "facing_ray"
+    assert ray.xy[1] == 0.0
+    assert perimeter is not None and perimeter.method == "footprint_perimeter"
+    assert perimeter.xy[0] >= 0.0  # facing-side half of the footprint only
+    assert abs(perimeter.xy[1]) > 0.0
+    assert perimeter.surface_standoff_m <= 0.6
+    assert perimeter.heading_shift_deg <= IMAGINED_STATION_MAX_HEADING_SHIFT_DEG
+    assert perimeter == imagined_station_placement(
+        _tall_reference_layout(block_facing_ray=True),
+        "viewpoint",
+        "facing",
+        STD_V1.camera_height_m,
+    )
+
+
+def test_reference_visibility_stratum_uses_the_final_station() -> None:
+    layout = _tall_reference_layout(block_facing_ray=True)
+    objects = tuple(layout.object(name) for name in ("viewpoint", "facing", "target"))
+    centre_stratum = reference_visibility_stratum(REFERENCE_FRAME_DEEP[0], objects, STD_V1)
+    station_stratum = reference_visibility_stratum(
+        REFERENCE_FRAME_DEEP[0], objects, STD_V1, layout=layout
+    )
+    placement = imagined_station_placement(layout, "viewpoint", "facing", STD_V1.camera_height_m)
+
+    assert placement is not None and placement.method == "footprint_perimeter"
+    assert centre_stratum == 2
+    assert station_stratum == 3
 
 
 def test_reference_render_plan_keeps_auxiliary_views_outside_sequence() -> None:
@@ -276,9 +355,7 @@ def test_snapshot_render_plan_declares_teleport_cut_path_contract() -> None:
         seed=17,
         binding={"target": "target", "other": "other"},
         frame_vars={},
-        poses=tuple(
-            PlannedPose(frame=i, x=1.0, y=float(i), yaw_deg=90.0) for i in range(4)
-        ),
+        poses=tuple(PlannedPose(frame=i, x=1.0, y=float(i), yaw_deg=90.0) for i in range(4)),
         knob_levels={},
         clause_witnesses={},
         provisional_answer=ProvisionalAnswer(mode="ego_frame", label="left", witness={}),
@@ -488,7 +565,10 @@ def test_chain_binding_shortlist_is_balanced_across_anchor_sectors() -> None:
     # chains, which crowd one sector -- that is the skew being fixed.
     geometric_order = sorted(
         (
-            (_binding_score(script, tuple(by_name[binding[slot]] for slot in script.slots)), binding)
+            (
+                _binding_score(script, tuple(by_name[binding[slot]] for slot in script.slots)),
+                binding,
+            )
             for binding in ranked_bindings(layout, script, maximum=64, std=STD_V1)
         ),
         key=lambda item: item[0],
@@ -526,8 +606,7 @@ def test_chain_slots_stacked_in_one_fixture_are_not_distinct_places() -> None:
 def test_closer_question_is_anchored_at_the_middle_of_the_chain() -> None:
     """The anchor adjacent to the target would make the answer near-constant."""
     anchors = {
-        script.capability: script.answer.args["anchor"]
-        for script in CROSS_VIEW_SNAPSHOT_CLOSER
+        script.capability: script.answer.args["anchor"] for script in CROSS_VIEW_SNAPSHOT_CLOSER
     }
     assert anchors == {
         "cross_view_snapshot_closer_k1": "$anchor1",

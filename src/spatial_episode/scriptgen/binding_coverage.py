@@ -20,8 +20,8 @@ from pydantic import Field
 from .behavior import RenderSceneView, layout_from_scene_ir
 from .collection import (
     CHAIN_MOTIFS,
-    CollectionScene,
     REFERENCE_CAPABILITIES,
+    CollectionScene,
     _chain_binding_filter,
     _reference_binding_eligible,
     _scene_can_bind,
@@ -37,9 +37,10 @@ from .library import SCRIPT_LIBRARY
 from .motifs import proposal_occupancy_grid
 from .plan import TrajectoryPlan
 from .question_balance import balance_question_labels, exclusion_lines, load_groups
+from .sceneview import VisibilityObservation
 from .single import _preflight, _render, _render_failure_is_retryable, _write_recipe
 from .slotting import iter_bindings
-from .source_inventory import SourceIndex, SourceSceneRecord, load_source_index
+from .source_inventory import SourceSceneRecord, load_source_index
 from .spec import SpecModel
 from .standards import STD_V1, CompileStandard
 from .variants import FamilyMismatch
@@ -175,7 +176,9 @@ def _canonical_binding(binding: dict[str, str]) -> str:
     return json.dumps(binding, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def _derived_seed(collection_id: str, scene_id: str, capability: str, binding: dict[str, str]) -> int:
+def _derived_seed(
+    collection_id: str, scene_id: str, capability: str, binding: dict[str, str]
+) -> int:
     digest = _stable_hex(collection_id, scene_id, capability, _canonical_binding(binding))
     return int(digest[:8], 16) & 0x7FFFFFFF
 
@@ -347,9 +350,7 @@ def _candidate_from_plan(
     std: CompileStandard,
 ) -> CoverageCandidate:
     output_root = Path(manifest.output_root)
-    candidate_id = (
-        f"{cell.cell_id}{cell.candidate_namespace}__a{_attempt_index(plan.plan_id):03d}"
-    )
+    candidate_id = f"{cell.cell_id}{cell.candidate_namespace}__a{_attempt_index(plan.plan_id):03d}"
     plan_record = output_root / "plans" / f"{candidate_id}.record.json"
     render_plan = output_root / "plans" / f"{candidate_id}.views.json"
     recipe = output_root / "recipes" / f"{candidate_id}.yaml"
@@ -392,21 +393,15 @@ def _geometry_pool(
         # attempt frontier.  Stopping after N plans of any label can otherwise
         # miss a desired side label even though later attempts contain it.
         plans_per_binding=(
-            attempts_per_binding
-            if cell.desired_answer_label is not None
-            else plans_per_binding
+            attempts_per_binding if cell.desired_answer_label is not None else plans_per_binding
         ),
         candidate_bindings=(cell.binding,),
-        candidate_filter=(
-            _visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None
-        ),
+        candidate_filter=(_visit_render_robust_filter if script.motifs in CHAIN_MOTIFS else None),
     )
     if cell.desired_answer_label is None:
         return report.plans, report.rejection_counts
     plans = tuple(
-        plan
-        for plan in report.plans
-        if plan.provisional_answer.label == cell.desired_answer_label
+        plan for plan in report.plans if plan.provisional_answer.label == cell.desired_answer_label
     )
     counts = Counter(report.rejection_counts)
     counts[f"answer_label:not_{cell.desired_answer_label}"] += len(report.plans) - len(plans)
@@ -638,9 +633,7 @@ def plan_coverage(
                     for binding in binding_allowlist.get(scene.scene_key, ())
                 }
                 bindings = tuple(
-                    binding
-                    for binding in bindings
-                    if _canonical_binding(binding) in allowed
+                    binding for binding in bindings if _canonical_binding(binding) in allowed
                 )
             for binding in bindings:
                 cell_id = (
@@ -818,6 +811,62 @@ def _confirmed_render_unresolvable_targets(
     return (target,) if missing_count >= RENDER_UNRESOLVABLE_CONFIRMATIONS else ()
 
 
+def _audit_coverage_auxiliary_views(
+    candidate: CoverageCandidate,
+    view: RenderSceneView,
+    *,
+    std: CompileStandard,
+) -> tuple[dict[str, Any], ...]:
+    """Reject a P2 candidate when rendered imagined views disagree with geometry."""
+    render_plan = json.loads(Path(candidate.render_plan).read_text(encoding="utf-8"))
+    auxiliary = render_plan.get("auxiliary_views", [])
+    if not isinstance(auxiliary, list) or not auxiliary:
+        raise FamilyBlocked("auxiliary_views_missing")
+
+    rows: list[dict[str, Any]] = []
+    mismatches: list[str] = []
+    for item in auxiliary:
+        view_id = str(item["view_id"])
+        target = str(item["target_entity_id"])
+        runtime_ids = tuple(view.entity_runtime_ids.get(target, ()))
+        if not runtime_ids:
+            raise FamilyBlocked(f"auxiliary_target_runtime_id_missing:{target}")
+        sensor_path = Path(candidate.bundle) / "auxiliary_views" / f"{view_id}.sensors.npz"
+        with np.load(sensor_path) as arrays:
+            pixels = int(np.isin(arrays["instance_id"], runtime_ids).sum())
+        state = VisibilityObservation("render_pixels", float(pixels), 1.0).tristate(std)
+        render_label = (
+            "visible" if state is True else "not_visible" if state is False else "ambiguous"
+        )
+        geometry_label = str(item.get("geometry_label"))
+        if geometry_label not in {"visible", "not_visible"}:
+            raise FamilyBlocked(f"auxiliary_geometry_label_invalid:{view_id}:{geometry_label}")
+        matches = render_label == geometry_label
+        if not matches:
+            mismatches.append(view_id)
+        rows.append(
+            {
+                "view_id": view_id,
+                "yaw_offset_deg": int(item["yaw_offset_deg"]),
+                "target_entity_id": target,
+                "geometry_label": geometry_label,
+                "render_label": render_label,
+                "target_pixels": pixels,
+                "matches": matches,
+            }
+        )
+
+    audit = {
+        "schema_version": "scriptgen_auxiliary_audit.v1",
+        "status": "pass" if not mismatches else "fail",
+        "views": rows,
+    }
+    _write_json(Path(candidate.group) / "auxiliary.audit.json", audit)
+    if mismatches:
+        raise FamilyBlocked("auxiliary_geometry_render_mismatch:" + ",".join(mismatches))
+    return tuple(rows)
+
+
 def _validate_rendered_candidate(
     candidate: CoverageCandidate,
     cell: CoverageCell,
@@ -828,6 +877,8 @@ def _validate_rendered_candidate(
     plan_path = Path(candidate.plan_record)
     plan = TrajectoryPlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
     view = RenderSceneView.from_bundle(candidate.bundle, std, scene_ir=scene.scene_ir)
+    if cell.capability in REFERENCE_CAPABILITIES:
+        _audit_coverage_auxiliary_views(candidate, view, std=std)
     certificate = CapabilityCompiler(SCRIPT_LIBRARY[cell.capability], std).compile(
         view,
         dict(plan.binding),
@@ -882,10 +933,7 @@ def _validate_rendered_candidate(
     primary = next(item for item in group.questions if item.capability == cell.capability)
     if primary.label is None or primary.family is None:
         raise FamilyBlocked(f"primary question skipped: {primary.skip_reason}")
-    if (
-        cell.desired_answer_label is not None
-        and primary.label != cell.desired_answer_label
-    ):
+    if cell.desired_answer_label is not None and primary.label != cell.desired_answer_label:
         raise FamilyBlocked(
             "desired_group_label_mismatch:"
             f"expected={cell.desired_answer_label}:actual={primary.label}"
@@ -931,9 +979,7 @@ def initialize_coverage_status(manifest_path: Path) -> Path:
         if set(observed.get("cells", {})) != set(expected["cells"]):
             raise ValueError(f"coverage status cell index differs: {status_path}")
         for cell_id, expected_row in expected["cells"].items():
-            observed_candidates = set(
-                observed["cells"][cell_id].get("candidate_statuses", {})
-            )
+            observed_candidates = set(observed["cells"][cell_id].get("candidate_statuses", {}))
             expected_candidates = set(expected_row["candidate_statuses"])
             if observed_candidates != expected_candidates:
                 raise ValueError(
@@ -1061,9 +1107,7 @@ def run_coverage(
     requested_credit_ids = set(credit_cell_ids or ())
     unknown_credit_ids = requested_credit_ids - set(cells_by_id)
     if unknown_credit_ids:
-        raise ValueError(
-            "unknown credit cell ids: " + ", ".join(sorted(unknown_credit_ids))
-        )
+        raise ValueError("unknown credit cell ids: " + ", ".join(sorted(unknown_credit_ids)))
     lock = threading.RLock()
 
     def missing_slots(cell_id: str) -> int:
@@ -1137,20 +1181,14 @@ def run_coverage(
     selected_cells = list(manifest.cells)
     if scene_keys is not None:
         selected_scene_keys = set(scene_keys)
-        selected_cells = [
-            cell for cell in selected_cells if cell.scene_key in selected_scene_keys
-        ]
+        selected_cells = [cell for cell in selected_cells if cell.scene_key in selected_scene_keys]
     if cell_ids is not None:
         selected_cell_ids = set(cell_ids)
         known_cell_ids = {cell.cell_id for cell in manifest.cells}
         unknown_cell_ids = selected_cell_ids - known_cell_ids
         if unknown_cell_ids:
-            raise ValueError(
-                "unknown coverage cell ids: " + ", ".join(sorted(unknown_cell_ids))
-            )
-        selected_cells = [
-            cell for cell in selected_cells if cell.cell_id in selected_cell_ids
-        ]
+            raise ValueError("unknown coverage cell ids: " + ", ".join(sorted(unknown_cell_ids)))
+        selected_cells = [cell for cell in selected_cells if cell.cell_id in selected_cell_ids]
     if limit_cells is not None:
         selected_cells = selected_cells[:limit_cells]
     for cell in selected_cells:
@@ -1159,9 +1197,7 @@ def run_coverage(
     def mark_render_unresolvable(cell_id: str) -> None:
         nonlocal manifest
         if not allow_backfill:
-            raise RuntimeError(
-                "render-only coverage passes must not write coverage.plan.json"
-            )
+            raise RuntimeError("render-only coverage passes must not write coverage.plan.json")
         cell = next(item for item in manifest.cells if item.cell_id == cell_id)
         if cell.search_pool_exhausted:
             return
@@ -1176,8 +1212,7 @@ def run_coverage(
         manifest = manifest.model_copy(
             update={
                 "cells": tuple(
-                    updated_cell if item.cell_id == cell_id else item
-                    for item in manifest.cells
+                    updated_cell if item.cell_id == cell_id else item for item in manifest.cells
                 )
             }
         )
@@ -1270,8 +1305,7 @@ def run_coverage(
                     (
                         candidate
                         for candidate in cell.candidates
-                        if row["candidate_statuses"][candidate.candidate_id]["status"]
-                        == "pending"
+                        if row["candidate_statuses"][candidate.candidate_id]["status"] == "pending"
                     ),
                     None,
                 )
@@ -1368,11 +1402,7 @@ def run_coverage(
                     candidate_status = "accepted" if credited else "redundant"
                     row["candidate_statuses"][pending.candidate_id] = {
                         "status": candidate_status,
-                        "reason": (
-                            None
-                            if credited
-                            else "quota_already_filled_or_near_duplicate"
-                        ),
+                        "reason": (None if credited else "quota_already_filled_or_near_duplicate"),
                         "gpu_id": gpu_id,
                         "credited_cells": list(credited),
                     }
@@ -1400,6 +1430,7 @@ def run_coverage(
                     flush=True,
                 )
                 return
+
     worker_count = min(workers or len(gpu_ids), len(gpu_ids))
     worker_failed = threading.Event()
     worker_errors: list[tuple[str, BaseException]] = []

@@ -510,12 +510,7 @@ def _turn_segment_count(view: SceneView, frames: Sequence[int], threshold: float
         if left_source == right_source:
             continue
         active = (
-            abs(
-                wrap_deg(
-                    view.camera_pose(right).yaw_deg
-                    - view.camera_pose(left).yaw_deg
-                )
-            )
+            abs(wrap_deg(view.camera_pose(right).yaw_deg - view.camera_pose(left).yaw_deg))
             >= threshold
         )
         if active and not active_run:
@@ -547,7 +542,11 @@ def occluded_in_view(view: SceneView, std: CompileStandard, *, obj: str, frame: 
     if hasattr(view, "occlusion"):
         observation = view.occlusion(obj, frame)
         return Verdict(
-            True if observation.status == "occluded" else None if observation.status == "ambiguous" else False,
+            True
+            if observation.status == "occluded"
+            else None
+            if observation.status == "ambiguous"
+            else False,
             dict(observation.witness),
         )
     pose = view.camera_pose(frame)
@@ -709,10 +708,10 @@ def imagined_pose_valid(
     object's centre, because the station is where the render puts the camera
     and where the answer is derived.
     """
-    from .motifs import imagined_station
+    from .motifs import imagined_station_placement
 
-    origin = imagined_station(view.layout, viewpoint, facing, std.camera_height_m)
-    if origin is None:
+    placement = imagined_station_placement(view.layout, viewpoint, facing, std.camera_height_m)
+    if placement is None:
         return Verdict(
             False,
             {
@@ -720,14 +719,19 @@ def imagined_pose_valid(
                 "required_m": std.imagined_min_anchor_distance_m,
             },
         )
+    origin = placement.xy
     distance = distance_m(origin, view.object(facing).xy)
-    centre = view.object(viewpoint).xy
     return Verdict(
         distance >= std.imagined_min_anchor_distance_m,
         {
             "anchor_distance_m": round(distance, 3),
             "required_m": std.imagined_min_anchor_distance_m,
-            "station_offset_m": round(distance_m(centre, origin), 3),
+            "station_x_m": round(origin[0], 3),
+            "station_y_m": round(origin[1], 3),
+            "station_method": placement.method,
+            "station_offset_m": round(placement.offset_m, 3),
+            "station_heading_shift_deg": round(placement.heading_shift_deg, 3),
+            "station_surface_standoff_m": round(placement.surface_standoff_m, 3),
         },
     )
 
@@ -868,9 +872,7 @@ def never_covisible(
         )
         if all(state is True for state in states):
             covisible.append(frame)
-        elif all(state is not False for state in states) and any(
-            state is None for state in states
-        ):
+        elif all(state is not False for state in states) and any(state is None for state in states):
             ambiguous.append(frame)
     holds: bool | None = False if covisible else None if ambiguous else True
     return Verdict(
@@ -915,12 +917,9 @@ def chain_connected(
         counts[edge] = count
         ambiguous_counts[edge] = ambiguous
     holds = all(count >= std.chain_min_covisible_frames for count in counts.values())
-    failing = [
-        edge for edge, count in counts.items() if count < std.chain_min_covisible_frames
-    ]
+    failing = [edge for edge, count in counts.items() if count < std.chain_min_covisible_frames]
     unresolved = bool(failing) and all(
-        counts[edge] + ambiguous_counts[edge] >= std.chain_min_covisible_frames
-        for edge in failing
+        counts[edge] + ambiguous_counts[edge] >= std.chain_min_covisible_frames for edge in failing
     )
     return Verdict(
         None if unresolved else holds,
@@ -1068,11 +1067,7 @@ def drop_target_breaks_coverage(
     frames: Sequence[int],
 ) -> Verdict:
     """The generic drop-key intervention provably destroys coverage evidence."""
-    kept = [
-        frame
-        for frame in frames
-        if view.visibility(target, frame).tristate(std) is False
-    ]
+    kept = [frame for frame in frames if view.visibility(target, frame).tristate(std) is False]
     removed = [frame for frame in frames if frame not in kept]
     report = measure_coverage(view, std, frames=kept)
     still_sufficient = (

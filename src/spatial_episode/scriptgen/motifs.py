@@ -31,11 +31,9 @@ from .geometry import (
     segment_rotated_rect_interval,
     wrap_deg,
 )
-from .sceneview import GeometrySceneView, Pose2D, SceneLayout, blocking_occluders
+from .sceneview import GeometrySceneView, Obstacle, Pose2D, SceneLayout, blocking_occluders
 
-Motif = Callable[
-    [SceneLayout, dict[str, str], int, random.Random], tuple[Pose2D, ...] | None
-]
+Motif = Callable[[SceneLayout, dict[str, str], int, random.Random], tuple[Pose2D, ...] | None]
 
 _MOTIFS: dict[str, Motif] = {}
 
@@ -403,9 +401,10 @@ def _propose_route(
         route = [grid.world_xy(index) for index in route_cells]
         if len(route) > frame_count:
             route = route[:frame_count]
-        if len(route) >= 2 and sum(
-            distance_m(left, right) for left, right in pairwise(route)
-        ) >= 1.0:
+        if (
+            len(route) >= 2
+            and sum(distance_m(left, right) for left, right in pairwise(route)) >= 1.0
+        ):
             return route
     return None
 
@@ -755,7 +754,10 @@ def _decisive_occluded_routes(
 
     endpoints.sort(key=endpoint_score, reverse=True)
     route_rng = random.Random(
-        int(hashlib.sha256(f"{layout.scene_id}:{target_name}:decisive".encode()).hexdigest()[:16], 16)
+        int(
+            hashlib.sha256(f"{layout.scene_id}:{target_name}:decisive".encode()).hexdigest()[:16],
+            16,
+        )
     )
     routes: list[tuple[tuple[float, float], ...]] = []
     seen_pairs: set[tuple[int, int]] = set()
@@ -797,8 +799,7 @@ def _decisive_occluded_routes(
             if event is None or event.cause != "occluded":
                 continue
             states = [
-                view.visibility(target_name, frame).tristate(STD_V1)
-                for frame in range(probe_count)
+                view.visibility(target_name, frame).tristate(STD_V1) for frame in range(probe_count)
             ]
             if sum(state is True for state in states[: event.frame]) < 2:
                 continue
@@ -976,14 +977,11 @@ def walk_to_occlusion(
     sweep_offsets = (0.0, 21.0 * sweep_sign, 0.0, -21.0 * sweep_sign, 0.0)
     initial_yaw = bearing_deg(route[0], target.xy)
     translated = _walk_polyline(route, initial_yaw, frame_count - len(sweep_offsets))
-    tracked = [
-        Pose2D(pose.x, pose.y, bearing_deg(pose.xy, target.xy)) for pose in translated
-    ]
+    tracked = [Pose2D(pose.x, pose.y, bearing_deg(pose.xy, target.xy)) for pose in translated]
     end = tracked[-1]
     final_bearing = bearing_deg(end.xy, target.xy)
     tracked.extend(
-        Pose2D(end.x, end.y, wrap_deg(final_bearing + offset))
-        for offset in sweep_offsets
+        Pose2D(end.x, end.y, wrap_deg(final_bearing + offset)) for offset in sweep_offsets
     )
     return tuple(tracked)
 
@@ -1002,9 +1000,7 @@ def walk_through_occlusion(
     """
 
     target = layout.object(binding["target"])
-    route = _occluded_route(
-        layout, binding["target"], rng, require_decisive_boundary=True
-    )
+    route = _occluded_route(layout, binding["target"], rng, require_decisive_boundary=True)
     if route is None:
         return None
 
@@ -1015,10 +1011,7 @@ def walk_through_occlusion(
     translated_frames = frame_count - post_frames
     initial_yaw = bearing_deg(route[0], target.xy)
     translated = _walk_polyline(route, initial_yaw, translated_frames)
-    tracked = [
-        Pose2D(pose.x, pose.y, bearing_deg(pose.xy, target.xy))
-        for pose in translated
-    ]
+    tracked = [Pose2D(pose.x, pose.y, bearing_deg(pose.xy, target.xy)) for pose in translated]
     end = tracked[-1]
     target_bearing = bearing_deg(end.xy, target.xy)
     desired_sector = rng.choice(("front", "left", "right", "back"))
@@ -1128,9 +1121,7 @@ def _survey_station(
         ):
             continue
         if check_spread:
-            _, spread = _covering_arc_deg(
-                [bearing_deg(xy, landmark.xy) for landmark in landmarks]
-            )
+            _, spread = _covering_arc_deg([bearing_deg(xy, landmark.xy) for landmark in landmarks])
             if not min_spread_deg <= spread <= max_spread_deg:
                 continue
         occlusion_checks += 1
@@ -1181,9 +1172,7 @@ def survey_arc(
     expose all three landmarks (the never_all_covisible contract), while the
     whole sweep still fits the per-frame turn cap within the frame budget.
     """
-    names = tuple(
-        binding[name] for name in ("viewpoint", "facing", "target") if name in binding
-    )
+    names = tuple(binding[name] for name in ("viewpoint", "facing", "target") if name in binding)
     max_sweep = (frame_count - 1) * MAX_TURN_PER_FRAME_DEG
     max_spread = max_sweep - 2.0 * SURVEY_ARC_MIN_MARGIN_DEG
     if max_spread <= SURVEY_ARC_MIN_SPREAD_DEG:
@@ -1222,9 +1211,7 @@ def _landmark_chain(binding: dict[str, str]) -> tuple[str, ...]:
     return (binding["target"], *anchors, binding["other"])
 
 
-def pair_framable_station_exists(
-    layout: SceneLayout, left_name: str, right_name: str
-) -> bool:
+def pair_framable_station_exists(layout: SceneLayout, left_name: str, right_name: str) -> bool:
     """Whether some free station frames both objects clearly at jitter extremes.
 
     Pair-only form of the snapshot station admission: no target/other
@@ -1272,10 +1259,7 @@ def _pair_framable(layout: SceneLayout, left_name: str, right_name: str) -> bool
         yaw = wrap_deg(left_yaw + separation / 2.0)
         probes = GeometrySceneView(
             layout,
-            tuple(
-                Pose2D(xy[0], xy[1], wrap_deg(yaw + delta))
-                for delta in (-jitter, 0.0, jitter)
-            ),
+            tuple(Pose2D(xy[0], xy[1], wrap_deg(yaw + delta)) for delta in (-jitter, 0.0, jitter)),
             std,
         )
         return all(
@@ -1324,6 +1308,23 @@ IMAGINED_CAMERA_PROBE_RADIUS_M = 0.05
 # step: far enough to clear a wardrobe's depth, close enough that "stand at the
 # wardrobe" still describes where the camera is.
 IMAGINED_STATION_STANDOFF_M = 0.6
+# A station around the side of the object is still an honest realisation of
+# "stand at P and face Q" only while it preserves substantially the same
+# heading as the object-centre reference frame.  This is deliberately the same
+# size as the registered answer-boundary margin: a placement must not consume
+# the safety margin that makes the downstream sector label decisive.
+IMAGINED_STATION_MAX_HEADING_SHIFT_DEG = 15.0
+
+
+@dataclass(frozen=True)
+class ImaginedStationPlacement:
+    """One deterministic physical realisation of an imagined object frame."""
+
+    xy: tuple[float, float]
+    method: str
+    offset_m: float
+    heading_shift_deg: float
+    surface_standoff_m: float
 
 
 def _camera_blocked(layout: SceneLayout, xy: tuple[float, float], height_m: float) -> bool:
@@ -1356,19 +1357,75 @@ def _footprint_reach_m(
         local_y = -unit[0] * math.sin(angle) + unit[1] * math.cos(angle)
         reach = max(
             reach,
-            abs(local_x) * obstacle.half_extents_xy[0]
-            + abs(local_y) * obstacle.half_extents_xy[1],
+            abs(local_x) * obstacle.half_extents_xy[0] + abs(local_y) * obstacle.half_extents_xy[1],
         )
     return reach or fallback_m
 
 
+def _point_rotated_rect_distance_m(xy: tuple[float, float], obstacle: Obstacle) -> float:
+    """Horizontal distance from a point to one oriented obstacle footprint."""
+    angle = math.radians(obstacle.yaw_deg)
+    dx = xy[0] - obstacle.center_xy[0]
+    dy = xy[1] - obstacle.center_xy[1]
+    local_x = dx * math.cos(angle) + dy * math.sin(angle)
+    local_y = -dx * math.sin(angle) + dy * math.cos(angle)
+    outside_x = max(abs(local_x) - obstacle.half_extents_xy[0], 0.0)
+    outside_y = max(abs(local_y) - obstacle.half_extents_xy[1], 0.0)
+    return math.hypot(outside_x, outside_y)
+
+
+def _surface_standoff_m(
+    layout: SceneLayout,
+    entity_id: str,
+    xy: tuple[float, float],
+    fallback_radius_m: float,
+) -> float:
+    """Distance from ``xy`` to the entity's actual compound footprint."""
+    own = tuple(obstacle for obstacle in layout.obstacles if obstacle.entity_id == entity_id)
+    if own:
+        return min(_point_rotated_rect_distance_m(xy, obstacle) for obstacle in own)
+    return max(distance_m(xy, layout.object(entity_id).xy) - fallback_radius_m, 0.0)
+
+
+def _footprint_search_radius_m(
+    layout: SceneLayout, entity_id: str, fallback_radius_m: float
+) -> float:
+    """Bounding radius containing the entity footprint and allowed standoff."""
+    centre = layout.object(entity_id).xy
+    radii = [fallback_radius_m]
+    for obstacle in layout.obstacles:
+        if obstacle.entity_id != entity_id:
+            continue
+        radii.append(distance_m(centre, obstacle.center_xy) + math.hypot(*obstacle.half_extents_xy))
+    return max(radii) + IMAGINED_STATION_STANDOFF_M
+
+
+def _placement(
+    xy: tuple[float, float],
+    *,
+    method: str,
+    origin: tuple[float, float],
+    facing_xy: tuple[float, float],
+    surface_standoff_m: float,
+) -> ImaginedStationPlacement:
+    base_yaw = bearing_deg(origin, facing_xy)
+    actual_yaw = bearing_deg(xy, facing_xy)
+    return ImaginedStationPlacement(
+        xy=xy,
+        method=method,
+        offset_m=distance_m(origin, xy),
+        heading_shift_deg=abs(wrap_deg(actual_yaw - base_yaw)),
+        surface_standoff_m=surface_standoff_m,
+    )
+
+
 @lru_cache(maxsize=65536)
-def imagined_station(
+def imagined_station_placement(
     layout: SceneLayout,
     viewpoint_name: str,
     facing_name: str,
     camera_height_m: float,
-) -> tuple[float, float] | None:
+) -> ImaginedStationPlacement | None:
     """Where a person standing at ``viewpoint`` and looking at ``facing`` stands.
 
     The imagined viewpoint used to be the reference object's horizontal centre
@@ -1397,7 +1454,13 @@ def imagined_station(
     if span < 1e-6:
         return None
     if not _camera_blocked(layout, origin, camera_height_m):
-        return origin
+        return _placement(
+            origin,
+            method="centre",
+            origin=origin,
+            facing_xy=facing.xy,
+            surface_standoff_m=0.0,
+        )
 
     unit = ((facing.xy[0] - origin[0]) / span, (facing.xy[1] - origin[1]) / span)
     limit = min(
@@ -1412,8 +1475,84 @@ def imagined_station(
         if _camera_blocked(layout, xy, camera_height_m):
             continue
         if grid.is_free(grid.nearest_index(xy)):
-            return xy
-    return None
+            return _placement(
+                xy,
+                method="facing_ray",
+                origin=origin,
+                facing_xy=facing.xy,
+                surface_standoff_m=_surface_standoff_m(
+                    layout, viewpoint_name, xy, 0.5 * viewpoint.size_m
+                ),
+            )
+
+    # The preferred ray can be occupied by a neighbouring cabinet even when a
+    # person can stand immediately beside the reference object.  Search only
+    # the facing-side half of the object's real footprint perimeter, rather
+    # than accepting the first point on an unconstrained centre-radius ring.
+    # The placement is independent of the target/answer and is ranked by how
+    # faithfully it preserves the centre-defined reference direction.
+    search_radius = _footprint_search_radius_m(layout, viewpoint_name, 0.5 * viewpoint.size_m)
+    half_span = 0.5 * span
+    max_offset = min(search_radius, half_span)
+    min_ix, min_iy = grid.cell(grid.nearest_index((origin[0] - max_offset, origin[1] - max_offset)))
+    max_ix, max_iy = grid.cell(grid.nearest_index((origin[0] + max_offset, origin[1] + max_offset)))
+    candidates: list[tuple[tuple[float | int, ...], ImaginedStationPlacement]] = []
+    for iy in range(min_iy, max_iy + 1):
+        for ix in range(min_ix, max_ix + 1):
+            index = grid.index(ix, iy)
+            if not grid.is_free(index):
+                continue
+            xy = grid.world_xy(index)
+            dx, dy = xy[0] - origin[0], xy[1] - origin[1]
+            offset = math.hypot(dx, dy)
+            if offset > half_span + 1e-9:
+                continue
+            # Do not stand behind the reference object relative to Q.  Side
+            # placements remain available, which is precisely the false
+            # rejection the perimeter fallback is intended to recover.
+            if dx * unit[0] + dy * unit[1] < -1e-9:
+                continue
+            standoff = _surface_standoff_m(layout, viewpoint_name, xy, 0.5 * viewpoint.size_m)
+            if standoff > IMAGINED_STATION_STANDOFF_M + 1e-9:
+                continue
+            if _camera_blocked(layout, xy, camera_height_m):
+                continue
+            candidate = _placement(
+                xy,
+                method="footprint_perimeter",
+                origin=origin,
+                facing_xy=facing.xy,
+                surface_standoff_m=standoff,
+            )
+            if candidate.heading_shift_deg > IMAGINED_STATION_MAX_HEADING_SHIFT_DEG + 1e-9:
+                continue
+            candidates.append(
+                (
+                    (
+                        round(candidate.heading_shift_deg, 6),
+                        round(candidate.surface_standoff_m, 6),
+                        round(candidate.offset_m, 6),
+                        -len(grid.neighbours[index]),
+                        round(xy[0], 6),
+                        round(xy[1], 6),
+                    ),
+                    candidate,
+                )
+            )
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: item[0])[1]
+
+
+def imagined_station(
+    layout: SceneLayout,
+    viewpoint_name: str,
+    facing_name: str,
+    camera_height_m: float,
+) -> tuple[float, float] | None:
+    """Return the selected station coordinate, preserving the legacy API."""
+    result = imagined_station_placement(layout, viewpoint_name, facing_name, camera_height_m)
+    return None if result is None else result.xy
 
 
 def chain_edge_station_exists(
@@ -1434,9 +1573,7 @@ def chain_edge_station_exists(
     """
     if not pair_framable_station_exists(layout, left_name, right_name):
         return False
-    return _edge_station_exists(
-        layout, left_name, right_name, target_name, other_name, final_edge
-    )
+    return _edge_station_exists(layout, left_name, right_name, target_name, other_name, final_edge)
 
 
 @lru_cache(maxsize=65536)
@@ -1534,10 +1671,7 @@ def _edge_station_pool(
             return None
         probes = GeometrySceneView(
             layout,
-            tuple(
-                Pose2D(xy[0], xy[1], wrap_deg(yaw + delta))
-                for delta in (-jitter, 0.0, jitter)
-            ),
+            tuple(Pose2D(xy[0], xy[1], wrap_deg(yaw + delta)) for delta in (-jitter, 0.0, jitter)),
             std,
         )
         for frame in range(3):
@@ -1583,9 +1717,7 @@ def _edge_station_pool(
                 admitted[index] = entry
     if len(admitted) < pool_size:
         candidates = (
-            grid.component_cells[component_id]
-            if component_id is not None
-            else grid.free_cells
+            grid.component_cells[component_id] if component_id is not None else grid.free_cells
         )
         for _ in range(min(256, len(candidates))):
             if len(admitted) >= pool_size * 2:
@@ -1741,7 +1873,6 @@ def snapshot_landmarks(
     for (index, yaw), count in zip(stations, counts, strict=True):
         xy = grid.world_xy(index)
         poses.extend(
-            Pose2D(xy[0], xy[1], wrap_deg(yaw + rng.uniform(-jitter, jitter)))
-            for _ in range(count)
+            Pose2D(xy[0], xy[1], wrap_deg(yaw + rng.uniform(-jitter, jitter))) for _ in range(count)
         )
     return tuple(poses)
