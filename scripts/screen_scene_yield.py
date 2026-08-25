@@ -54,6 +54,26 @@ SCREENED = (
 # that big.
 POOL_MAXIMUM_SIZE_M = 4.0
 
+# The imagined viewpoint is placed at the reference object's horizontal centre
+# at eye height, so an object whose own vertical extent spans that height puts
+# the imagined camera inside it.  Under unique_referent this never happened -
+# every accepted viewpoint so far is a table, bed, toilet or armchair, all
+# below eye height, and none of the 290 accepted episodes has the camera inside
+# its reference object.  Relaxing uniqueness admits exactly the objects that
+# do: across the fifty-one scenes 2,541 of the 8,615 pool-sized objects (30%)
+# span eye height, led by 515 lockers, 357 doors, 302 trees and 179 windows.
+#
+# The render catches this - "auxiliary camera failed physics clearance" is one
+# of the deterministic render failures - but it catches it after paying for the
+# episode.  The question is also wrong on its own terms: nobody stands at a
+# door or inside a locker.
+CAMERA_HEIGHT_M = 1.5
+
+
+def spans_camera_height(obj) -> bool:
+    """The object's own vertical extent contains eye height."""
+    return obj.center_z - obj.half_height <= CAMERA_HEIGHT_M <= obj.center_z + obj.half_height
+
 
 def relax_unique_referent(script: ScriptSpec) -> ScriptSpec:
     """The same script with the scene-unique-category requirement dropped.
@@ -82,6 +102,7 @@ def unbiased_pool(
     maximum_size_m: float,
     count: int,
     restrict_to: frozenset[str] | None = None,
+    drop_camera_height_spanners: bool = False,
 ) -> frozenset[str]:
     """An unbiased sample of the scene's objects to draw slot candidates from.
 
@@ -106,10 +127,18 @@ def unbiased_pool(
     seen by the source render, and office_large has 668 objects of which the
     render saw 27; eighteen drawn from all 668 and then intersected leaves
     almost nothing, while eighteen drawn from the 27 is a usable pool.
+
+    ``drop_camera_height_spanners`` removes objects the imagined camera would
+    sit inside.  Only the viewpoint slot needs it, but the pool is shared
+    across slots, so applying it here also costs the facing and target slots
+    candidates they could have used.  That makes the measured yield a lower
+    bound, which is the safe direction for a pre-render estimate.
     """
     population = layout.objects
     if restrict_to is not None:
         population = [obj for obj in population if obj.name in restrict_to]
+    if drop_camera_height_spanners:
+        population = [obj for obj in population if not spans_camera_height(obj)]
     objects = [obj for obj in population if obj.size_m <= maximum_size_m]
     objects.sort(key=lambda obj: _stable_rank(obj.name))
     return frozenset(obj.name for obj in objects[:count])
@@ -146,6 +175,7 @@ def screen(
     *,
     relax: bool = False,
     unbiased: bool = False,
+    standable_viewpoint: bool = False,
 ) -> dict:
     ir = json.loads((bundle / "scene_ir.json").read_text(encoding="utf-8"))
     layout = layout_from_scene_ir(ir, std=STD_V1)
@@ -158,6 +188,7 @@ def screen(
             layout,
             maximum_size_m=POOL_MAXIMUM_SIZE_M,
             count=collection_module.MAX_RANKED_OBJECTS,
+            drop_camera_height_spanners=standable_viewpoint,
         )
         if unbiased
         else None
@@ -216,13 +247,19 @@ def screen(
     }
 
 
-def _worker(item: tuple[str, int, bool, bool, int]) -> dict:
-    bundle, maximum, relax, unbiased, ranked_objects = item
+def _worker(item: tuple[str, int, bool, bool, int, bool]) -> dict:
+    bundle, maximum, relax, unbiased, ranked_objects, standable = item
     # Set in the child rather than the parent so the run is identical whether
     # the pool forks or spawns.  _eligible_objects reads the module global.
     collection_module.MAX_RANKED_OBJECTS = ranked_objects
     try:
-        return screen(Path(bundle), maximum, relax=relax, unbiased=unbiased)
+        return screen(
+            Path(bundle),
+            maximum,
+            relax=relax,
+            unbiased=unbiased,
+            standable_viewpoint=standable,
+        )
     except Exception as error:  # noqa: BLE001
         return {"scene": Path(bundle).name, "error": f"{type(error).__name__}: {error}"}
 
@@ -253,6 +290,11 @@ def main() -> None:
             "scene-unique objects, so it was never the limit; with the badge it is."
         ),
     )
+    parser.add_argument(
+        "--standable-viewpoint",
+        action="store_true",
+        help="drop objects whose own vertical extent contains eye height, which would put the imagined camera inside them",
+    )
     args = parser.parse_args()
 
     root = Path(args.bundles_root)
@@ -271,6 +313,7 @@ def main() -> None:
             args.relax_unique_referent,
             args.unbiased_pool,
             args.max_ranked_objects,
+            args.standable_viewpoint,
         )
         for path in bundles
     ]
