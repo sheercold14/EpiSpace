@@ -14,6 +14,7 @@ import pytest
 from _batchdata import load_plan_record, load_render_view, needs_batch
 
 from spatial_episode.scriptgen.compiler import CapabilityCompiler, Certificate
+from spatial_episode.scriptgen.legacy import LEGACY_P1_SELF_MOTION
 from spatial_episode.scriptgen.library import (
     HOMING,
     NET_TURN,
@@ -27,7 +28,7 @@ from spatial_episode.scriptgen.sceneview import (
     SceneObject,
     VisibilityObservation,
 )
-from spatial_episode.scriptgen.standards import STD_V1
+from spatial_episode.scriptgen.standards import STD_V1, STD_V3
 
 TARGET = SceneObject(name="tgt", category="armchair", xy=(0.0, 2.0), size_m=0.8, uid="tgt")
 
@@ -308,7 +309,11 @@ def test_rendered_bundles_compile_answerable(
 ) -> None:
     plan = load_plan_record(index)
     view = load_render_view(index)
-    cert = self_motion_compiler.compile(view, plan["binding"], geometry_plan=plan)
+    current = self_motion_compiler.compile(view, plan["binding"], geometry_plan=plan)
+    assert current.mismatch == "standard_version_drift:plan=std.v3,compile=std.v11"
+    cert = CapabilityCompiler(LEGACY_P1_SELF_MOTION, STD_V3).compile(
+        view, plan["binding"], geometry_plan=plan
+    )
     expected = EXPECTED[index]
     assert cert.status == "answerable"
     assert cert.mismatch is None
@@ -320,7 +325,7 @@ def test_rendered_bundles_compile_answerable(
         "question_frame": expected["t_q"],
     }
     assert cert.frame_vars == {key: expected[key] for key in ("t_seen", "t_gone", "t_q")}
-    assert cert.answer.witness["margin_deg"] >= STD_V1.sector_margin_deg
+    assert cert.answer.witness["margin_deg"] >= STD_V3.sector_margin_deg
     # Round-trips through JSON as a frozen contract (witness dicts hold Any,
     # so equality is on the serialised form, not tuple-vs-list identity).
     serialized = cert.model_dump_json()
@@ -333,7 +338,13 @@ def test_render_overrides_geometry_frame_vars(
 ) -> None:
     """render_0: geometry picks frame 0, masks keep the target clear through frame 1."""
     plan = load_plan_record(0)
-    cert = self_motion_compiler.compile(load_render_view(0), plan["binding"], geometry_plan=plan)
+    current = self_motion_compiler.compile(
+        load_render_view(0), plan["binding"], geometry_plan=plan
+    )
+    assert current.mismatch == "standard_version_drift:plan=std.v3,compile=std.v11"
+    cert = CapabilityCompiler(LEGACY_P1_SELF_MOTION, STD_V3).compile(
+        load_render_view(0), plan["binding"], geometry_plan=plan
+    )
     assert plan["frame_vars"]["t_seen"] == 0
     assert cert.frame_vars["t_seen"] == 1
     assert cert.geometry is not None and cert.geometry.frame_vars["t_seen"] == 0

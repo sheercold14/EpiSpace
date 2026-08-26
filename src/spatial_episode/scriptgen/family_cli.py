@@ -23,7 +23,8 @@ from .family import (
     build_family_site,
     build_question_group,
 )
-from .standards import STD_V1
+from .legacy import legacy_script_for_version
+from .standards import STD_V1, standard_for_version
 
 
 def parser() -> argparse.ArgumentParser:
@@ -54,18 +55,37 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument(
         "--delay-extra", type=int, default=4, help="Pause frames inserted by delay."
     )
+    result.add_argument(
+        "--legacy-recompile",
+        action="store_true",
+        help=(
+            "Explicitly replay the plan's frozen legacy standard and script. "
+            "Without this flag old standards remain blocked."
+        ),
+    )
     return result
 
 
 def main() -> int:
     args = parser().parse_args()
+    plan = json.loads(args.plan_record.read_text(encoding="utf-8"))
+    if args.legacy_recompile:
+        source_version = plan.get("standard_version")
+        if not isinstance(source_version, str):
+            raise ValueError("legacy plan is missing a string standard_version")
+        std = standard_for_version(source_version, allow_legacy=True)
+        script = legacy_script_for_version(source_version, plan["capability"])
+    else:
+        std = STD_V1
+        script = None
     if args.group:
         group_path = build_question_group(
             args.bundle,
             args.plan_record,
             args.scene_ir,
             args.out,
-            STD_V1,
+            std,
+            (script,) if script is not None else None,
             seed=args.seed,
             drop_count=args.drop_count,
             delay_extra=args.delay_extra,
@@ -90,11 +110,12 @@ def main() -> int:
         args.plan_record,
         args.scene_ir,
         args.out,
-        STD_V1,
+        std,
         seed=args.seed,
         drop_count=args.drop_count,
         delay_extra=args.delay_extra,
         template_index=args.template_index,
+        script=script,
     )
     doc = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
     print(

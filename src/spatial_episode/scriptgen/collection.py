@@ -56,7 +56,13 @@ MAX_MARKER_OBJECT_SIZE_M = 4.0
 # every depth makes chain discovery O(k * beam * degree), not O(18**5), while
 # still sampling far more paths than the 128 bindings any scene can retain.
 MAX_CHAIN_SEARCH_FRONTIER = 8192
-MAX_REFERENCE_PAIR_SEARCH = 16
+# P2 first searches a bounded set of semantically meaningful
+# viewpoint/facing pairs, then expands targets only for pairs with a valid
+# imagined camera station.  A 256-pair frontier covers repeated-object scenes
+# much better than the pilot frontier of sixteen while remaining below the 306
+# ordered pairs in an 18-object marker pool and avoiding a 3-slot Cartesian
+# search.
+MAX_REFERENCE_PAIR_SEARCH = 256
 REFERENCE_CAPABILITIES = frozenset(script.capability for script in REFERENCE_FRAME_SCRIPTS)
 
 # Both cross-view motifs bind a target-anchor...-other landmark chain and share

@@ -122,6 +122,10 @@ class CoverageCell(SpecModel):
 class CoverageManifest(SpecModel):
     schema_version: Literal["scriptgen_binding_coverage.v1"] = COVERAGE_SCHEMA_VERSION
     collection_id: str
+    # Collection IDs may change between a capacity pilot and its production
+    # run. Keeping the seed namespace explicit makes the measured geometry
+    # yield reproducible without reusing the pilot's dataset identity.
+    seed_namespace: str | None = None
     standard_version: str
     source_index: str
     source_index_sha256: str
@@ -129,6 +133,10 @@ class CoverageManifest(SpecModel):
     accepted_per_binding: int = Field(ge=1)
     attempts_per_binding: int = Field(ge=1)
     initial_attempts_per_binding: int = Field(default=30, ge=1)
+    # Geometry-valid proposals are greedily thinned by the structural
+    # diversity gate. Large trajectory collections therefore need a wider raw
+    # pool than the ordinary 2x default without increasing the accepted quota.
+    raw_plan_oversample: int = Field(default=2, ge=1)
     maximum_multislot_bindings: int = Field(ge=1)
     limit_bindings_per_capability: int | None = Field(default=None, ge=1)
     capabilities: tuple[str, ...]
@@ -306,6 +314,87 @@ def _binding_cache_key(capability: str) -> tuple[Any, ...]:
     return eligibility, slots
 
 
+def _deferred_cells_for_existing_producers(
+    cells: tuple[CoverageCell, ...] | list[CoverageCell],
+    *,
+    scene: CollectionScene,
+    requested_capabilities: tuple[str, ...],
+    seed_namespace: str,
+    accepted_per_binding: int,
+    desired_answer_label: str | None,
+) -> tuple[CoverageCell, ...]:
+    """Materialize shared-credit cells without expanding a skipped scene.
+
+    A scene skip means "stop searching new bindings", not "discard producer
+    trajectories already found".  Those producers remain usable only when all
+    deferred question cells in their shared binding group exist, so resume must
+    create the missing empty cells without reloading geometry or enumerating
+    any additional bindings.
+    """
+    existing_ids = {cell.cell_id for cell in cells}
+    producer_bindings: dict[str, dict[str, dict[str, str]]] = {}
+    for cell in cells:
+        if (
+            cell.scene_key != scene.scene_key
+            or cell.capability in DEFERRED_INITIAL_CAPABILITIES
+        ):
+            continue
+        by_binding = producer_bindings.setdefault(cell.capability, {})
+        by_binding.setdefault(_canonical_binding(cell.binding), cell.binding)
+
+    additions: list[CoverageCell] = []
+    for capability in requested_capabilities:
+        if capability not in DEFERRED_INITIAL_CAPABILITIES:
+            continue
+        if capability in REFERENCE_CAPABILITIES:
+            producer_capabilities = ("reference_frame_transform",)
+        elif capability.startswith("cross_view_"):
+            producer_capabilities = (
+                capability.replace("_anchor_", "_ego_").replace("_closer_", "_ego_"),
+            )
+        else:
+            producer_capabilities = tuple(
+                producer
+                for producer in producer_bindings
+                if _binding_cache_key(producer) == _binding_cache_key(capability)
+            )
+        bindings: dict[str, dict[str, str]] = {}
+        for producer in producer_capabilities:
+            bindings.update(producer_bindings.get(producer, {}))
+        for binding in bindings.values():
+            cell_id = (
+                f"{scene.scene_key}__{capability}__"
+                f"{_stable_hex(_canonical_binding(binding))[:12]}"
+            )
+            if cell_id in existing_ids:
+                continue
+            additions.append(
+                CoverageCell(
+                    cell_id=cell_id,
+                    scene_key=scene.scene_key,
+                    scene_id=scene.scene_id,
+                    capability=capability,
+                    binding=binding,
+                    seed=_derived_seed(
+                        seed_namespace,
+                        scene.scene_id,
+                        capability,
+                        binding,
+                    ),
+                    desired_answer_label=desired_answer_label,
+                    target_accepted=accepted_per_binding,
+                    geometry_pool_size=0,
+                    diverse_pool_size=0,
+                    search_attempt_limit=0,
+                    raw_plan_limit=0,
+                    search_pool_exhausted=False,
+                    rejection_counts={"search:deferred_for_shared_credit": 1},
+                )
+            )
+            existing_ids.add(cell_id)
+    return tuple(additions)
+
+
 def _resample_plan(plan: TrajectoryPlan, count: int = 20) -> tuple[np.ndarray, np.ndarray]:
     points = np.asarray([(pose.x, pose.y) for pose in plan.poses], dtype=np.float64)
     yaw = np.unwrap(np.radians([pose.yaw_deg for pose in plan.poses]))
@@ -460,8 +549,8 @@ def _new_candidates(
         manifest.attempts_per_binding,
     )
     minimum_raw_plans = max(
-        manifest.accepted_per_binding * 2,
-        len(cell.candidates) + requested * 2,
+        manifest.accepted_per_binding * manifest.raw_plan_oversample,
+        len(cell.candidates) + requested * manifest.raw_plan_oversample,
     )
     raw_plan_limit = min(
         attempt_limit,
@@ -540,9 +629,11 @@ def plan_coverage(
     source_index_path: Path,
     output_root: Path,
     collection_id: str,
+    seed_namespace: str | None = None,
     accepted_per_binding: int = 10,
     attempts_per_binding: int = 150,
     initial_attempts_per_binding: int | None = None,
+    raw_plan_oversample: int = 2,
     maximum_multislot_bindings: int = 128,
     limit_bindings_per_capability: int | None = None,
     capabilities: tuple[str, ...] | None = None,
@@ -554,7 +645,7 @@ def plan_coverage(
     initialize_only: bool = False,
 ) -> Path:
     """Enumerate coverage cells and persist their first geometry candidate wave."""
-    if accepted_per_binding <= 0 or attempts_per_binding <= 0:
+    if accepted_per_binding <= 0 or attempts_per_binding <= 0 or raw_plan_oversample <= 0:
         raise ValueError("coverage quotas must be positive")
     if initial_attempts_per_binding is None:
         initial_attempts_per_binding = min(30, attempts_per_binding)
@@ -582,6 +673,7 @@ def plan_coverage(
         raise ValueError(f"source scenes are unavailable: {missing_scenes}")
     manifest = CoverageManifest(
         collection_id=collection_id,
+        seed_namespace=seed_namespace,
         standard_version=std.standard_version,
         source_index=str(source_index_path),
         source_index_sha256=_sha256(source_index_path),
@@ -589,6 +681,7 @@ def plan_coverage(
         accepted_per_binding=accepted_per_binding,
         attempts_per_binding=attempts_per_binding,
         initial_attempts_per_binding=initial_attempts_per_binding,
+        raw_plan_oversample=raw_plan_oversample,
         maximum_multislot_bindings=maximum_multislot_bindings,
         limit_bindings_per_capability=limit_bindings_per_capability,
         capabilities=requested_capabilities,
@@ -602,12 +695,14 @@ def plan_coverage(
         existing = load_coverage(existing_path)
         expected = (
             collection_id,
+            seed_namespace,
             std.standard_version,
             str(source_index_path),
             _sha256(source_index_path),
             accepted_per_binding,
             attempts_per_binding,
             initial_attempts_per_binding,
+            raw_plan_oversample,
             maximum_multislot_bindings,
             limit_bindings_per_capability,
             requested_capabilities,
@@ -616,12 +711,14 @@ def plan_coverage(
         )
         observed = (
             existing.collection_id,
+            existing.seed_namespace,
             existing.standard_version,
             existing.source_index,
             existing.source_index_sha256,
             existing.accepted_per_binding,
             existing.attempts_per_binding,
             existing.initial_attempts_per_binding,
+            existing.raw_plan_oversample,
             existing.maximum_multislot_bindings,
             existing.limit_bindings_per_capability,
             existing.capabilities,
@@ -637,6 +734,33 @@ def plan_coverage(
     cells: list[CoverageCell] = list(manifest.cells)
     existing_cell_ids = {cell.cell_id for cell in cells}
     for scene in scenes:
+        if scene.scene_key in manifest.scene_skips:
+            additions = _deferred_cells_for_existing_producers(
+                cells,
+                scene=scene,
+                requested_capabilities=requested_capabilities,
+                seed_namespace=seed_namespace or collection_id,
+                accepted_per_binding=accepted_per_binding,
+                desired_answer_label=desired_answer_label,
+            )
+            if additions:
+                cells.extend(additions)
+                existing_cell_ids.update(cell.cell_id for cell in additions)
+                manifest = manifest.model_copy(update={"cells": tuple(cells)})
+                _write_json(_manifest_path(output_root), manifest)
+                print(
+                    f"coverage deferred cells={len(cells)} scene={scene.scene_key} "
+                    f"added={len(additions)} search=skipped_scene_shared_credit",
+                    flush=True,
+                )
+            print(
+                f"coverage scene_skipped={scene.scene_key} "
+                f"reason={manifest.scene_skips[scene.scene_key]} existing=true",
+                flush=True,
+            )
+            if on_scene_completed is not None:
+                on_scene_completed(scene.scene_key)
+            continue
         scene_rejection = _scene_occupancy_proxy_rejection(scene, std=std)
         if scene_rejection is not None:
             scene_skips = dict(manifest.scene_skips)
@@ -652,6 +776,7 @@ def plan_coverage(
             continue
         binding_cache: dict[tuple[Any, ...], tuple[dict[str, str], ...]] = {}
         for capability in requested_capabilities:
+            deferred_cells_added = 0
             cache_key = _binding_cache_key(capability)
             bindings = binding_cache.get(cache_key)
             if bindings is None:
@@ -690,7 +815,12 @@ def plan_coverage(
                     scene_id=scene.scene_id,
                     capability=capability,
                     binding=binding,
-                    seed=_derived_seed(collection_id, scene.scene_id, capability, binding),
+                    seed=_derived_seed(
+                        seed_namespace or collection_id,
+                        scene.scene_id,
+                        capability,
+                        binding,
+                    ),
                     desired_answer_label=desired_answer_label,
                     target_accepted=accepted_per_binding,
                     geometry_pool_size=0,
@@ -732,16 +862,22 @@ def plan_coverage(
                 cells.append(cell)
                 existing_cell_ids.add(cell_id)
                 manifest = manifest.model_copy(update={"cells": tuple(cells)})
+                if capability in DEFERRED_INITIAL_CAPABILITIES:
+                    deferred_cells_added += 1
+                else:
+                    _write_json(_manifest_path(output_root), manifest)
+                    print(
+                        f"coverage planned cells={len(cells)} scene={scene.scene_key} "
+                        f"capability={capability} candidates={len(search.candidates)} "
+                        f"attempt_limit={search.search_attempt_limit}",
+                        flush=True,
+                    )
+            if deferred_cells_added:
                 _write_json(_manifest_path(output_root), manifest)
                 print(
-                    f"coverage planned cells={len(cells)} scene={scene.scene_key} "
-                    f"capability={capability} candidates={len(search.candidates)} "
-                    f"attempt_limit={search.search_attempt_limit}"
-                    + (
-                        " search=deferred_shared_credit"
-                        if capability in DEFERRED_INITIAL_CAPABILITIES
-                        else ""
-                    ),
+                    f"coverage deferred cells={len(cells)} scene={scene.scene_key} "
+                    f"capability={capability} added={deferred_cells_added} "
+                    "search=deferred_shared_credit",
                     flush=True,
                 )
         _write_json(_manifest_path(output_root), manifest)
@@ -1572,9 +1708,11 @@ def run_coverage_pipeline(
                 source_index_path=Path(initial.source_index),
                 output_root=Path(initial.output_root),
                 collection_id=initial.collection_id,
+                seed_namespace=initial.seed_namespace,
                 accepted_per_binding=initial.accepted_per_binding,
                 attempts_per_binding=initial.attempts_per_binding,
                 initial_attempts_per_binding=initial.initial_attempts_per_binding,
+                raw_plan_oversample=initial.raw_plan_oversample,
                 maximum_multislot_bindings=initial.maximum_multislot_bindings,
                 limit_bindings_per_capability=initial.limit_bindings_per_capability,
                 capabilities=initial.capabilities,

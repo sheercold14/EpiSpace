@@ -21,6 +21,7 @@ from spatial_episode.scriptgen.binding_coverage import (
     _bindings_for_scene,
     _completed_scene_prefix,
     _confirmed_render_unresolvable_targets,
+    _deferred_cells_for_existing_producers,
     _derived_seed,
     _geometry_pool,
     _new_candidates,
@@ -222,6 +223,48 @@ def test_binding_enumeration_cache_groups_shared_capability_shapes() -> None:
     assert _binding_cache_key("cross_view_ego_k1") != _binding_cache_key("cross_view_closer_k2")
 
 
+def test_skipped_scene_materializes_deferred_cells_for_existing_producers(
+    tmp_path: Path,
+) -> None:
+    scene = _scene(tmp_path)
+    binding = {"reference": "a", "target": "b"}
+    producer = CoverageCell(
+        cell_id="producer",
+        scene_key=scene.scene_key,
+        scene_id=scene.scene_id,
+        capability="reference_frame_transform",
+        binding=binding,
+        seed=1,
+        target_accepted=10,
+        geometry_pool_size=1,
+        diverse_pool_size=1,
+    )
+
+    additions = _deferred_cells_for_existing_producers(
+        (producer,),
+        scene=scene,
+        requested_capabilities=(
+            "reference_frame_transform",
+            "reference_frame_visibility",
+        ),
+        seed_namespace="stable-search",
+        accepted_per_binding=10,
+        desired_answer_label=None,
+    )
+
+    assert len(additions) == 1
+    deferred = additions[0]
+    assert deferred.capability == "reference_frame_visibility"
+    assert deferred.binding == binding
+    assert deferred.candidates == ()
+    assert deferred.search_attempt_limit == 0
+    assert deferred.rejection_counts == {"search:deferred_for_shared_credit": 1}
+    assert deferred.seed == _derived_seed(
+        "stable-search",
+        scene.scene_id,
+        "reference_frame_visibility",
+        binding,
+    )
 def test_shared_question_consumers_defer_initial_geometry_search() -> None:
     assert {
         "path_integration",
@@ -1457,7 +1500,9 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
     )
     recipe.write_text("source: {}\n", encoding="utf-8")
 
-    sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+    def sha(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
     index = SourceIndex(
         source_id="source",
         source_root=str(source_root),
@@ -1493,9 +1538,11 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
             {"target": "not-allowed"},
         ),
     )
-    monkeypatch.setattr(
-        "spatial_episode.scriptgen.binding_coverage._new_candidates",
-        lambda *args, **kwargs: CandidateSearchResult(
+    observed_seeds: list[int] = []
+
+    def fake_new_candidates(*args, **kwargs):
+        observed_seeds.append(args[0].seed)
+        return CandidateSearchResult(
             candidates=(),
             geometry_pool_size=0,
             diverse_pool_size=0,
@@ -1503,7 +1550,11 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
             search_attempt_limit=2,
             raw_plan_limit=2,
             search_pool_exhausted=True,
-        ),
+        )
+
+    monkeypatch.setattr(
+        "spatial_episode.scriptgen.binding_coverage._new_candidates",
+        fake_new_candidates,
     )
     monkeypatch.setattr(
         "spatial_episode.scriptgen.binding_coverage._scene_occupancy_proxy_rejection",
@@ -1515,6 +1566,7 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
         source_index_path=index_path,
         output_root=output,
         collection_id="coverage",
+        seed_namespace="capacity-pilot",
         accepted_per_binding=1,
         attempts_per_binding=2,
         maximum_multislot_bindings=1,
@@ -1525,6 +1577,7 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
         source_index_path=index_path,
         output_root=output,
         collection_id="coverage",
+        seed_namespace="capacity-pilot",
         accepted_per_binding=1,
         attempts_per_binding=2,
         maximum_multislot_bindings=1,
@@ -1536,6 +1589,15 @@ def test_coverage_plan_resumes_without_duplicating_cells(tmp_path: Path, monkeyp
     manifest = load_coverage(first)
     assert len(manifest.cells) == 1
     assert manifest.cells[0].binding == {"target": "target"}
+    assert manifest.seed_namespace == "capacity-pilot"
+    assert observed_seeds == [
+        _derived_seed(
+            "capacity-pilot",
+            "scene",
+            "self_motion_update",
+            {"target": "target"},
+        )
+    ]
 
     recipe.write_text("source: {changed: true}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="source recipe changed"):

@@ -7,9 +7,10 @@ and checks the shipped artifacts.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ from test_compiler import TARGET, FakeRenderView, qualifying_fake
 
 from spatial_episode.contracts.schema import CONTRACTS
 from spatial_episode.scriptgen.family import (
+    QUESTION_GROUP_SCRIPTS,
     FamilyBlocked,
     ScriptgenFamilyV4,
     ScriptgenQuestionGroupV1,
@@ -25,10 +27,11 @@ from spatial_episode.scriptgen.family import (
     build_family_site,
     build_question_group,
 )
+from spatial_episode.scriptgen.legacy import LEGACY_P1_SELF_MOTION
 from spatial_episode.scriptgen.library import SELF_MOTION
 from spatial_episode.scriptgen.sceneview import SceneLayout, SceneObject
 from spatial_episode.scriptgen.spec import Template
-from spatial_episode.scriptgen.standards import STD_V1
+from spatial_episode.scriptgen.standards import STD_V1, STD_V3
 
 PLAN = {
     "plan_id": "fake-plan",
@@ -45,7 +48,9 @@ PLAN = {
 class FakeBundleView(FakeRenderView):
     """Fake render backend that also exposes a scene layout (for audits)."""
 
-    layout: SceneLayout = SceneLayout(scene_id="fake-scene", objects=(TARGET,))
+    layout: SceneLayout = field(
+        default_factory=lambda: SceneLayout(scene_id="fake-scene", objects=(TARGET,))
+    )
 
 
 def fake_bundle_view(extra_objects: tuple[SceneObject, ...] = ()) -> FakeBundleView:
@@ -146,8 +151,9 @@ def test_one_command_site_from_render_0(tmp_path: Path) -> None:
         BATCH_ROOT / "plan_0.record.json",
         SCENE_IR_PATH,
         tmp_path / "f0",
-        STD_V1,
+        STD_V3,
         seed=17,
+        script=LEGACY_P1_SELF_MOTION,
     )
     doc = ScriptgenFamilyV4.model_validate_json(family_path.read_text(encoding="utf-8"))
     assert {e.kind: e.label for e in doc.episodes} == {
@@ -160,7 +166,7 @@ def test_one_command_site_from_render_0(tmp_path: Path) -> None:
     assert doc.checks.referent_unique
     # Certificates all carry the render backend and the frozen standard.
     assert all(e.certificate.backend == "render_pixels" for e in doc.episodes)
-    assert all(e.certificate.standard_version == STD_V1.standard_version for e in doc.episodes)
+    assert all(e.certificate.standard_version == STD_V3.standard_version for e in doc.episodes)
     # The review page and every referenced frame image were shipped.
     assert (family_path.parent / "index.html").exists()
     for frame in doc.frames:
@@ -209,7 +215,17 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
         SCENE_IR_PATH,
         tmp_path / f"group_{index}",
         STD_V1,
+        tuple(
+            {
+                script.capability: script
+                for script in (
+                    SELF_MOTION,
+                    *QUESTION_GROUP_SCRIPTS[1:],
+                )
+            }.values()
+        ),
         seed=17,
+        canonical_plan=False,
     )
     group = ScriptgenQuestionGroupV1.model_validate_json(group_path.read_text(encoding="utf-8"))
     questions = {question.capability: question for question in group.questions}
@@ -228,7 +244,8 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
     assert questions["self_motion_update"].label == expected_direction
 
     net_turn = sum(
-        _wrap_deg(later.yaw_deg - earlier.yaw_deg) for earlier, later in zip(poses, poses[1:])
+        _wrap_deg(later.yaw_deg - earlier.yaw_deg)
+        for earlier, later in itertools.pairwise(poses)
     )
     expected_net = "left" if net_turn > 0.0 else "right"
     assert questions["path_integration"].label == expected_net
@@ -270,7 +287,7 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
     assert existence.label is None and existence.family_id is None
     assert existence.skip_reason == "invalid:clause:category_absent"
 
-    for capability, question in questions.items():
+    for question in questions.values():
         if question.family is None:
             continue
         family_path = group_path.parent / question.family
@@ -279,11 +296,9 @@ def test_wallfix_question_group_geometry_and_skips(index: int, tmp_path: Path) -
         assert canonical.label == question.label
         assert family.question_group_id == group.question_group_id
         assert family.frames[0].rgb.startswith("../media/")
-        if capability == "self_motion_update":
-            assert canonical.certificate.geometry is not None
-            assert canonical.certificate.geometry.standard_version == "std.v3"
-        else:
-            assert canonical.certificate.geometry is None
+        # Reusing an old P1 trajectory for today's diagnostic question set is
+        # explicitly non-canonical, so no std.v3 geometry promise is inherited.
+        assert canonical.certificate.geometry is None
         assert (family_path.parent / "index.html").exists()
         assert (family_path.parent / family.frames[0].rgb).exists()
 

@@ -1348,18 +1348,14 @@ class ImaginedStationPlacement:
 
 
 def _camera_blocked(layout: SceneLayout, xy: tuple[float, float], height_m: float) -> bool:
-    """Some obstacle occupies this point at camera height."""
+    """Whether the renderer's spherical camera probe overlaps an obstacle OBB."""
     return any(
-        obstacle.z_low <= height_m <= obstacle.z_high
-        and point_in_rotated_rect(
-            xy,
-            obstacle.center_xy,
-            (
-                obstacle.half_extents_xy[0] + IMAGINED_CAMERA_PROBE_RADIUS_M,
-                obstacle.half_extents_xy[1] + IMAGINED_CAMERA_PROBE_RADIUS_M,
-            ),
-            obstacle.yaw_deg,
+        obstacle.label not in {"floors", "ceilings"}
+        and math.hypot(
+            _point_rotated_rect_distance_m(xy, obstacle),
+            max(obstacle.z_low - height_m, height_m - obstacle.z_high, 0.0),
         )
+        <= IMAGINED_CAMERA_PROBE_RADIUS_M + 1e-9
         for obstacle in layout.obstacles
     )
 

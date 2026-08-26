@@ -8,6 +8,7 @@ produced it. Predicates must never hard-code thresholds.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 
 
 @dataclass(frozen=True)
@@ -123,7 +124,55 @@ class CompileStandard:
     search_tighten_factor: float = 1.2
 
 
-STD_V1 = CompileStandard()
+# ``CompileStandard`` remains one superset data shape so predicates can stay
+# simple, but these instances freeze the values that are allowed at each
+# supported compile boundary.  Fields introduced after a legacy version are
+# inert because a legacy compile is paired with its frozen legacy script.
+STD_V3 = CompileStandard(
+    standard_version="std.v3",
+    imagined_viewpoint_offsets_deg=(0, 45, 90, 135, 180),
+)
+STD_V10 = CompileStandard(
+    standard_version="std.v10",
+    imagined_viewpoint_offsets_deg=(0, 45, 90, 135, 180),
+)
+STD_V11 = CompileStandard()
+
+# Historical public name retained for callers.  New planning and rendering
+# must always use the current standard through this alias.
+STD_V1 = STD_V11
+
+FROZEN_STANDARDS = MappingProxyType(
+    {
+        STD_V3.standard_version: STD_V3,
+        STD_V10.standard_version: STD_V10,
+        STD_V11.standard_version: STD_V11,
+    }
+)
+
+
+def standard_for_version(
+    version: str, *, allow_legacy: bool = False
+) -> CompileStandard:
+    """Return a frozen standard without silently opting into old semantics.
+
+    Current callers need no flag.  A caller replaying an immutable old render
+    must make the legacy choice explicit and pair the result with a versioned
+    legacy script.  This is intentionally separate from plan-lineage
+    compatibility: selecting ``std.v3`` does not make a v3 plan compatible
+    with the current std.v11 compiler.
+    """
+
+    if version == STD_V11.standard_version:
+        return STD_V11
+    if not allow_legacy:
+        raise ValueError(
+            f"legacy standard {version!r} requires explicit allow_legacy=True"
+        )
+    try:
+        return FROZEN_STANDARDS[version]
+    except KeyError as error:
+        raise ValueError(f"unsupported compile standard: {version!r}") from error
 
 
 # The lineage is deliberately non-transitive. A prior plan version belongs

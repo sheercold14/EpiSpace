@@ -13,6 +13,7 @@ dependencies = [
   "Pillow>=10",
   "pydantic>=2.10",
   "PyYAML>=6",
+  "scipy>=1.11",
   "typer>=0.15",
 ]
 

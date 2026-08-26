@@ -35,7 +35,9 @@ from spatial_episode.scriptgen.library import (
     REFERENCE_FRAME_DEEP,
 )
 from spatial_episode.scriptgen.motifs import (
+    IMAGINED_CAMERA_PROBE_RADIUS_M,
     IMAGINED_STATION_MAX_HEADING_SHIFT_DEG,
+    _camera_blocked,
     imagined_station_placement,
 )
 from spatial_episode.scriptgen.plan import PlannedPose, ProvisionalAnswer, TrajectoryPlan
@@ -239,6 +241,78 @@ def test_reference_binding_reserves_auxiliary_camera_probe_radius() -> None:
 
     assert _reference_binding_eligible(clear, binding, STD_V1)
     assert not _reference_binding_eligible(probe_collision, binding, STD_V1)
+
+
+def test_auxiliary_camera_probe_reserves_vertical_radius() -> None:
+    radius = IMAGINED_CAMERA_PROBE_RADIUS_M
+    camera_height = STD_V1.camera_height_m
+    touching = SceneLayout(
+        "touching",
+        (),
+        obstacles=(
+            Obstacle(
+                "bookcase",
+                (0.0, 0.0),
+                (0.2, 0.3),
+                0.0,
+                0.0,
+                camera_height - radius,
+            ),
+        ),
+    )
+    clear = SceneLayout(
+        "clear",
+        (),
+        obstacles=(
+            Obstacle(
+                "bookcase",
+                (0.0, 0.0),
+                (0.2, 0.3),
+                0.0,
+                0.0,
+                camera_height - radius - 0.001,
+            ),
+        ),
+    )
+
+    assert _camera_blocked(touching, (0.0, 0.0), camera_height)
+    assert not _camera_blocked(clear, (0.0, 0.0), camera_height)
+
+
+def test_auxiliary_camera_probe_uses_spherical_corner_distance() -> None:
+    camera_height = STD_V1.camera_height_m
+    vertical_gap = 0.04
+    diagonal_clear = SceneLayout(
+        "diagonal_clear",
+        (),
+        obstacles=(
+            Obstacle(
+                "cabinet",
+                (0.14, 0.0),
+                (0.1, 0.1),
+                0.0,
+                0.0,
+                camera_height - vertical_gap,
+            ),
+        ),
+    )
+    diagonal_touching = SceneLayout(
+        "diagonal_touching",
+        (),
+        obstacles=(
+            Obstacle(
+                "cabinet",
+                (0.13, 0.0),
+                (0.1, 0.1),
+                0.0,
+                0.0,
+                camera_height - vertical_gap,
+            ),
+        ),
+    )
+
+    assert not _camera_blocked(diagonal_clear, (0.0, 0.0), camera_height)
+    assert _camera_blocked(diagonal_touching, (0.0, 0.0), camera_height)
 
 
 def _tall_reference_layout(*, block_facing_ray: bool) -> SceneLayout:

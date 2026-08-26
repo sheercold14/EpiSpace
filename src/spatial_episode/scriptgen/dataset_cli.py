@@ -73,9 +73,19 @@ def parser() -> argparse.ArgumentParser:
     coverage_plan.add_argument("--source-index", type=Path, required=True)
     coverage_plan.add_argument("--output-root", type=Path, required=True)
     coverage_plan.add_argument("--collection-id", default="behavior51_coverage_v1")
+    coverage_plan.add_argument(
+        "--seed-namespace",
+        help="stable geometry seed namespace, independent of the collection ID",
+    )
     coverage_plan.add_argument("--accepted-per-binding", type=int, default=10)
     coverage_plan.add_argument("--attempts-per-binding", type=int, default=150)
     coverage_plan.add_argument("--initial-attempts-per-binding", type=int, default=30)
+    coverage_plan.add_argument(
+        "--raw-plan-oversample",
+        type=int,
+        default=2,
+        help="raw geometry proposals requested per accepted diverse trajectory",
+    )
     coverage_plan.add_argument("--maximum-multislot-bindings", type=int, default=128)
     coverage_plan.add_argument("--limit-bindings-per-capability", type=int)
     coverage_plan.add_argument("--capabilities", nargs="+", choices=sorted(SCRIPT_LIBRARY))
@@ -164,13 +174,18 @@ def main() -> int:
         binding_allowlist = None
         if args.binding_allowlist is not None:
             payload = json.loads(args.binding_allowlist.read_text(encoding="utf-8"))
-            binding_allowlist = payload.get("bindings_by_scene") if isinstance(payload, dict) else None
+            binding_allowlist = (
+                payload.get("bindings_by_scene") if isinstance(payload, dict) else None
+            )
             if not isinstance(binding_allowlist, dict) or not all(
                 isinstance(scene, str)
                 and isinstance(bindings, list)
                 and all(
                     isinstance(binding, dict)
-                    and all(isinstance(key, str) and isinstance(value, str) for key, value in binding.items())
+                    and all(
+                        isinstance(key, str) and isinstance(value, str)
+                        for key, value in binding.items()
+                    )
                     for binding in bindings
                 )
                 for scene, bindings in binding_allowlist.items()
@@ -183,9 +198,11 @@ def main() -> int:
             source_index_path=args.source_index,
             output_root=args.output_root,
             collection_id=args.collection_id,
+            seed_namespace=args.seed_namespace,
             accepted_per_binding=args.accepted_per_binding,
             attempts_per_binding=args.attempts_per_binding,
             initial_attempts_per_binding=args.initial_attempts_per_binding,
+            raw_plan_oversample=args.raw_plan_oversample,
             maximum_multislot_bindings=args.maximum_multislot_bindings,
             limit_bindings_per_capability=args.limit_bindings_per_capability,
             capabilities=tuple(args.capabilities) if args.capabilities else None,
@@ -227,9 +244,7 @@ def main() -> int:
             if not isinstance(cell_id_payload, list) or not all(
                 isinstance(cell_id, str) for cell_id in cell_id_payload
             ):
-                raise ValueError(
-                    f"{path} must contain a JSON string list or {{\"cell_ids\": [...]}}"
-                )
+                raise ValueError(f'{path} must contain a JSON string list or {{"cell_ids": [...]}}')
             return tuple(cell_id_payload)
 
         cell_ids = load_cell_ids(args.cell_ids_file)

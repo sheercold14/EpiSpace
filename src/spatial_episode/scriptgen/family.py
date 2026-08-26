@@ -340,12 +340,13 @@ def build_family_site(
     drop_count: int = 2,
     delay_extra: int = 4,
     template_index: int = 0,
+    script: ScriptSpec | None = None,
 ) -> Path:
     """One command: rendered bundle -> family.json + media + review page."""
     from .media import export_bundle_channels
 
     plan = json.loads(plan_record.read_text(encoding="utf-8"))
-    script = SCRIPT_LIBRARY[plan["capability"]]
+    script = script or SCRIPT_LIBRARY[plan["capability"]]
     view = RenderSceneView.from_bundle(bundle, std, scene_ir=scene_ir)
     doc = build_family_doc(
         view,

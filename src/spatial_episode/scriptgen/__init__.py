@@ -32,7 +32,7 @@ from .library import (
 )
 from .plan import GenerationReport, TrajectoryPlan
 from .spec import AnswerSpec, Clause, Knob, ScriptSpec, SlotSpec, Template
-from .standards import STD_V1, CompileStandard
+from .standards import STD_V1, STD_V3, STD_V10, STD_V11, CompileStandard, standard_for_version
 
 __all__ = [
     "CROSS_VIEW_CLOSER",
@@ -52,6 +52,9 @@ __all__ = [
     "SCRIPT_LIBRARY",
     "SELF_MOTION",
     "STD_V1",
+    "STD_V3",
+    "STD_V10",
+    "STD_V11",
     "VIEW_SIDE",
     "AnswerSpec",
     "CapabilityCompiler",
@@ -65,4 +68,5 @@ __all__ = [
     "Template",
     "TrajectoryPlan",
     "generate_plans",
+    "standard_for_version",
 ]
