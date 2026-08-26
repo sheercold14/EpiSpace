@@ -215,7 +215,7 @@ def main() -> int:
         "search_policy": {
             "marker_object_candidates_per_slot": 18,
             "marker_object_maximum_size_m": 4.0,
-            "p2_viewpoint_facing_pair_frontier": 16,
+            "p2_viewpoint_facing_pair_frontier": 256,
             "p3_path_beam": 8192,
             "p3_admitted_binding_early_stop": 256,
             "p3_binding_constraints": [
