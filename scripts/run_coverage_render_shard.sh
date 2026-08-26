@@ -36,6 +36,13 @@ print(metadata["code_revisions"][repository]["commit"])
 PY
 }
 
+shard_name="$(python - "$package_root/shard.json" <<'PY'
+import json
+import sys
+print(json.load(open(sys.argv[1], encoding="utf-8"))["shard_name"])
+PY
+)"
+
 epispace_expected="$(expected_commit epispace)"
 epispace_actual="$(git -C "${epispace_repo_root}" rev-parse HEAD)"
 backend_expected="$(expected_commit omnigibson_episode)"
@@ -58,6 +65,27 @@ if [[ "${epispace_remote_backfill}" != 0 && "${epispace_remote_backfill}" != 1 ]
 fi
 
 mkdir -p "${work_root}"
+
+# Python, USD and OmniGibson temporary files are confined to one sentinel-
+# marked directory for this invocation.  The janitor is never allowed to scan
+# generic /tmp names or another application's scratch space.
+scratch_root="$(realpath -m "${EPISPACE_SCRATCH_ROOT:-${work_root}/scratch}")"
+mkdir -p "${scratch_root}"
+scratch_dir="$(mktemp -d "${scratch_root}/${shard_name}.run.XXXXXXXX")"
+printf '%s\n' 'epispace_scratch.v1' > "${scratch_dir}/.epispace_scratch"
+export TMPDIR="${scratch_dir}"
+
+cleanup_scratch() {
+  local render_status=$?
+  trap - EXIT
+  if ! GRACE_MINUTES=0 "${script_root}/tmp_scratch_janitor.sh" \
+    --once "${scratch_root}"; then
+    echo "warning: safe scratch cleanup failed; retained ${scratch_dir}" >&2
+  fi
+  exit "${render_status}"
+}
+trap cleanup_scratch EXIT
+
 export PYTHONPATH="${epispace_repo_root}/src:${epispace_og_root}/src${PYTHONPATH:+:${PYTHONPATH}}"
 export OMNIGIBSON_DATA_PATH="${epispace_data_root}"
 export OMNIGIBSON_HEADLESS=True

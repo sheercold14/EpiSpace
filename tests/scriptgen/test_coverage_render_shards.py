@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
+import pytest
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "coverage_render_shards.py"
 SPEC = importlib.util.spec_from_file_location("coverage_render_shards", SCRIPT_PATH)
@@ -15,6 +17,33 @@ SPEC.loader.exec_module(SHARDS)
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def test_git_revision_rejects_untracked_code(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "test@example.invalid"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.name", "EpiSpace test"],
+        check=True,
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/tracked.py").write_text("TRACKED = True\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "src/tracked.py"], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "commit", "-q", "-m", "fixture"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "remote", "add", "origin", "example.invalid/repo"],
+        check=True,
+    )
+    assert len(SHARDS._git_revision(tmp_path)["commit"]) == 40
+
+    (tmp_path / "src/untracked.py").write_text("UNTRACKED = True\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="untracked code is not reproducible"):
+        SHARDS._git_revision(tmp_path)
 
 
 def test_scene_assignment_balances_whole_scenes() -> None:

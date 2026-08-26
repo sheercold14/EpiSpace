@@ -1,42 +1,101 @@
 #!/usr/bin/env bash
-# Reclaims the USD scratch directories OmniGibson leaves in /tmp.
-#
-# Each scene render stages roughly 2.4 GB under /tmp/tmpXXXXXXXX and does not
-# remove it, so an unattended overnight run fills the root filesystem and dies
-# with "No space left on device" - which is how Wainscott_0_garden was lost on
-# 2026-08-24.  This deletes a scratch directory only when it is both older than
-# GRACE_MINUTES and referenced by no live process, so a directory belonging to
-# a render still in progress is never touched.
-set -uo pipefail
+# Remove only sentinel-marked EpiSpace scratch directories under one run root.
+set -euo pipefail
 
-GRACE_MINUTES=${GRACE_MINUTES:-30}
-INTERVAL_SECONDS=${INTERVAL_SECONDS:-600}
+usage() {
+  echo "usage: $0 [--once] SCRATCH_ROOT" >&2
+  exit 2
+}
 
-# Scratch paths any live process still has open, as its cwd, or mapped. Reading
-# /proc directly costs a few hundred milliseconds, where "lsof +D /tmp" would
-# walk every file in every scratch directory.
-live_paths() {
-  {
-    ls -l /proc/[0-9]*/fd/* 2>/dev/null | grep -o '/tmp/tmp[a-z0-9_]\{8\}'
-    ls -l /proc/[0-9]*/cwd 2>/dev/null | grep -o '/tmp/tmp[a-z0-9_]\{8\}'
-    grep -ho '/tmp/tmp[a-z0-9_]\{8\}' /proc/[0-9]*/maps 2>/dev/null
-  } | sort -u
+once=0
+if [[ "${1:-}" == "--once" ]]; then
+  once=1
+  shift
+fi
+[[ $# -eq 1 ]] || usage
+
+grace_minutes="${GRACE_MINUTES:-30}"
+interval_seconds="${INTERVAL_SECONDS:-600}"
+[[ "${grace_minutes}" =~ ^[0-9]+$ ]] || {
+  echo "GRACE_MINUTES must be a non-negative integer" >&2
+  exit 2
+}
+[[ "${interval_seconds}" =~ ^[1-9][0-9]*$ ]] || {
+  echo "INTERVAL_SECONDS must be a positive integer" >&2
+  exit 2
+}
+
+scratch_root="$(realpath -e "$1")"
+case "${scratch_root}" in
+  /|/tmp|/var|/var/tmp|/data|/home)
+    echo "refusing broad scratch root: ${scratch_root}" >&2
+    exit 1
+    ;;
+esac
+[[ -d "${scratch_root}" ]] || {
+  echo "scratch root is not a directory: ${scratch_root}" >&2
+  exit 1
+}
+
+current_uid="$(id -u)"
+
+directory_is_live() {
+  local candidate=$1
+  local proc path link
+  for proc in /proc/[0-9]*; do
+    [[ -d "${proc}" ]] || continue
+    for link in "${proc}/cwd" "${proc}"/fd/*; do
+      path="$(readlink -f "${link}" 2>/dev/null || true)"
+      if [[ "${path}" == "${candidate}" || "${path}" == "${candidate}/"* ]]; then
+        return 0
+      fi
+    done
+    if grep -Fq -- "${candidate}/" "${proc}/maps" 2>/dev/null; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+clean_once() {
+  local now removed spared candidate resolved owner modified age
+  now="$(date +%s)"
+  removed=0
+  spared=0
+  shopt -s nullglob
+  for candidate in "${scratch_root}"/*; do
+    [[ -d "${candidate}" && -f "${candidate}/.epispace_scratch" ]] || continue
+    [[ "$(head -n 1 "${candidate}/.epispace_scratch")" == "epispace_scratch.v1" ]] || {
+      echo "skipping invalid scratch sentinel: ${candidate}" >&2
+      spared=$((spared + 1))
+      continue
+    }
+    resolved="$(realpath -e "${candidate}")"
+    [[ "${resolved}" == "${scratch_root}/"* ]] || {
+      echo "skipping scratch path outside root: ${resolved}" >&2
+      spared=$((spared + 1))
+      continue
+    }
+    owner="$(stat -c %u "${resolved}")"
+    [[ "${owner}" == "${current_uid}" ]] || {
+      echo "skipping scratch owned by uid ${owner}: ${resolved}" >&2
+      spared=$((spared + 1))
+      continue
+    }
+    modified="$(stat -c %Y "${resolved}")"
+    age=$((now - modified))
+    if (( age < grace_minutes * 60 )) || directory_is_live "${resolved}"; then
+      spared=$((spared + 1))
+      continue
+    fi
+    rm -rf --one-file-system -- "${resolved}"
+    removed=$((removed + 1))
+  done
+  echo "[$(date +%F' '%T)] EpiSpace scratch removed=${removed} spared=${spared} root=${scratch_root}"
 }
 
 while true; do
-  free_gib=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
-  live=$(mktemp /tmp/janitor-live.XXXXXX)
-  stale=$(mktemp /tmp/janitor-stale.XXXXXX)
-  live_paths > "$live"
-  find /tmp -maxdepth 1 -type d -name 'tmp????????' -mmin "+$GRACE_MINUTES" 2>/dev/null |
-    sort > "$stale"
-  mapfile -t doomed < <(comm -23 "$stale" "$live")
-  if [ "${#doomed[@]}" -gt 0 ]; then
-    printf '%s\n' "${doomed[@]}" | xargs -d '\n' -P 4 -n 25 rm -rf 2>/dev/null
-    echo "[$(date +%F' '%T)] removed ${#doomed[@]}, spared $(wc -l < "$live") live, free ${free_gib}G -> $(df -BG --output=avail / | tail -1 | tr -d ' ')"
-  else
-    echo "[$(date +%F' '%T)] nothing stale, free ${free_gib}G"
-  fi
-  rm -f "$live" "$stale"
-  sleep "$INTERVAL_SECONDS"
+  clean_once
+  (( once == 1 )) && exit 0
+  sleep "${interval_seconds}"
 done

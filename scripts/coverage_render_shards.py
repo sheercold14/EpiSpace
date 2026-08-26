@@ -276,7 +276,7 @@ def _subset_manifest(
 
 
 def _git_revision(repo_root: Path) -> dict[str, str]:
-    """Return a reproducible Git revision and reject uncommitted tracked code."""
+    """Return a reproducible revision and reject code absent from that revision."""
     repo_root = repo_root.resolve()
     if not (repo_root / ".git").exists():
         raise ValueError(f"code root is not a Git checkout: {repo_root}")
@@ -289,6 +289,26 @@ def _git_revision(repo_root: Path) -> dict[str, str]:
             raise RuntimeError(
                 f"tracked code is not committed under {repo_root}; commit it before sharding"
             )
+    untracked_code = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "src",
+            "scripts",
+            "pyproject.toml",
+        ],
+        text=True,
+    ).splitlines()
+    if untracked_code:
+        raise RuntimeError(
+            f"untracked code is not reproducible under {repo_root}; "
+            f"commit it before sharding: {untracked_code[:8]}"
+        )
 
     def output(*arguments: str) -> str:
         return subprocess.check_output(
@@ -367,7 +387,7 @@ def _build_one_package(
             plan_path = f"{PACKAGE_TOKEN}/planning/plans/{candidate_id}.views.json"
             recipe_text, replacements = re.subn(
                 r"(?m)^(\s*plan_path:\s*).*$",
-                lambda match: match.group(1) + plan_path,
+                lambda match, replacement=plan_path: match.group(1) + replacement,
                 recipe_text,
             )
             if replacements != 1:

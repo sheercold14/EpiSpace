@@ -14,6 +14,55 @@ Scenes, rather than individual cells, are the shard unit. A successful episode
 may credit several capability cells in the same scene, so scene-level sharding
 keeps all status writes disjoint.
 
+## Frozen P2/P3 7k workflow
+
+P2/P3 uses a stricter render-only wrapper than the general coverage workflow
+below. It binds both phase manifests to the passing global 7k quality audit,
+forces `EPISPACE_REMOTE_BACKFILL=0`, checks code commits, dependencies, GPUs
+and a frame-count-derived disk budget, and verifies marker evidence before it
+uploads a result.
+
+Build both two-way distributions from a clean, committed EpiSpace and backend
+checkout:
+
+```bash
+PYTHONPATH=src EPISPACE_PYTHON=python \
+EPISPACE_OG_ROOT=/path/to/OminiGibson \
+  bash scripts/build_p23_render_shards.sh
+```
+
+Upload each distribution under one task root:
+
+```bash
+OSS_TASK_ROOT=oss://YOUR_BUCKET/epispace/p23_7k_v1
+bash scripts/upload_coverage_render_shards_to_oss.sh \
+  outputs/p23_p2_7k_render_shards_v1 "${OSS_TASK_ROOT}/p2/input"
+bash scripts/upload_coverage_render_shards_to_oss.sh \
+  outputs/p23_p3stream_7k_render_shards_v1 "${OSS_TASK_ROOT}/p3/input"
+```
+
+Each four-GPU machine runs its assigned index for both phases. The persistent
+work root also owns the sentinel-marked per-run scratch directories:
+
+```bash
+EPISPACE_OG_ROOT=/path/to/OminiGibson \
+EPISPACE_DATA_ROOT=/path/to/omnigibson-data \
+EPISPACE_CONDA_ENV=behavior-spatialep \
+  bash scripts/run_p23_shard_from_oss.sh \
+  p2 SHARD_INDEX "${OSS_TASK_ROOT}" /data/epispace-p23-worker
+
+EPISPACE_OG_ROOT=/path/to/OminiGibson \
+EPISPACE_DATA_ROOT=/path/to/omnigibson-data \
+EPISPACE_CONDA_ENV=behavior-spatialep \
+  bash scripts/run_p23_shard_from_oss.sh \
+  p3 SHARD_INDEX "${OSS_TASK_ROOT}" /data/epispace-p23-worker
+```
+
+The worker records the environment preflight and shard verification in its
+uploaded output. It requires every planned candidate to reach a terminal
+status, but deliberately does not claim the merged release reached 7,000
+accepted trajectories; that decision remains a post-merge step.
+
 ## 1. Preview while the local pipeline is still running
 
 ```bash

@@ -36,4 +36,23 @@ for archive in "${archives[@]}"; do
     --update --force
 done
 
+# P2/P3 distributions carry the hash-bound global 7k quality audit.  Generic
+# coverage distributions remain valid without it.
+quality_audit="${distribution_dir}/p23_7k_trajectory_quality_audit.json"
+if [[ -f "${quality_audit}" ]]; then
+  quality_checksum="${quality_audit}.sha256"
+  if [[ ! -f "${quality_checksum}" ]]; then
+    echo "missing P2/P3 quality audit checksum: ${quality_checksum}" >&2
+    exit 1
+  fi
+  (
+    cd "${distribution_dir}"
+    sha256sum --check "$(basename "${quality_checksum}")"
+  )
+  "${ossutil_bin}" cp "${quality_audit}" \
+    "${oss_prefix}/$(basename "${quality_audit}")" --update --force
+  "${ossutil_bin}" cp "${quality_checksum}" \
+    "${oss_prefix}/$(basename "${quality_checksum}")" --update --force
+fi
+
 echo "uploaded ${#archives[@]} shard archives to ${oss_prefix}"
